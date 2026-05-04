@@ -43,7 +43,7 @@ export default function Home() {
             <Badge variant="outline" className="py-1 px-3 border-primary/20 bg-primary/5 text-primary text-[10px] font-bold uppercase tracking-[0.15em]">
               Official Crawler Identity
             </Badge>
-            <h1 className="text-4xl md:text-5xl xl:text-6xl font-extrabold tracking-tight leading-[1.15] text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-400">
+            <h1 className="text-4xl md:text-5xl xl:text-6xl font-extrabold tracking-tight leading-tight py-2 text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-400">
               Automated Compliance <br /> & Security Auditing
             </h1>
             <p className="text-base md:text-lg text-slate-400 max-w-xl font-normal leading-relaxed tracking-normal">
