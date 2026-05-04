@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
   Activity, 
@@ -18,8 +18,7 @@ import {
   Shield, 
   LineChart as ChartIcon,
   Search,
-  AlertTriangle,
-  ChevronRight
+  AlertTriangle
 } from "lucide-react";
 import { 
   AreaChart,
@@ -88,7 +87,7 @@ export default function AdminDashboard() {
           <div className="bg-primary p-1.5 rounded-lg shadow-lg shadow-primary/20">
             <Shield className="w-5 h-5 text-white" />
           </div>
-          <span className="font-bold text-lg tracking-tight">Humango<span className="text-primary">Admin</span></span>
+          <span className="font-bold text-lg tracking-tight">bot.humango.app</span>
         </div>
         <nav className="flex-1 p-4 space-y-1">
           <Button variant="secondary" className="w-full justify-start gap-3 bg-white/5 border-white/5 hover:bg-white/10">
@@ -119,10 +118,6 @@ export default function AdminDashboard() {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden relative">
-        {/* Background glow effects */}
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 blur-[120px] rounded-full pointer-events-none -z-10" />
-        <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-indigo-500/5 blur-[100px] rounded-full pointer-events-none -z-10" />
-
         <header className="h-16 border-b border-white/5 flex items-center justify-between px-8 bg-[#0b1120]/50 backdrop-blur-xl z-10">
           <div>
             <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-widest">Control Center</h2>
@@ -139,7 +134,6 @@ export default function AdminDashboard() {
         </header>
 
         <div className="flex-1 overflow-y-auto p-8 space-y-8 scrollbar-hide">
-          {/* Metrics Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card className="bg-white/[0.03] border-white/10 backdrop-blur-sm hover:border-primary/50 transition-colors shadow-lg">
               <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
@@ -185,7 +179,6 @@ export default function AdminDashboard() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Chart Area */}
             <Card className="bg-white/[0.03] border-white/10 backdrop-blur-sm shadow-xl overflow-hidden">
               <CardHeader className="border-b border-white/5 bg-white/[0.01]">
                 <CardTitle className="text-sm font-bold flex items-center justify-between">
@@ -207,7 +200,7 @@ export default function AdminDashboard() {
                       <XAxis dataKey="time" stroke="rgba(255,255,255,0.2)" fontSize={10} axisLine={false} tickLine={false} />
                       <YAxis stroke="rgba(255,255,255,0.2)" fontSize={10} axisLine={false} tickLine={false} />
                       <Tooltip 
-                        contentStyle={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '12px', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.5)' }}
+                        contentStyle={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '12px' }}
                         itemStyle={{ color: '#fff' }}
                         cursor={{ stroke: 'hsl(var(--primary))', strokeWidth: 1 }}
                       />
@@ -218,40 +211,26 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
 
-            {/* Terminal View */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                  <Terminal className="w-4 h-4 text-emerald-400" /> Live Engine Logs
-                </h3>
-                <div className="flex items-center gap-2">
-                   <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`}></div>
-                   <Badge variant="outline" className="text-[10px] border-white/10 bg-white/5 font-mono">v1.0.2 Stable</Badge>
-                </div>
-              </div>
-              <div className="bg-[#0b1120] rounded-2xl border border-white/10 p-5 font-mono text-[11px] overflow-hidden h-[300px] flex flex-col shadow-2xl relative group">
-                <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-primary via-indigo-500 to-primary animate-gradient-x opacity-50"></div>
-                <div className="flex-1 overflow-y-auto space-y-2 scrollbar-hide pr-2">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                <Terminal className="w-4 h-4 text-emerald-400" /> Live Engine Logs
+              </h3>
+              <div className="bg-[#0b1120] rounded-2xl border border-white/10 p-5 font-mono text-[11px] overflow-hidden h-[300px] flex flex-col shadow-2xl relative">
+                <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-primary via-indigo-500 to-primary opacity-50"></div>
+                <div className="flex-1 overflow-y-auto space-y-2 scrollbar-hide">
                   {logs.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-slate-600 gap-4">
                       <Terminal className="w-12 h-12 opacity-10" />
-                      <div className="italic animate-pulse">System standby. Waiting for engine activation...</div>
+                      <div className="italic">System standby. Waiting for engine activation...</div>
                     </div>
                   ) : (
                     logs.map((log, i) => (
-                      <div key={i} className="flex gap-3 leading-relaxed group/line">
-                        <span className="text-primary font-bold opacity-30 shrink-0 select-none">CRAWLER &gt;</span>
-                        <span className="text-emerald-400/90 group-last:text-emerald-300 group-last:font-semibold transition-colors">{log}</span>
+                      <div key={i} className="flex gap-3 leading-relaxed">
+                        <span className="text-primary font-bold opacity-30 shrink-0">CRAWLER &gt;</span>
+                        <span className="text-emerald-400/90">{log}</span>
                       </div>
                     ))
                   )}
-                </div>
-                <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-[9px] text-slate-500 uppercase tracking-widest font-bold">
-                  <div className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>Node ID: 116.203.3.75</span>
-                  </div>
-                  <span>Secure Stream • TLS 1.3</span>
                 </div>
               </div>
             </div>

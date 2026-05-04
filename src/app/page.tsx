@@ -1,8 +1,10 @@
+'use client';
+
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, Search, Lock, Info, Mail, Globe, CheckCircle2, ChevronRight, Terminal } from "lucide-react";
+import { Shield, Lock, Info, Mail, Globe, CheckCircle2, Terminal } from "lucide-react";
 
 export default function Home() {
   return (
@@ -16,10 +18,10 @@ export default function Home() {
       <header className="border-b border-white/5 bg-[#020617]/50 backdrop-blur-xl shrink-0">
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="bg-primary p-1.5 rounded-lg">
+            <div className="bg-primary p-1.5 rounded-lg shadow-lg shadow-primary/20">
               <Shield className="w-5 h-5 text-white" />
             </div>
-            <span className="font-bold text-xl tracking-tight">Humango<span className="text-primary">Bot</span></span>
+            <span className="font-bold text-xl tracking-tight">bot.humango.app</span>
           </div>
           <nav className="flex items-center gap-6">
             <Badge variant="outline" className="hidden sm:flex border-emerald-500/20 bg-emerald-500/5 text-emerald-400 text-[10px] font-bold tracking-widest px-2 py-0">
