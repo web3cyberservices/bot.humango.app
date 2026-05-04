@@ -311,7 +311,7 @@ export default function AdminDashboard() {
                   ) : (
                     logs.map((log, i) => (
                       <div key={i} className="flex gap-4 leading-relaxed tracking-normal animate-in fade-in slide-in-from-left-2 duration-300">
-                        <span className="text-primary font-bold opacity-30 shrink-0">CRAWLER ></span>
+                        <span className="text-primary font-bold opacity-30 shrink-0">CRAWLER &gt;</span>
                         <span className="text-emerald-400/90 font-medium">{log}</span>
                       </div>
                     ))
