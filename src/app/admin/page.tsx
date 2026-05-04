@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -8,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { startCrawlAction } from '@/app/actions/crawler-actions';
 import { 
   Activity, 
   LayoutDashboard, 
@@ -63,17 +65,23 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (isActive && isAuthenticated) {
-      const interval = setInterval(() => {
+      const interval = setInterval(async () => {
         const timestamp = new Date().toLocaleTimeString();
+        const domains = ['google.com', 'cloudflare.com', 'humango.app', 'github.com', 'aws.amazon.com'];
+        const randomDomain = domains[Math.floor(Math.random() * domains.length)];
+        
+        // Trigger server action to simulate real crawl
+        startCrawlAction(`https://${randomDomain}`);
+
         const actions = [
           `GET /audit-v1/index.php - 200 OK`,
-          `SSL Certificate verified for cloudflare.com`,
-          `GDPR Policy check: PASSED`,
+          `SSL Certificate verified for ${randomDomain}`,
+          `GDPR Policy check: PASSED for ${randomDomain}`,
           `New crawler seed detected: 116.203.3.75`,
           `Auditing sensitive data headers...`,
-          `Scan completed for secure-server-04`,
+          `Scan completed for cluster-node-04`,
           `POST /security/verify - 403 Forbidden`,
-          `Analyzing robots.txt for domain: google.com`,
+          `Analyzing robots.txt for: ${randomDomain}`,
           `Indexing metadata for humango.app`,
           `Resource usage: CPU 14%, RAM 2.4GB`,
         ];
@@ -86,7 +94,7 @@ export default function AdminDashboard() {
           issuesFound: m.issuesFound + (Math.random() > 0.9 ? 1 : 0),
           serverLoad: Math.min(Math.max(m.serverLoad + (Math.random() * 4 - 2), 5), 45),
         }));
-      }, 1200);
+      }, 1500);
       return () => clearInterval(interval);
     }
   }, [isActive, isAuthenticated]);
@@ -180,7 +188,7 @@ export default function AdminDashboard() {
             <Shield className="w-5 h-5 text-white" />
           </div>
           <span className="font-bold text-lg tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-slate-400">
-            HumangoBot
+            bot.humango.app
           </span>
         </div>
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto scrollbar-hide">
