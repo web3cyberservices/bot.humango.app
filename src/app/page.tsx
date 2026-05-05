@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -24,6 +25,7 @@ export default function Home() {
                 alt="HumangoBot Logo" 
                 fill
                 className="object-contain"
+                priority
               />
             </div>
             <span className="font-bold text-xl tracking-tight text-white bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
@@ -34,7 +36,7 @@ export default function Home() {
             <Badge variant="outline" className="hidden sm:flex border-emerald-500/20 bg-emerald-500/5 text-emerald-400 text-[10px] font-bold tracking-[0.2em] px-3 py-1 rounded-full uppercase">
               Verified Bot Candidate
             </Badge>
-            <Button size="sm" className="bg-white/5 hover:bg-white/10 text-white border border-white/10 h-9 rounded-full px-6 text-xs font-semibold tracking-normal transition-all" asChild>
+            <Button size="sm" variant="ghost" className="bg-white/5 hover:bg-white/10 text-white border border-white/10 h-9 rounded-full px-6 text-xs font-semibold tracking-normal transition-all" asChild>
               <Link href="/admin">
                 <Lock className="w-3 h-3 mr-2" /> Admin Portal
               </Link>

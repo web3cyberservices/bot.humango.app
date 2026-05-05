@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -241,7 +242,13 @@ export default function AdminDashboard() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden relative">
         <header className="h-16 border-b border-white/5 flex items-center justify-between px-8 bg-[#0b1120]/50 backdrop-blur-xl z-10 shrink-0">
-          <div>
+          <div className="flex items-center gap-3 md:hidden">
+            <div className="w-8 h-8 relative bg-transparent">
+               <Image src="/logo.png" alt="Logo" fill className="object-contain" />
+            </div>
+            <span className="font-bold text-sm tracking-tight">HumangoBot</span>
+          </div>
+          <div className="hidden md:block">
             <h2 className="text-xs font-bold text-slate-500 uppercase tracking-[0.25em]">Control Center</h2>
           </div>
           <div className="flex items-center gap-4">
