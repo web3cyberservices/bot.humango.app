@@ -35,6 +35,16 @@ async function migrate() {
       );
     `);
 
+    // Таблица системных событий
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS bot_events (
+        id SERIAL PRIMARY KEY,
+        type VARCHAR(20) NOT NULL, -- START, STOP, ERROR, SUCCESS
+        message TEXT,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // Таблица настроек бота (статус активности)
     await client.query(`
       CREATE TABLE IF NOT EXISTS bot_settings (

@@ -13,6 +13,44 @@ function sanitize(text: string | null | undefined): string {
   return DOMPurify.sanitize(text);
 }
 
+export async function saveBotEvent(type: 'START' | 'STOP' | 'ERROR' | 'SUCCESS', message: string) {
+  const query = `
+    INSERT INTO bot_events (type, message, timestamp)
+    VALUES ($1, $2, NOW())
+  `;
+  const values = [type, sanitize(message)];
+  try {
+    const client = await pool.connect();
+    try {
+      await client.query(query, values);
+      return { success: true };
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('[DB Error] Failed to save bot event:', error);
+    return { success: false, error };
+  }
+}
+
+export async function getBotEvents(limit = 50) {
+  try {
+    const client = await pool.connect();
+    try {
+      const res = await client.query('SELECT * FROM bot_events ORDER BY timestamp DESC LIMIT $1', [limit]);
+      return res.rows.map(event => ({
+        ...event,
+        message: sanitize(event.message)
+      }));
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('[DB Error] Failed to fetch bot events:', error);
+    return [];
+  }
+}
+
 export async function saveAuditLog(domain: string, statusCode: number, errorMessage: string | null) {
   const query = `
     INSERT INTO audit_logs (domain, status_code, error_message, created_at)

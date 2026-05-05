@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getBotStatus, setBotStatus } from '@/lib/db';
+import { getBotStatus, setBotStatus, saveBotEvent } from '@/lib/db';
 
 export async function GET() {
   const isActive = await getBotStatus();
@@ -9,8 +9,14 @@ export async function GET() {
 export async function POST(request: Request) {
   const { isActive } = await request.json();
   const result = await setBotStatus(isActive);
+  
   if (result.success) {
+    await saveBotEvent(
+      isActive ? 'START' : 'STOP', 
+      `Движок переведен в состояние ${isActive ? 'АКТИВЕН' : 'ПАУЗА'} через админ-панель.`
+    );
     return NextResponse.json({ success: true, isActive });
   }
+  
   return NextResponse.json({ success: false }, { status: 500 });
 }
