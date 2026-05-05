@@ -12,7 +12,7 @@ export interface ScanIssue {
  * Мы НЕ извлекаем персональные данные (email, имена, телефоны).
  */
 export function parseContent(html: string, url: string): ScanIssue[] {
-  const $ = cheerio. Cheerio.load(html);
+  const $ = cheerio.load(html);
   const issues: ScanIssue[] = [];
 
   // 1. Проверка на SSL/HTTPS формы (GDPR Privacy Rule)
