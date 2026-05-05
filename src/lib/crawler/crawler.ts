@@ -4,16 +4,40 @@ import { isUrlAllowed, getCrawlDelay } from '@/config/robots-rules';
 import { saveScanResult } from './database';
 import { getBotStatus } from '@/lib/db';
 import { CrawlResult } from '@/types';
+import { z } from 'zod';
 
 const recentlyScanned = new Set<string>();
 
+// Схема валидации URL для защиты от SSRF
+const urlSchema = z.string().url().refine((url) => {
+  const parsed = new URL(url);
+  const hostname = parsed.hostname.toLowerCase();
+  
+  // Запрещаем сканирование локальных и внутренних адресов
+  const blockedHostnames = ['localhost', '127.0.0.1', '0.0.0.0', '::1'];
+  const isPrivateIp = /^(10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.)/.test(hostname);
+  
+  return !blockedHostnames.includes(hostname) && !isPrivateIp;
+}, { message: "Internal or private addresses are restricted (SSRF Protection)" });
+
 /**
  * Точка входа для задачи сканирования.
- * Координирует работу скрапера, парсера и соблюдение правил.
  */
 export async function runCrawlTask(seedUrl: string): Promise<CrawlResult> {
   try {
-    // 0. Проверка статуса бота в БД перед началом
+    // 0. Валидация URL (Защита от SSRF)
+    const validation = urlSchema.safeParse(seedUrl);
+    if (!validation.success) {
+      return {
+        url: seedUrl,
+        timestamp: new Date().toISOString(),
+        status: 'blocked',
+        issuesFound: 0,
+        reason: validation.error.errors[0].message
+      };
+    }
+
+    // 0.1 Проверка статуса бота в БД
     const isActive = await getBotStatus();
     if (!isActive) {
       return { 
@@ -28,7 +52,6 @@ export async function runCrawlTask(seedUrl: string): Promise<CrawlResult> {
     const url = new URL(seedUrl);
     const domain = url.hostname;
 
-    // 1. Проверка на дубликаты
     if (recentlyScanned.has(domain)) {
       return { 
         url: seedUrl, 
@@ -39,7 +62,6 @@ export async function runCrawlTask(seedUrl: string): Promise<CrawlResult> {
       };
     }
 
-    // 2. Проверка Robots.txt (RFC 9309)
     const { allowed, reason } = await isUrlAllowed(seedUrl);
     if (!allowed) {
       return { 
@@ -51,16 +73,11 @@ export async function runCrawlTask(seedUrl: string): Promise<CrawlResult> {
       };
     }
 
-    // 3. Задержка (Politeness)
     await new Promise(resolve => setTimeout(resolve, getCrawlDelay() * 1000));
 
-    // 4. Запрос данных (Scraper)
     const { html, security } = await scrapeUrl(seedUrl);
-
-    // 5. Анализ контента (Parser)
     const issues = parseHtmlContent(html, seedUrl);
     
-    // Сохранение результатов
     await saveScanResult(seedUrl, issues);
     recentlyScanned.add(domain);
 

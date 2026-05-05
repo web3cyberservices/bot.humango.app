@@ -63,8 +63,8 @@ export default function AdminDashboard() {
 
   // Auth check
   useEffect(() => {
-    const auth = sessionStorage.getItem('admin_authenticated');
-    if (auth === 'true') setIsAuthenticated(true);
+    const auth = document.cookie.includes('admin_authenticated=true');
+    if (auth) setIsAuthenticated(true);
   }, []);
 
   // Fetch status and stats
@@ -73,12 +73,11 @@ export default function AdminDashboard() {
 
     const fetchData = async () => {
       try {
-        // Get bot status
         const statusRes = await fetch('/api/admin/control');
+        if (!statusRes.ok) throw new Error('Unauthorized');
         const statusData = await statusRes.json();
         setIsActive(statusData.isActive);
 
-        // Get metrics and issues
         const statsRes = await fetch('/api/admin/stats');
         const statsData = await statsRes.json();
         setMetrics(prev => ({
@@ -90,11 +89,14 @@ export default function AdminDashboard() {
         setIsLoading(false);
       } catch (error) {
         console.error('Failed to fetch admin data:', error);
+        if (error instanceof Error && error.message === 'Unauthorized') {
+          handleLogout();
+        }
       }
     };
 
     fetchData();
-    const interval = setInterval(fetchData, 5000); // Refresh every 5s
+    const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
@@ -122,7 +124,8 @@ export default function AdminDashboard() {
     e.preventDefault();
     if (passphrase === "humango-admin-2025") {
       setIsAuthenticated(true);
-      sessionStorage.setItem('admin_authenticated', 'true');
+      // Устанавливаем куку для Middleware
+      document.cookie = "admin_authenticated=true; path=/; max-age=3600; SameSite=Strict";
       toast({ title: "Доступ разрешен", description: "Добро пожаловать в терминал управления." });
     } else {
       toast({ variant: "destructive", title: "Доступ запрещен", description: "Неверный пароль." });
@@ -131,7 +134,7 @@ export default function AdminDashboard() {
 
   const handleLogout = () => {
     setIsAuthenticated(false);
-    sessionStorage.removeItem('admin_authenticated');
+    document.cookie = "admin_authenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
   };
 
   if (!isAuthenticated) {
