@@ -11,6 +11,8 @@ async function migrate() {
   const client = await pool.connect();
   try {
     console.log('[Migration] Starting...');
+    
+    // Таблица логов аудита
     await client.query(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id SERIAL PRIMARY KEY,
@@ -20,8 +22,8 @@ async function migrate() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
-    console.log('[Migration] Table audit_logs created or already exists.');
     
+    // Таблица найденных нарушений
     await client.query(`
       CREATE TABLE IF NOT EXISTS scan_issues (
         id SERIAL PRIMARY KEY,
@@ -32,9 +34,25 @@ async function migrate() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
-    console.log('[Migration] Table scan_issues created or already exists.');
+
+    // Таблица настроек бота (статус активности)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS bot_settings (
+        id INTEGER PRIMARY KEY DEFAULT 1,
+        is_active BOOLEAN DEFAULT true,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT one_row CHECK (id = 1)
+      );
+    `);
+
+    // Инициализация настроек если их нет
+    await client.query(`
+      INSERT INTO bot_settings (id, is_active)
+      VALUES (1, true)
+      ON CONFLICT (id) DO NOTHING;
+    `);
     
-    console.log('[Migration] Completed successfully.');
+    console.log('[Migration] All tables and initial settings created successfully.');
   } catch (err) {
     console.error('[Migration] Error:', err);
   } finally {

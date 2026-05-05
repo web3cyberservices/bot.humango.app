@@ -1,8 +1,8 @@
-
 import { scrapeUrl } from '@/lib/scraper';
 import { parseHtmlContent } from '@/lib/parser';
 import { isUrlAllowed, getCrawlDelay } from '@/config/robots-rules';
 import { saveScanResult } from './database';
+import { getBotStatus } from '@/lib/db';
 import { CrawlResult } from '@/types';
 
 const recentlyScanned = new Set<string>();
@@ -13,6 +13,18 @@ const recentlyScanned = new Set<string>();
  */
 export async function runCrawlTask(seedUrl: string): Promise<CrawlResult> {
   try {
+    // 0. Проверка статуса бота в БД перед началом
+    const isActive = await getBotStatus();
+    if (!isActive) {
+      return { 
+        url: seedUrl, 
+        timestamp: new Date().toISOString(),
+        status: 'skipped', 
+        issuesFound: 0,
+        reason: 'Движок краулера приостановлен администратором.' 
+      };
+    }
+
     const url = new URL(seedUrl);
     const domain = url.hostname;
 
