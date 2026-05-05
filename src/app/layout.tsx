@@ -11,7 +11,10 @@ export const metadata: Metadata = {
   description: 'Verified identity and verification portal for HumangoBot. Auditing global infrastructure for GDPR compliance, SSL/TLS security, and data privacy protocols.',
   keywords: 'HumangoBot, web crawler, security audit, GDPR compliance, SSL scanner, Cloudflare verified bot, RFC 9309',
   icons: {
-    icon: '/logo.png?v=2',
+    icon: [
+      { url: '/logo.png?v=2', type: 'image/png' },
+      { url: '/logo.png?v=2', type: 'image/png', sizes: '32x32' },
+    ],
     shortcut: '/logo.png?v=2',
     apple: '/logo.png?v=2',
   },

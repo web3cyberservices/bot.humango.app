@@ -144,13 +144,14 @@ export default function AdminDashboard() {
       <div className="min-h-screen bg-[#020617] flex items-center justify-center p-6 font-body">
         <Card className="w-full max-w-md bg-white/[0.03] border-white/10 backdrop-blur-xl shadow-2xl p-8 space-y-8">
           <div className="flex flex-col items-center text-center space-y-4">
-            <div className="w-16 h-16 overflow-hidden rounded-2xl relative bg-transparent">
+            <div className="flex items-center justify-center">
               <Image 
                 src="/logo.png" 
                 alt="HumangoBot Logo" 
-                fill
-                sizes="64px"
+                width={64}
+                height={64}
                 className="object-contain"
+                priority
               />
             </div>
             <div className="space-y-2">
@@ -188,12 +189,12 @@ export default function AdminDashboard() {
       {/* Sidebar */}
       <aside className="w-64 border-r border-white/5 bg-[#0b1120] hidden md:flex flex-col shrink-0">
         <div className="p-6 border-b border-white/5 border-t-white/10 flex items-center gap-3 group">
-          <div className="w-8 h-8 overflow-hidden rounded-lg transition-transform duration-300 relative bg-transparent">
+          <div className="flex items-center justify-center transition-transform duration-300">
             <Image 
               src="/logo.png" 
               alt="HumangoBot Logo" 
-              fill
-              sizes="32px"
+              width={32}
+              height={32}
               className="object-contain"
             />
           </div>
@@ -245,9 +246,7 @@ export default function AdminDashboard() {
       <main className="flex-1 flex flex-col overflow-hidden relative">
         <header className="h-16 border-b border-white/5 flex items-center justify-between px-8 bg-[#0b1120]/50 backdrop-blur-xl z-10 shrink-0">
           <div className="flex items-center gap-3 md:hidden">
-            <div className="w-8 h-8 relative bg-transparent">
-               <Image src="/logo.png" alt="Logo" fill sizes="32px" className="object-contain" />
-            </div>
+            <Image src="/logo.png" alt="Logo" width={32} height={32} className="object-contain" />
             <span className="font-bold text-sm tracking-tight">HumangoBot</span>
           </div>
           <div className="hidden md:block">
