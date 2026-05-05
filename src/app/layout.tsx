@@ -3,6 +3,7 @@ import type {Metadata} from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
+import { FirebaseProvider } from "@/components/providers/firebase-provider";
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -42,8 +43,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body className="font-body antialiased selection:bg-primary/30">
-        {children}
-        <Toaster />
+        <FirebaseProvider>
+          {children}
+          <Toaster />
+        </FirebaseProvider>
       </body>
     </html>
   );
