@@ -70,19 +70,15 @@ export default function AdminDashboard() {
     serverLoad: 12,
   });
 
-  // Проверка авторизации на клиенте
+  // Проверка авторизации при загрузке
   useEffect(() => {
-    const checkAuth = () => {
-      const auth = document.cookie.includes('admin_authenticated=true');
-      setIsAuthenticated(auth);
-    };
-    checkAuth();
+    const isAuth = document.cookie.includes('admin_authenticated=true');
+    setIsAuthenticated(isAuth);
   }, []);
 
   const fetchData = useCallback(async () => {
-    // Если мы уже знаем, что не авторизованы, не делаем запрос
+    // Если куки нет, не пытаемся запрашивать данные, чтобы не спамить 401
     if (!document.cookie.includes('admin_authenticated=true')) {
-      setIsAuthenticated(false);
       return;
     }
 
@@ -90,6 +86,7 @@ export default function AdminDashboard() {
       const statusRes = await fetch('/api/admin/control');
       
       if (statusRes.status === 401) {
+        // Если сервер ответил 401, значит кука невалидна
         setIsAuthenticated(false);
         document.cookie = "admin_authenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
         return;
@@ -113,7 +110,7 @@ export default function AdminDashboard() {
       
       setIsLoading(false);
     } catch (error) {
-      console.debug('Background sync skipped');
+      // Молча игнорируем ошибки сети при фоновом обновлении
     }
   }, []);
 
@@ -186,7 +183,8 @@ export default function AdminDashboard() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (passphrase === "humango-admin-2025") {
-      document.cookie = "admin_authenticated=true; path=/; max-age=3600; SameSite=Strict";
+      // Используем Lax вместо Strict для лучшей совместимости в превью
+      document.cookie = "admin_authenticated=true; path=/; max-age=3600; SameSite=Lax";
       setIsAuthenticated(true);
       toast({ title: "Доступ разрешен", description: "Добро пожаловать в терминал управления." });
     } else {
@@ -200,7 +198,6 @@ export default function AdminDashboard() {
     if (pollingRef.current) clearInterval(pollingRef.current);
   };
 
-  // Пока статус авторизации не определен, ничего не рендерим во избежание мерцания
   if (isAuthenticated === null) return null;
 
   if (isAuthenticated === false) {
