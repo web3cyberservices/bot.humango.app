@@ -69,8 +69,8 @@ export default function Home() {
                 { icon: FileText, title: "Public Identity", desc: "Every request carries a link to this portal for full operator transparency.", color: "blue" },
               ].map((item, i) => (
                 <Card key={i} className="bg-white/[0.02] border-white/5 p-6 space-y-4 border-t-white/10 hover:bg-white/[0.04] transition-colors duration-300">
-                  <div className={`bg-${item.color}-500/10 w-10 h-10 rounded-xl flex items-center justify-center`}>
-                    <item.icon className={`w-5 h-5 text-${item.color}-400`} />
+                  <div className="bg-slate-500/10 w-10 h-10 rounded-xl flex items-center justify-center">
+                    <item.icon className="w-5 h-5 text-slate-300" />
                   </div>
                   <div className="space-y-2">
                     <h3 className="text-sm font-bold tracking-tight">{item.title}</h3>
