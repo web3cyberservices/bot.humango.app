@@ -80,21 +80,33 @@ export default function AdminDashboard() {
     const fetchData = async () => {
       try {
         const statusRes = await fetch('/api/admin/control');
-        if (!statusRes.ok) throw new Error('Unauthorized');
+        
+        if (statusRes.status === 401) {
+          setIsAuthenticated(false);
+          document.cookie = "admin_authenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+          return;
+        }
+
+        if (!statusRes.ok) return;
+
         const statusData = await statusRes.json();
         setIsActive(statusData.isActive);
 
         const statsRes = await fetch('/api/admin/stats');
-        const statsData = await statsRes.json();
-        setMetrics(prev => ({
-          ...prev,
-          pagesScanned: statsData.pagesScanned,
-          issuesFound: statsData.issuesFound
-        }));
-        setDetectedIssues(statsData.recentIssues);
+        if (statsRes.ok) {
+          const statsData = await statsRes.json();
+          setMetrics(prev => ({
+            ...prev,
+            pagesScanned: statsData.pagesScanned,
+            issuesFound: statsData.issuesFound
+          }));
+          setDetectedIssues(statsData.recentIssues);
+        }
+        
         setIsLoading(false);
       } catch (error) {
-        console.error('Failed to fetch admin data:', error);
+        // Ошибка сети или парсинга - не прерываем работу компонента
+        console.debug('Polling background data failed');
       }
     };
 
