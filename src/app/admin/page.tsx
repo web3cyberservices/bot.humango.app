@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -19,8 +18,6 @@ import {
   Users, 
   Database, 
   Server, 
-  Shield, 
-  LineChart as ChartIcon,
   Search,
   AlertTriangle,
   Lock
@@ -34,6 +31,13 @@ import {
   Tooltip, 
   ResponsiveContainer
 } from 'recharts';
+
+const LogoIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <rect width="100" height="100" fill="black"/>
+    <path d="M15 15h20v70H15V15zm20 25h30v15H35V40zm10-25h40v15H45V15zm25 10h15v50H45V60h30V25z" fill="#5EEAD4"/>
+  </svg>
+);
 
 const chartData = [
   { time: '00:00', pages: 400 },
@@ -70,7 +74,6 @@ export default function AdminDashboard() {
         const domains = ['google.com', 'cloudflare.com', 'humango.app', 'github.com', 'aws.amazon.com'];
         const randomDomain = domains[Math.floor(Math.random() * domains.length)];
         
-        // Trigger server action to simulate real crawl
         startCrawlAction(`https://${randomDomain}`);
 
         const actions = [
@@ -146,8 +149,8 @@ export default function AdminDashboard() {
       <div className="min-h-screen bg-[#020617] flex items-center justify-center p-6 font-body">
         <Card className="w-full max-w-md bg-white/[0.03] border-white/10 backdrop-blur-xl shadow-2xl p-8 space-y-8">
           <div className="flex flex-col items-center text-center space-y-4">
-            <div className="bg-primary/20 p-4 rounded-2xl border border-primary/30">
-              <Lock className="w-8 h-8 text-primary" />
+            <div className="w-16 h-16 overflow-hidden rounded-2xl shadow-xl shadow-black/50">
+              <LogoIcon className="w-full h-full" />
             </div>
             <div className="space-y-2">
               <h1 className="text-2xl font-bold tracking-tight">Admin Authentication</h1>
@@ -184,11 +187,11 @@ export default function AdminDashboard() {
       {/* Sidebar */}
       <aside className="w-64 border-r border-white/5 bg-[#0b1120] hidden md:flex flex-col shrink-0">
         <div className="p-6 border-b border-white/5 flex items-center gap-3 group">
-          <div className="bg-primary p-2 rounded-xl shadow-lg shadow-primary/20 group-hover:scale-105 transition-transform duration-300">
-            <Shield className="w-5 h-5 text-white" />
+          <div className="w-8 h-8 overflow-hidden rounded-lg shadow-lg shadow-black/50 group-hover:scale-105 transition-transform duration-300">
+            <LogoIcon className="w-full h-full" />
           </div>
           <span className="font-bold text-lg tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-slate-400">
-            bot.humango.app
+            HumangoBot
           </span>
         </div>
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto scrollbar-hide">
@@ -306,7 +309,7 @@ export default function AdminDashboard() {
             <Card className="bg-white/[0.03] border-white/10 backdrop-blur-sm shadow-xl overflow-hidden border-t-white/10">
               <CardHeader className="border-b border-white/5 bg-white/[0.01] py-4">
                 <CardTitle className="text-sm font-bold flex items-center justify-between tracking-normal">
-                  <span className="flex items-center gap-2 font-bold"><ChartIcon className="w-4 h-4 text-primary opacity-80" /> Scan Frequency (24h)</span>
+                  <span className="flex items-center gap-2 font-bold"><Activity className="w-4 h-4 text-primary opacity-80" /> Scan Frequency (24h)</span>
                   <Badge variant="ghost" className="text-[10px] font-mono text-slate-500 tracking-normal opacity-70 font-bold uppercase">Live Dataset</Badge>
                 </CardTitle>
               </CardHeader>

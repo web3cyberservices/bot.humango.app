@@ -4,7 +4,14 @@ import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, Mail, Globe, CheckCircle2, Terminal, Scale, EyeOff, Clock, ShieldCheck, FileText } from "lucide-react";
+import { Mail, Globe, Terminal, Scale, Clock, ShieldCheck, FileText } from "lucide-react";
+
+const LogoIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <rect width="100" height="100" fill="black"/>
+    <path d="M15 15h20v70H15V15zm20 25h30v15H35V40zm10-25h40v15H45V15zm25 10h15v50H45V60h30V25z" fill="#5EEAD4"/>
+  </svg>
+);
 
 export default function Home() {
   return (
@@ -18,10 +25,10 @@ export default function Home() {
       <header className="border-b border-white/5 bg-[#020617]/50 backdrop-blur-xl shrink-0 sticky top-0 z-50">
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3 group cursor-default">
-            <div className="bg-primary p-2 rounded-xl shadow-lg shadow-primary/20 transition-transform">
-              <Shield className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 overflow-hidden rounded-xl shadow-lg shadow-black/50 transition-transform group-hover:scale-105 duration-300">
+              <LogoIcon className="w-full h-full" />
             </div>
-            <span className="font-bold text-xl tracking-tight text-white">
+            <span className="font-bold text-xl tracking-tight text-white bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
               HumangoBot
             </span>
           </div>
@@ -46,8 +53,8 @@ export default function Home() {
               <Badge variant="outline" className="py-1 px-3 border-primary/20 bg-primary/5 text-primary text-[10px] font-bold uppercase tracking-[0.2em]">
                 Bot Transparency Report 2025
               </Badge>
-              <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight leading-[1.1] py-2 text-white">
-                Automated Security Auditing <br /><span className="text-primary">& Compliance Verification</span>
+              <h1 className="text-4xl md:text-5xl xl:text-6xl font-extrabold tracking-tight leading-tight py-2 text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-400">
+                Automated Compliance <br />& Security Auditing
               </h1>
               <p className="text-base text-slate-400 max-w-xl font-normal leading-relaxed">
                 HumangoBot is a specialized crawler designed to identify technical vulnerabilities and monitor <span className="text-white font-medium">GDPR header compliance</span> across the global web infrastructure.
@@ -132,7 +139,7 @@ export default function Home() {
       <footer className="py-6 px-6 border-t border-white/5 bg-[#010413]/50">
         <div className="container mx-auto flex flex-col md:flex-row justify-between items-center gap-6 text-[9px] text-slate-500 uppercase tracking-[0.2em] font-bold">
           <div className="flex items-center gap-2">
-            <Shield className="w-3 h-3" />
+            <ShieldCheck className="w-3 h-3 text-primary" />
             <span>Humango Compliance Systems • Data Minimization Policy Active</span>
           </div>
           <div className="flex gap-6">
