@@ -12,6 +12,14 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { startCrawlAction } from '@/app/actions/crawler-actions';
 import { 
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { 
   Activity, 
   LayoutDashboard, 
   Settings, 
@@ -22,7 +30,9 @@ import {
   Server, 
   Search,
   AlertTriangle,
-  Lock
+  Lock,
+  ExternalLink,
+  ShieldAlert
 } from "lucide-react";
 import { 
   AreaChart,
@@ -44,11 +54,26 @@ const chartData = [
   { time: '23:59', pages: 700 },
 ];
 
+interface DetectedIssue {
+  id: string;
+  domain: string;
+  type: string;
+  severity: 'critical' | 'high' | 'medium';
+  timestamp: string;
+}
+
 export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passphrase, setPassphrase] = useState("");
   const [isActive, setIsActive] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
+  const [detectedIssues, setDetectedIssues] = useState<DetectedIssue[]>([
+    { id: '1', domain: 'outdated-shop.com', type: 'SSL TLS 1.0 Detected', severity: 'critical', timestamp: '10:24:15' },
+    { id: '2', domain: 'data-leak-test.io', type: 'PII in GET Parameters', severity: 'high', timestamp: '11:05:42' },
+    { id: '3', domain: 'unsecured-api.net', type: 'Missing CORS Headers', severity: 'medium', timestamp: '11:15:03' },
+    { id: '4', domain: 'crypto-node.org', type: 'Self-Signed Certificate', severity: 'critical', timestamp: '12:01:22' },
+  ]);
+  const [showIssuesDialog, setShowIssuesDialog] = useState(false);
   const { toast } = useToast();
   
   const [metrics, setMetrics] = useState({
@@ -66,30 +91,36 @@ export default function AdminDashboard() {
     if (isActive && isAuthenticated) {
       const interval = setInterval(async () => {
         const timestamp = new Date().toLocaleTimeString();
-        const domains = ['google.com', 'cloudflare.com', 'humango.app', 'github.com', 'aws.amazon.com'];
+        const domains = ['google.com', 'cloudflare.com', 'humango.app', 'github.com', 'aws.amazon.com', 'test-malware.com', 'leaked-data.net'];
         const randomDomain = domains[Math.floor(Math.random() * domains.length)];
         
         startCrawlAction(`https://${randomDomain}`);
 
-        const actions = [
-          `GET /audit-v1/index.php - 200 OK`,
-          `SSL Certificate verified for ${randomDomain}`,
-          `GDPR Policy check: PASSED for ${randomDomain}`,
-          `New crawler seed detected: 116.203.3.75`,
-          `Auditing sensitive data headers...`,
-          `Scan completed for cluster-node-04`,
-          `POST /security/verify - 403 Forbidden`,
-          `Analyzing robots.txt for: ${randomDomain}`,
-          `Indexing metadata for humango.app`,
-          `Resource usage: CPU 14%, RAM 2.4GB`,
-        ];
-        const randomAction = actions[Math.floor(Math.random() * actions.length)];
-        setLogs(prev => [...prev.slice(-18), `[${timestamp}] ${randomAction}`]);
+        const isIssue = Math.random() > 0.85;
+        let logMessage = `GET /audit-v1/index.php - 200 OK (${randomDomain})`;
+
+        if (isIssue) {
+          const issueTypes = ['GDPR Leak', 'SSL Expired', 'Invalid Header', 'PII Exposure'];
+          const type = issueTypes[Math.floor(Math.random() * issueTypes.length)];
+          logMessage = `ALERT: ${type} detected on ${randomDomain}`;
+          
+          const newIssue: DetectedIssue = {
+            id: Math.random().toString(36).substr(2, 9),
+            domain: randomDomain,
+            type: type,
+            severity: Math.random() > 0.5 ? 'critical' : 'high',
+            timestamp: timestamp
+          };
+          
+          setDetectedIssues(prev => [newIssue, ...prev.slice(0, 49)]);
+          setMetrics(m => ({ ...m, issuesFound: m.issuesFound + 1 }));
+        }
+
+        setLogs(prev => [...prev.slice(-18), `[${timestamp}] ${logMessage}`]);
         
         setMetrics(m => ({
           ...m,
           pagesScanned: m.pagesScanned + Math.floor(Math.random() * 5),
-          issuesFound: m.issuesFound + (Math.random() > 0.9 ? 1 : 0),
           serverLoad: Math.min(Math.max(m.serverLoad + (Math.random() * 4 - 2), 5), 45),
         }));
       }, 1500);
@@ -124,36 +155,18 @@ export default function AdminDashboard() {
     });
   };
 
-  const handleIssuesClick = () => {
-    toast({
-      variant: "destructive",
-      title: "4 Urgent Security Actions Required",
-      description: "Critical: SSL expired on server-09. GDPR leak detected in /api/v1/users. Missing robots.txt on 2 domains.",
-    });
-  };
-
-  const handleComingSoon = (feature: string) => {
-    toast({
-      title: "Notice",
-      description: `${feature} module is currently in development.`,
-    });
-  };
-
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center p-6 font-body">
         <Card className="w-full max-w-md bg-white/[0.03] border-white/10 backdrop-blur-xl shadow-2xl p-8 space-y-8">
           <div className="flex flex-col items-center text-center space-y-4">
-            <div className="flex items-center justify-center">
-              <Image 
-                src="/logo.png" 
-                alt="HumangoBot Logo" 
-                width={64}
-                height={64}
-                className="object-contain"
-                priority
-              />
-            </div>
+            <Image 
+              src="/logo.png" 
+              alt="HumangoBot Logo" 
+              width={64}
+              height={64}
+              priority
+            />
             <div className="space-y-2">
               <h1 className="text-2xl font-bold tracking-tight">Admin Authentication</h1>
               <p className="text-sm text-slate-500 font-medium font-body">Access restricted to authorized personnel only.</p>
@@ -189,16 +202,8 @@ export default function AdminDashboard() {
       {/* Sidebar */}
       <aside className="w-64 border-r border-white/5 bg-[#0b1120] hidden md:flex flex-col shrink-0">
         <div className="p-6 border-b border-white/5 border-t-white/10 flex items-center gap-3 group">
-          <div className="flex items-center justify-center transition-transform duration-300">
-            <Image 
-              src="/logo.png" 
-              alt="HumangoBot Logo" 
-              width={32}
-              height={32}
-              className="object-contain"
-            />
-          </div>
-          <span className="font-bold text-lg tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-slate-400">
+          <Image src="/logo.png" alt="HumangoBot Logo" width={32} height={32} />
+          <span className="font-bold text-lg tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
             HumangoBot
           </span>
         </div>
@@ -208,35 +213,31 @@ export default function AdminDashboard() {
               <LayoutDashboard className="w-4 h-4 text-primary" /> Dashboard
             </Link>
           </Button>
-          <Button variant="ghost" onClick={() => handleComingSoon('Live Audits')} className="w-full justify-start gap-3 text-slate-400 hover:text-white hover:bg-white/5 tracking-normal">
+          <Button 
+            variant="ghost" 
+            onClick={() => setShowIssuesDialog(true)}
+            className="w-full justify-start gap-3 text-slate-400 hover:text-white hover:bg-white/5 tracking-normal"
+          >
             <Search className="w-4 h-4" /> Live Audits
           </Button>
-          <Button variant="ghost" onClick={() => handleComingSoon('Permissions')} className="w-full justify-start gap-3 text-slate-400 hover:text-white hover:bg-white/5 tracking-normal">
+          <Button variant="ghost" className="w-full justify-start gap-3 text-slate-400 hover:text-white hover:bg-white/5 tracking-normal opacity-50 cursor-not-allowed">
             <Users className="w-4 h-4" /> Permissions
           </Button>
-          <Button variant="ghost" onClick={() => handleComingSoon('Knowledge Base')} className="w-full justify-start gap-3 text-slate-400 hover:text-white hover:bg-white/5 tracking-normal">
+          <Button variant="ghost" className="w-full justify-start gap-3 text-slate-400 hover:text-white hover:bg-white/5 tracking-normal opacity-50 cursor-not-allowed">
             <Database className="w-4 h-4" /> Knowledge Base
           </Button>
           <div className="pt-8 pb-3 px-3 text-[10px] uppercase tracking-[0.25em] text-slate-500 font-bold">Settings</div>
-          <Button variant="ghost" onClick={() => handleComingSoon('System Config')} className="w-full justify-start gap-3 text-slate-400 hover:text-white hover:bg-white/5 tracking-normal">
+          <Button variant="ghost" className="w-full justify-start gap-3 text-slate-400 hover:text-white hover:bg-white/5 tracking-normal opacity-50 cursor-not-allowed">
             <Settings className="w-4 h-4" /> System Config
           </Button>
         </nav>
         <div className="p-4 border-t border-white/5 space-y-2">
-          <Button 
-            variant="ghost" 
-            className="w-full justify-start gap-3 text-slate-400 hover:text-white hover:bg-white/5 tracking-normal"
-            asChild
-          >
+          <Button variant="ghost" className="w-full justify-start gap-3 text-slate-400 hover:text-white hover:bg-white/5 tracking-normal" asChild>
             <Link href="/">
               <LogOut className="w-4 h-4" /> Exit to Public
             </Link>
           </Button>
-          <Button 
-            variant="ghost" 
-            onClick={handleLogout}
-            className="w-full justify-start gap-3 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 tracking-normal"
-          >
+          <Button onClick={handleLogout} variant="ghost" className="w-full justify-start gap-3 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 tracking-normal">
             <LogOut className="w-4 h-4" /> Sign Out
           </Button>
         </div>
@@ -246,72 +247,102 @@ export default function AdminDashboard() {
       <main className="flex-1 flex flex-col overflow-hidden relative">
         <header className="h-16 border-b border-white/5 flex items-center justify-between px-8 bg-[#0b1120]/50 backdrop-blur-xl z-10 shrink-0">
           <div className="flex items-center gap-3 md:hidden">
-            <Image src="/logo.png" alt="Logo" width={32} height={32} className="object-contain" />
+            <Image src="/logo.png" alt="Logo" width={32} height={32} />
             <span className="font-bold text-sm tracking-tight">HumangoBot</span>
           </div>
           <div className="hidden md:block">
             <h2 className="text-xs font-bold text-slate-500 uppercase tracking-[0.25em]">Control Center</h2>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-4 bg-white/5 px-5 py-2 rounded-full border border-white/10 shadow-inner">
-              <span className="text-xs font-semibold text-slate-300 tracking-normal">Crawler Status</span>
-              <Badge variant="outline" className={isActive ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 tracking-[0.15em] font-bold" : "bg-slate-500/10 text-slate-400 border-slate-500/20 tracking-[0.15em] font-bold"}>
+            <div className="flex items-center gap-4 bg-white/5 px-5 py-2 rounded-full border border-white/10">
+              <span className="text-xs font-semibold text-slate-300">Crawler Engine</span>
+              <Badge variant="outline" className={isActive ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-slate-500/10 text-slate-400 border-slate-500/20"}>
                 {isActive ? "ACTIVE" : "IDLE"}
               </Badge>
-              <Switch checked={isActive} onCheckedChange={(val) => {
-                setIsActive(val);
-                toast({
-                  title: val ? "Engine Started" : "Engine Stopped",
-                  description: val ? "The crawler is now auditing global infrastructure." : "Scanning operations have been suspended.",
-                });
-              }} className="data-[state=checked]:bg-emerald-500" />
+              <Switch checked={isActive} onCheckedChange={setIsActive} className="data-[state=checked]:bg-emerald-500" />
             </div>
           </div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-8 space-y-10 scrollbar-hide">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <Card className="bg-white/[0.03] border-white/10 backdrop-blur-sm hover:border-primary/50 transition-all duration-300 shadow-lg cursor-pointer group" onClick={() => toast({ title: "Real-time Metrics", description: "All scan clusters reporting optimal performance." })}>
+            <Card className="bg-white/[0.03] border-white/10 backdrop-blur-sm">
               <CardHeader className="flex flex-row items-center justify-between pb-4 space-y-0">
                 <CardTitle className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Pages Scanned</CardTitle>
-                <Database className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+                <Database className="h-4 w-4 text-primary" />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold tracking-tight leading-none">{metrics.pagesScanned.toLocaleString()}</div>
-                <div className="flex items-center gap-2 mt-5 text-xs text-emerald-400 font-bold tracking-normal">
+                <div className="text-3xl font-bold tracking-tight">{metrics.pagesScanned.toLocaleString()}</div>
+                <div className="flex items-center gap-2 mt-5 text-xs text-emerald-400 font-bold">
                   <Activity className="w-3 h-3" />
-                  <span>+124 since startup</span>
+                  <span>Real-time Sync Active</span>
                 </div>
               </CardContent>
             </Card>
             
-            <Card 
-              className="bg-white/[0.03] border-white/10 backdrop-blur-sm hover:border-amber-500/50 transition-all duration-300 shadow-lg cursor-pointer group"
-              onClick={handleIssuesClick}
-            >
-              <CardHeader className="flex flex-row items-center justify-between pb-4 space-y-0">
-                <CardTitle className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Compliance Issues</CardTitle>
-                <AlertTriangle className="h-4 w-4 text-amber-500 group-hover:animate-pulse" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold tracking-tight text-amber-50 leading-none">{metrics.issuesFound}</div>
-                <div className="flex items-center gap-2 mt-5 text-xs text-rose-400 font-bold tracking-normal">
-                  <Activity className="w-3 h-3" />
-                  <span>4 urgent actions</span>
+            <Dialog open={showIssuesDialog} onOpenChange={setShowIssuesDialog}>
+              <DialogTrigger asChild>
+                <Card className="bg-white/[0.03] border-white/10 backdrop-blur-sm hover:border-amber-500/50 transition-all cursor-pointer group">
+                  <CardHeader className="flex flex-row items-center justify-between pb-4 space-y-0">
+                    <CardTitle className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Compliance Issues</CardTitle>
+                    <AlertTriangle className="h-4 w-4 text-amber-500 group-hover:scale-110 transition-transform" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold tracking-tight text-amber-50">{metrics.issuesFound}</div>
+                    <div className="flex items-center gap-2 mt-5 text-xs text-rose-400 font-bold">
+                      <ShieldAlert className="w-3 h-3" />
+                      <span>Click to view detailed report</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </DialogTrigger>
+              <DialogContent className="bg-[#0b1120] border-white/10 text-slate-50 max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <AlertTriangle className="text-amber-500" /> Compliance Audit Results
+                  </DialogTitle>
+                  <DialogDescription className="text-slate-400">
+                    Showing latest detected vulnerabilities and policy violations.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex-1 overflow-y-auto pr-2 space-y-3 mt-4">
+                  {detectedIssues.map((issue) => (
+                    <div key={issue.id} className="p-4 bg-white/5 rounded-xl border border-white/5 flex items-center justify-between hover:bg-white/10 transition-colors">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm">{issue.domain}</span>
+                          <Badge variant="outline" className={
+                            issue.severity === 'critical' ? "bg-rose-500/10 text-rose-400 border-rose-500/20 text-[9px]" :
+                            issue.severity === 'high' ? "bg-amber-500/10 text-amber-400 border-amber-500/20 text-[9px]" :
+                            "bg-blue-500/10 text-blue-400 border-blue-500/20 text-[9px]"
+                          }>
+                            {issue.severity.toUpperCase()}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-slate-400">{issue.type}</p>
+                      </div>
+                      <div className="text-right flex flex-col items-end gap-2">
+                        <span className="text-[10px] text-slate-500 font-mono">{issue.timestamp}</span>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-primary hover:text-primary-foreground hover:bg-primary">
+                          <ExternalLink className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </CardContent>
-            </Card>
+              </DialogContent>
+            </Dialog>
 
-            <Card className="bg-white/[0.03] border-white/10 backdrop-blur-sm hover:border-indigo-400/50 transition-all duration-300 shadow-lg cursor-pointer group" onClick={() => toast({ title: "System Load", description: "CPU and memory usage are within normal enterprise thresholds." })}>
+            <Card className="bg-white/[0.03] border-white/10 backdrop-blur-sm">
               <CardHeader className="flex flex-row items-center justify-between pb-4 space-y-0">
                 <CardTitle className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Engine Load</CardTitle>
-                <Server className="h-4 w-4 text-indigo-400 group-hover:rotate-12 transition-transform" />
+                <Server className="h-4 w-4 text-indigo-400" />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold tracking-tight leading-none">{Math.round(metrics.serverLoad)}%</div>
-                <div className="h-2 w-full bg-white/5 rounded-full mt-6 overflow-hidden shadow-inner">
+                <div className="text-3xl font-bold tracking-tight">{Math.round(metrics.serverLoad)}%</div>
+                <div className="h-2 w-full bg-white/5 rounded-full mt-6 overflow-hidden">
                   <div 
-                    className="h-full bg-gradient-to-r from-primary to-indigo-500 rounded-full transition-all duration-700 ease-in-out" 
+                    className="h-full bg-gradient-to-r from-primary to-indigo-500 rounded-full transition-all duration-700" 
                     style={{ width: `${metrics.serverLoad}%` }}
                   ></div>
                 </div>
@@ -320,14 +351,13 @@ export default function AdminDashboard() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-            <Card className="bg-white/[0.03] border-white/10 backdrop-blur-sm shadow-xl overflow-hidden border-t-white/10">
-              <CardHeader className="border-b border-white/5 bg-white/[0.01] py-5">
-                <CardTitle className="text-sm font-bold flex items-center justify-between tracking-normal">
-                  <span className="flex items-center gap-2 font-bold leading-relaxed"><Activity className="w-4 h-4 text-primary opacity-80" /> Scan Frequency (24h)</span>
-                  <Badge variant="ghost" className="text-[10px] font-mono text-slate-500 tracking-[0.1em] opacity-70 font-bold uppercase">Live Dataset</Badge>
+            <Card className="bg-white/[0.03] border-white/10 backdrop-blur-sm shadow-xl">
+              <CardHeader className="border-b border-white/5 py-5">
+                <CardTitle className="text-sm font-bold flex items-center justify-between">
+                  <span className="flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> Scan Frequency (24h)</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="pt-10 px-6">
+              <CardContent className="pt-10">
                 <div className="h-[250px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData}>
@@ -338,14 +368,13 @@ export default function AdminDashboard() {
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                      <XAxis dataKey="time" stroke="rgba(255,255,255,0.3)" fontSize={10} axisLine={false} tickLine={false} tick={{dy: 10}} />
-                      <YAxis stroke="rgba(255,255,255,0.3)" fontSize={10} axisLine={false} tickLine={false} tick={{dx: -10}} />
+                      <XAxis dataKey="time" stroke="rgba(255,255,255,0.3)" fontSize={10} axisLine={false} tickLine={false} />
+                      <YAxis stroke="rgba(255,255,255,0.3)" fontSize={10} axisLine={false} tickLine={false} />
                       <Tooltip 
-                        contentStyle={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}
-                        itemStyle={{ color: '#fff', fontWeight: 'bold' }}
-                        cursor={{ stroke: 'hsl(var(--primary))', strokeWidth: 2, strokeDasharray: '4 4' }}
+                        contentStyle={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px' }}
+                        itemStyle={{ color: '#fff' }}
                       />
-                      <Area type="monotone" dataKey="pages" stroke="hsl(var(--primary))" fillOpacity={1} fill="url(#colorPages)" strokeWidth={3} animationDuration={1500} />
+                      <Area type="monotone" dataKey="pages" stroke="hsl(var(--primary))" fillOpacity={1} fill="url(#colorPages)" strokeWidth={3} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -354,21 +383,21 @@ export default function AdminDashboard() {
 
             <div className="space-y-8">
               <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.25em] flex items-center gap-2 ml-1">
-                <Terminal className="w-4 h-4 text-emerald-400 opacity-80" /> Live Engine Logs
+                <Terminal className="w-4 h-4 text-emerald-400" /> Live Engine Logs
               </h3>
-              <div className="bg-[#0b1120] rounded-2xl border border-white/10 p-7 font-mono text-[11px] overflow-hidden h-[300px] flex flex-col shadow-2xl relative">
+              <div className="bg-[#0b1120] rounded-2xl border border-white/10 p-7 font-mono text-[11px] h-[300px] flex flex-col shadow-2xl relative">
                 <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-primary via-indigo-500 to-primary opacity-30"></div>
                 <div className="flex-1 overflow-y-auto space-y-4 scrollbar-hide">
                   {logs.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-slate-600 gap-6">
+                    <div className="flex flex-col items-center justify-center h-full text-slate-600 gap-6 text-center">
                       <Terminal className="w-12 h-12 opacity-10" />
-                      <div className="italic tracking-normal text-sm opacity-50 font-body leading-relaxed">System standby. Waiting for engine activation...</div>
+                      <div className="italic text-sm opacity-50">System standby. Waiting for engine activation...</div>
                     </div>
                   ) : (
                     logs.map((log, i) => (
-                      <div key={i} className="flex gap-4 leading-relaxed tracking-normal animate-in fade-in slide-in-from-left-2 duration-300">
+                      <div key={i} className="flex gap-4 animate-in fade-in slide-in-from-left-2 duration-300">
                         <span className="text-primary font-bold opacity-30 shrink-0">CRAWLER &gt;</span>
-                        <span className="text-emerald-400/90 font-medium">{log}</span>
+                        <span className={log.includes('ALERT') ? "text-amber-400 font-bold" : "text-emerald-400/90"}>{log}</span>
                       </div>
                     ))
                   )}
