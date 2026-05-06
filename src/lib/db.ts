@@ -6,8 +6,8 @@ const connectionString = process.env.DATABASE_URL;
 const pool = new Pool({
   connectionString,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  // Исправление 08P01: отключаем подготовленные выражения для совместимости с PgBouncer (Transaction Mode)
-  options: "-c prepared_statements=off"
+  max: 10,
+  idleTimeoutMillis: 30000,
 });
 
 // Глобальный обработчик ошибок пула, чтобы предотвратить падение воркера при обрыве связи
@@ -63,7 +63,6 @@ export async function cleanupOldLogs(days = 30) {
     const client = await pool.connect();
     try {
       console.log(`[DB] Cleaning up logs older than ${days} days...`);
-      // Используем безопасное приведение типа для интервала
       await client.query("DELETE FROM audit_logs WHERE created_at < NOW() - ($1 || ' days')::interval", [days]);
       await client.query("DELETE FROM bot_events WHERE timestamp < NOW() - ($1 || ' days')::interval", [days]);
       return { success: true };
@@ -126,14 +125,16 @@ export async function getBotStatus(): Promise<boolean> {
     const client = await pool.connect();
     try {
       const res = await client.query('SELECT is_active FROM bot_settings WHERE id = 1');
-      // Добавлена проверка на наличие строк для предотвращения undefined error
-      return res.rows && res.rows.length > 0 ? res.rows[0].is_active : true;
+      if (res.rows && res.rows.length > 0) {
+        return res.rows[0].is_active;
+      }
+      return true; // Default to true if table is empty but exists
     } finally {
       client.release();
     }
   } catch (error) {
-    console.warn('[DB Warning] Failed to get bot status, defaulting to true:', error.message);
-    return true; // Возвращаем true по умолчанию, чтобы не блокировать процесс при первичной настройке
+    console.warn('[DB Warning] Failed to get bot status, defaulting to true');
+    return true;
   }
 }
 
