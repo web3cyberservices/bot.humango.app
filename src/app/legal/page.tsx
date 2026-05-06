@@ -45,7 +45,7 @@ export default function LegalPage() {
           </div>
 
           <section className="space-y-6">
-            <h2 className="text-xl font-bold flex items-center gap-3 text-white border-l-2 border-primary pl-4">
+            <h2 id="privacy" className="text-xl font-bold flex items-center gap-3 text-white border-l-2 border-primary pl-4">
               <ShieldCheck className="w-5 h-5 text-primary" /> Privacy & Data Minimization Policy
             </h2>
             <div className="space-y-4 text-slate-400 leading-relaxed">
@@ -67,7 +67,7 @@ export default function LegalPage() {
           </section>
 
           <section className="space-y-6">
-            <h2 className="text-xl font-bold flex items-center gap-3 text-white border-l-2 border-primary pl-4">
+            <h2 id="rfc9309" className="text-xl font-bold flex items-center gap-3 text-white border-l-2 border-primary pl-4">
               <Scale className="w-5 h-5 text-primary" /> RFC 9309 (Robots Exclusion Protocol) Compliance
             </h2>
             <div className="space-y-4 text-slate-400 leading-relaxed">
