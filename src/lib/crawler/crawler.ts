@@ -18,7 +18,7 @@ const urlSchema = z.string().url().refine((url) => {
   return !blockedHostnames.includes(hostname) && !isPrivateIp;
 }, { message: "Internal or private addresses are restricted (SSRF Protection)" });
 
-export async function runCrawlTask(seedUrl: string): Promise<CrawlResult> {
+export async function runCrawlTask(seedUrl: string): Promise<CrawlResult & { discoveredLinks?: string[] }> {
   const timestamp = new Date().toISOString();
   try {
     const validation = urlSchema.safeParse(seedUrl);
@@ -43,7 +43,6 @@ export async function runCrawlTask(seedUrl: string): Promise<CrawlResult> {
     const { allowed, reason } = await isUrlAllowed(seedUrl);
     if (!allowed) {
       await saveAuditLog(domain, 403, reason || 'Blocked by robots.txt');
-      await saveBotEvent('ERROR', `Robots.txt запретил доступ к ${domain}: ${reason}`);
       return { url: seedUrl, timestamp, status: 'blocked', issuesFound: 0, reason };
     }
 
@@ -51,7 +50,7 @@ export async function runCrawlTask(seedUrl: string): Promise<CrawlResult> {
     await new Promise(resolve => setTimeout(resolve, delay));
 
     const { html, security } = await scrapeUrl(seedUrl);
-    const issues = parseHtmlContent(html, seedUrl);
+    const { issues, discoveredLinks } = parseHtmlContent(html, seedUrl);
     
     await saveScanResult(seedUrl, issues);
     await saveAuditLog(domain, 200, null);
@@ -69,12 +68,17 @@ export async function runCrawlTask(seedUrl: string): Promise<CrawlResult> {
       status: 'success',
       issuesFound: issues.length,
       issues: issues,
-      securityHeaders: security
+      securityHeaders: security,
+      discoveredLinks
     };
   } catch (error: any) {
-    const domain = new URL(seedUrl).hostname;
+    let domain = 'unknown';
+    try { domain = new URL(seedUrl).hostname; } catch(e) {}
+    
     await saveAuditLog(domain, 500, error.message);
-    await saveBotEvent('ERROR', `Критическая ошибка при сканировании ${domain}: ${error.message}`);
+    if (error.message === 'REDIRECT_LOOP') {
+       return { url: seedUrl, timestamp, status: 'failed', issuesFound: 0, error: 'REDIRECT_LOOP' };
+    }
     return { url: seedUrl, timestamp, status: 'failed', issuesFound: 0, error: error.message };
   }
 }

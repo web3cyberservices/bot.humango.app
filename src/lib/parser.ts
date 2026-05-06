@@ -15,11 +15,27 @@ export const VIOLATION_TYPES = {
  * Логика обработки HTML. 
  * Сфокусирована на поиске технических уязвимостей без сбора PII.
  */
-export function parseHtmlContent(html: string, url: string): ScanIssue[] {
+export function parseHtmlContent(html: string, url: string): { issues: ScanIssue[], discoveredLinks: string[] } {
   const $ = cheerio.load(html);
   const issues: ScanIssue[] = [];
+  const discoveredLinks: string[] = [];
 
-  // 1. Проверка на формы без SSL (GDPR Critical)
+  // 1. Извлечение ссылок для Discovery (только http/https)
+  $('a[href]').each((_, el) => {
+    const href = $(el).attr('href');
+    if (href) {
+      try {
+        const absoluteUrl = new URL(href, url).href;
+        if (absoluteUrl.startsWith('http')) {
+          discoveredLinks.push(absoluteUrl);
+        }
+      } catch (e) {
+        // Игнорируем невалидные URL
+      }
+    }
+  });
+
+  // 2. Проверка на формы без SSL (GDPR Critical)
   $('form').each((_, el) => {
     const action = $(el).attr('action') || '';
     if (!action.startsWith('https') && !url.startsWith('https:')) {
@@ -34,7 +50,7 @@ export function parseHtmlContent(html: string, url: string): ScanIssue[] {
     }
   });
 
-  // 2. Проверка заголовков безопасности через мета-теги
+  // 3. Проверка заголовков безопасности через мета-теги
   const hasCSP = $('meta[http-equiv="Content-Security-Policy"]').length > 0;
   if (!hasCSP) {
     issues.push({
@@ -47,7 +63,7 @@ export function parseHtmlContent(html: string, url: string): ScanIssue[] {
     });
   }
 
-  // 3. Поиск потенциально опасных устаревших скриптов
+  // 4. Поиск потенциально опасных устаревших скриптов
   $('script').each((_, el) => {
     const src = $(el).attr('src') || '';
     if (src.includes('jquery/1.') || src.includes('vulnerable')) {
@@ -62,5 +78,8 @@ export function parseHtmlContent(html: string, url: string): ScanIssue[] {
     }
   });
 
-  return issues;
+  return { 
+    issues, 
+    discoveredLinks: Array.from(new Set(discoveredLinks)).slice(0, 10) // Ограничиваем до 10 уникальных ссылок с одной страницы
+  };
 }

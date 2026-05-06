@@ -14,7 +14,6 @@ import {
   cleanupOldLogs,
   saveAuditLog
 } from '@/lib/db';
-import { VIOLATION_TYPES } from '../parser';
 
 const SLEEP_INTERVAL = 1500; 
 const IDLE_WAIT = 5000;    
@@ -49,8 +48,8 @@ export async function startEngine() {
       // 3. Управление очередью
       const queueSize = await getQueueSize();
       if (queueSize === 0) {
-        const placeholderTarget = generateDiscoveryTarget();
-        await addToQueue(placeholderTarget);
+        // Если очередь пуста, добавляем базовый домен для старта
+        await addToQueue('https://humango.app');
         await sleep(IDLE_WAIT);
         continue;
       }
@@ -72,9 +71,11 @@ export async function startEngine() {
           await saveBotEvent('ERROR', `Сайт ${domain} заблокирован: превышено кол-во редиректов (5).`);
         }
 
-        // 5. Discovery (если всё ок)
-        if (queueSize < MAX_QUEUE_LIMIT && result.status === 'success') {
-           await addToQueue(generateDiscoveryTarget());
+        // 5. Discovery: добавляем найденные ссылки в очередь
+        if (queueSize < MAX_QUEUE_LIMIT && result.status === 'success' && result.discoveredLinks) {
+           for (const link of result.discoveredLinks) {
+             await addToQueue(link);
+           }
         }
       } finally {
         // Удаляем задачу из очереди в любом случае
@@ -98,13 +99,4 @@ export async function startEngine() {
 
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function generateDiscoveryTarget(): string {
-  const clusters = ['alpha', 'beta', 'gamma', 'delta', 'omega'];
-  const tlds = ['.com', '.net', '.org', '.io', '.app'];
-  const id = Math.floor(Math.random() * 1000);
-  const cluster = clusters[Math.floor(Math.random() * clusters.length)];
-  const tld = tlds[Math.floor(Math.random() * tlds.length)];
-  return `https://${cluster}-node-${id}${tld}`;
 }
