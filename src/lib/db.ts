@@ -51,6 +51,23 @@ export async function getBotEvents(limit = 50) {
   }
 }
 
+export async function cleanupOldLogs(days = 30) {
+  try {
+    const client = await pool.connect();
+    try {
+      console.log(`[DB] Cleaning up logs older than ${days} days...`);
+      await client.query("DELETE FROM audit_logs WHERE created_at < NOW() - INTERVAL '$1 days'", [days]);
+      await client.query("DELETE FROM bot_events WHERE timestamp < NOW() - INTERVAL '$1 days'", [days]);
+      return { success: true };
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('[DB Error] Cleanup failed:', error);
+    return { success: false, error };
+  }
+}
+
 export async function saveAuditLog(domain: string, statusCode: number, errorMessage: string | null) {
   const query = `
     INSERT INTO audit_logs (domain, status_code, error_message, created_at)
@@ -107,7 +124,7 @@ export async function getBotStatus(): Promise<boolean> {
     }
   } catch (error) {
     console.error('[DB Error] Failed to get bot status:', error);
-    throw error; // Let the engine handle the connection error
+    throw error;
   }
 }
 

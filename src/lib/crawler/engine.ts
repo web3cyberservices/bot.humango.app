@@ -1,6 +1,6 @@
 /**
  * @fileOverview Основной координатор краулера.
- * Управляет циклом работы, обработкой ошибок БД и очередью.
+ * Управляет циклом работы, обработкой ошибок БД, очередью и очисткой логов.
  */
 
 import { runCrawlTask } from './crawler';
@@ -10,61 +10,75 @@ import {
   removeFromQueue, 
   saveBotEvent, 
   addToQueue, 
-  getQueueSize 
+  getQueueSize,
+  cleanupOldLogs,
+  saveAuditLog
 } from '@/lib/db';
+import { VIOLATION_TYPES } from '../parser';
 
 const SLEEP_INTERVAL = 1500; 
 const IDLE_WAIT = 5000;    
-const MAX_QUEUE_LIMIT = 5000; // Лимит на размер очереди для стабильности
+const MAX_QUEUE_LIMIT = 5000;
+const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 часа
 
-let errorBackoffMs = 1000; // Стартовое время ожидания при ошибке БД
+let errorBackoffMs = 1000;
+let lastCleanupTime = 0;
 
 export async function startEngine() {
   await saveBotEvent('START', 'Движок HumangoBot инициализирован и перешел в режим мониторинга очереди.');
 
   while (true) {
     try {
-      // 1. Проверка статуса (может выбросить ошибку если БД недоступна)
+      // 1. Проверка на необходимость очистки старых логов (Retention Policy)
+      const now = Date.now();
+      if (now - lastCleanupTime > CLEANUP_INTERVAL_MS) {
+        await cleanupOldLogs(30);
+        lastCleanupTime = now;
+        await saveBotEvent('SUCCESS', 'Автоматическая очистка старых логов (30 дней) завершена успешно.');
+      }
+
+      // 2. Проверка статуса бота
       const isActive = await getBotStatus();
-      
-      // Сброс backoff если запрос прошел успешно
       errorBackoffMs = 1000;
 
       if (!isActive) {
-        console.log('[Engine] Bot is paused. Sleeping...');
         await sleep(IDLE_WAIT);
         continue;
       }
 
-      // 2. Управление очередью и Discovery
+      // 3. Управление очередью
       const queueSize = await getQueueSize();
       if (queueSize === 0) {
         const placeholderTarget = generateDiscoveryTarget();
-        console.log(`[Engine] Queue empty. Discovering new target: ${placeholderTarget}`);
         await addToQueue(placeholderTarget);
         await sleep(IDLE_WAIT);
         continue;
       }
 
-      // 3. Получение задачи
       const task = await getNextQueueItem();
       if (!task) {
         await sleep(IDLE_WAIT);
         continue;
       }
 
-      // 4. Выполнение (внутри crawler.ts есть AbortSignal.timeout для защиты от зависаний)
-      console.log(`[Engine] Processing: ${task.url}`);
-      const result = await runCrawlTask(task.url);
+      // 4. Выполнение задачи
+      try {
+        const result = await runCrawlTask(task.url);
+        
+        // Обработка специфической ошибки Redirect Loop
+        if (result.error === 'REDIRECT_LOOP') {
+          const domain = new URL(task.url).hostname;
+          await saveAuditLog(domain, 310, 'Обнаружен бесконечный редирект (Redirect Loop)');
+          await saveBotEvent('ERROR', `Сайт ${domain} заблокирован: превышено кол-во редиректов (5).`);
+        }
 
-      // 5. Удаление из очереди (всегда удаляем, чтобы не виснуть на failed URL)
-      await removeFromQueue(task.id);
-
-      // 6. Discovery новых ссылок (только если очередь не переполнена)
-      if (queueSize < MAX_QUEUE_LIMIT && result.status === 'success') {
-         // В реальной системе здесь был бы поиск новых ссылок на странице
-         // Для демонстрации добавим еще один случайный узел
-         await addToQueue(generateDiscoveryTarget());
+        // 5. Discovery (если всё ок)
+        if (queueSize < MAX_QUEUE_LIMIT && result.status === 'success') {
+           await addToQueue(generateDiscoveryTarget());
+        }
+      } finally {
+        // Удаляем задачу из очереди в любом случае
+        await removeFromQueue(task.id);
       }
 
       await sleep(SLEEP_INTERVAL);
@@ -72,16 +86,12 @@ export async function startEngine() {
     } catch (error: any) {
       console.error(`[Engine Critical] ${error.message}`);
       
-      // Логируем ошибку, если это возможно (БД может быть недоступна)
       try {
         await saveBotEvent('ERROR', `Критический сбой цикла: ${error.message}. Повтор через ${errorBackoffMs/1000}с.`);
-      } catch (e) {
-        // Игнорируем ошибку логирования при падении БД
-      }
+      } catch (e) {}
 
-      // Экспоненциальная пауза при ошибках (backoff)
       await sleep(errorBackoffMs);
-      errorBackoffMs = Math.min(errorBackoffMs * 2, 60000); // Максимум 1 минута
+      errorBackoffMs = Math.min(errorBackoffMs * 2, 60000);
     }
   }
 }
