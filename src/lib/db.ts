@@ -10,7 +10,6 @@ const pool = new Pool({
   idleTimeoutMillis: 30000,
 });
 
-// Глобальный обработчик ошибок пула, чтобы предотвратить падение воркера при обрыве связи
 pool.on('error', (err) => {
   console.error('[DB Pool Error] Unexpected error on idle client:', err);
 });
@@ -128,12 +127,11 @@ export async function getBotStatus(): Promise<boolean> {
       if (res.rows && res.rows.length > 0) {
         return res.rows[0].is_active;
       }
-      return true; // Default to true if table is empty but exists
+      return true;
     } finally {
       client.release();
     }
   } catch (error) {
-    console.warn('[DB Warning] Failed to get bot status, defaulting to true');
     return true;
   }
 }
@@ -148,7 +146,6 @@ export async function setBotStatus(isActive: boolean) {
       client.release();
     }
   } catch (error) {
-    console.error('[DB Error] Failed to set bot status:', error);
     return { success: false, error };
   }
 }
@@ -157,14 +154,26 @@ export async function getNextQueueItem() {
   try {
     const client = await pool.connect();
     try {
-      const res = await client.query('SELECT id, url FROM scan_queue ORDER BY created_at ASC LIMIT 1');
+      const res = await client.query("SELECT id, url FROM scan_queue WHERE status = 'pending' ORDER BY created_at ASC LIMIT 1");
       return res.rows[0] || null;
     } finally {
       client.release();
     }
   } catch (error) {
-    console.error('[DB Error] Failed to get queue item:', error);
     throw error;
+  }
+}
+
+export async function updateQueueStatus(id: number, status: 'pending' | 'completed' | 'failed') {
+  try {
+    const client = await pool.connect();
+    try {
+      await client.query('UPDATE scan_queue SET status = $1 WHERE id = $2', [status, id]);
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('[DB Error] Failed to update queue status:', error);
   }
 }
 
@@ -172,27 +181,13 @@ export async function getQueueSize(): Promise<number> {
   try {
     const client = await pool.connect();
     try {
-      const res = await client.query('SELECT COUNT(*) FROM scan_queue');
+      const res = await client.query("SELECT COUNT(*) FROM scan_queue WHERE status = 'pending'");
       return parseInt(res.rows[0].count);
     } finally {
       client.release();
     }
   } catch (error) {
-    console.error('[DB Error] Failed to get queue size:', error);
     return 0;
-  }
-}
-
-export async function removeFromQueue(id: number) {
-  try {
-    const client = await pool.connect();
-    try {
-      await client.query('DELETE FROM scan_queue WHERE id = $1', [id]);
-    } finally {
-      client.release();
-    }
-  } catch (error) {
-    console.error('[DB Error] Failed to remove from queue:', error);
   }
 }
 
@@ -200,7 +195,7 @@ export async function addToQueue(url: string) {
   try {
     const client = await pool.connect();
     try {
-      await client.query('INSERT INTO scan_queue (url) VALUES ($1) ON CONFLICT (url) DO NOTHING', [url]);
+      await client.query("INSERT INTO scan_queue (url, status) VALUES ($1, 'pending') ON CONFLICT (url) DO NOTHING", [url]);
     } finally {
       client.release();
     }
@@ -224,7 +219,6 @@ export async function getViolations() {
       client.release();
     }
   } catch (error) {
-    console.error('[DB Error] Failed to fetch violations:', error);
     return [];
   }
 }
@@ -237,23 +231,20 @@ export async function getStats() {
       const issuesRes = await client.query('SELECT COUNT(*) as count FROM scan_issues');
       const recentIssues = await client.query('SELECT * FROM scan_issues ORDER BY created_at DESC LIMIT 50');
       
-      const sanitizedRecentIssues = recentIssues.rows.map(issue => ({
-        ...issue,
-        domain: sanitize(issue.domain),
-        issue_type: sanitize(issue.issue_type),
-        description: sanitize(issue.description)
-      }));
-
       return {
         pagesScanned: parseInt(pagesRes.rows[0].count),
         issuesFound: parseInt(issuesRes.rows[0].count),
-        recentIssues: sanitizedRecentIssues
+        recentIssues: recentIssues.rows.map(issue => ({
+          ...issue,
+          domain: sanitize(issue.domain),
+          issue_type: sanitize(issue.issue_type),
+          description: sanitize(issue.description)
+        }))
       };
     } finally {
       client.release();
     }
   } catch (error) {
-    console.error('[DB Error] Failed to get stats:', error);
     return { pagesScanned: 0, issuesFound: 0, recentIssues: [] };
   }
 }

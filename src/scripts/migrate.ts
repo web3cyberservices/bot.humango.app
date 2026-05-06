@@ -13,7 +13,7 @@ async function migrate() {
   try {
     console.log('[Migration] Starting database schema initialization...');
     
-    // 1. Таблица логов аудита (технические результаты запросов)
+    // 1. Таблица логов аудита
     await client.query(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id SERIAL PRIMARY KEY,
@@ -24,7 +24,7 @@ async function migrate() {
       );
     `);
     
-    // 2. Таблица найденных нарушений (результаты парсинга)
+    // 2. Таблица найденных нарушений
     await client.query(`
       CREATE TABLE IF NOT EXISTS scan_issues (
         id SERIAL PRIMARY KEY,
@@ -36,7 +36,7 @@ async function migrate() {
       );
     `);
 
-    // 3. Таблица системных событий (логи работы движка)
+    // 3. Таблица системных событий
     await client.query(`
       CREATE TABLE IF NOT EXISTS bot_events (
         id SERIAL PRIMARY KEY,
@@ -46,7 +46,7 @@ async function migrate() {
       );
     `);
 
-    // 4. Таблица настроек бота (контроль состояния)
+    // 4. Таблица настроек бота
     await client.query(`
       CREATE TABLE IF NOT EXISTS bot_settings (
         id INTEGER PRIMARY KEY DEFAULT 1,
@@ -56,30 +56,31 @@ async function migrate() {
       );
     `);
 
-    // 5. Таблица очереди сканирования
+    // 5. Таблица очереди сканирования (добавлен столбец status)
     await client.query(`
       CREATE TABLE IF NOT EXISTS scan_queue (
         id SERIAL PRIMARY KEY,
         url TEXT NOT NULL UNIQUE,
+        status VARCHAR(20) DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
-    // Инициализация настроек (если еще не созданы)
+    // Инициализация настроек
     await client.query(`
       INSERT INTO bot_settings (id, is_active)
       VALUES (1, true)
       ON CONFLICT (id) DO NOTHING;
     `);
 
-    // Начальный посев очереди для запуска процесса
+    // Начальный посев очереди
     await client.query(`
-      INSERT INTO scan_queue (url)
+      INSERT INTO scan_queue (url, status)
       VALUES 
-        ('https://google.com'),
-        ('https://github.com'),
-        ('https://microsoft.com'),
-        ('https://wikipedia.org')
+        ('https://google.com', 'pending'),
+        ('https://github.com', 'pending'),
+        ('https://microsoft.com', 'pending'),
+        ('https://wikipedia.org', 'pending')
       ON CONFLICT (url) DO NOTHING;
     `);
     
