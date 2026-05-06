@@ -1,6 +1,6 @@
 
 import { scrapeUrl } from '@/lib/scraper';
-import { parseHtmlContent } from '@/lib/parser';
+import { parseHtmlContent } from '@/lib/parser'; // Consistently use src/lib/parser.ts
 import { isUrlAllowed, getCrawlDelay } from '@/config/robots-rules';
 import { getBotStatus, saveAuditLog, saveBotEvent, saveAuditResults } from '@/lib/db';
 import { CrawlResult, Violation } from '@/types';
@@ -46,7 +46,7 @@ export async function runCrawlTask(seedUrl: string): Promise<CrawlResult> {
     if (scanType === 'deep' && dynamicCookies && dynamicCookies.length > 0) {
       const trackerKeywords = ['fb', 'google', 'ads', 'analytics', 'pixel', 'intercom', 'tiktok'];
       const suspiciousCookies = dynamicCookies.filter((c: any) => 
-        trackerKeywords.some(key => c.name.toLowerCase().includes(key) || c.domain.toLowerCase().includes(key))
+        trackerKeywords.some(key => c.name.toLowerCase().includes(key) || (c.domain && c.domain.toLowerCase().includes(key)))
       );
 
       if (suspiciousCookies.length > 0) {
@@ -55,7 +55,7 @@ export async function runCrawlTask(seedUrl: string): Promise<CrawlResult> {
           issue_type: 'DYNAMIC_TRACKING_COOKIES',
           severity: 'high',
           evidence_html: 'Browser Runtime Cookies',
-          description: `Detected ${suspiciousCookies.length} dynamic tracking cookies during Deep Scan.`,
+          description: `Detected ${suspiciousCookies.length} potential tracking cookies during dynamic browser rendering.`,
           metadata: { cookies: suspiciousCookies }
         });
       }
