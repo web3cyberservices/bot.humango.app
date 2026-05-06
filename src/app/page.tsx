@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -36,7 +37,6 @@ export default function Home() {
             <Badge variant="outline" className="hidden sm:flex border-slate-500/20 bg-slate-500/5 text-slate-400 text-[10px] font-bold tracking-[0.2em] px-3 py-1 rounded-full uppercase">
               Bot Candidate
             </Badge>
-            {/* Публичная кнопка входа в Admin Portal удалена для скрытого доступа */}
           </nav>
         </div>
       </header>
