@@ -16,6 +16,7 @@ import {
 
 const SLEEP_INTERVAL = 1500; 
 const IDLE_WAIT = 5000;    
+const EMPTY_QUEUE_WAIT = 30000; // 30 секунд ожидания при пустой очереди
 const MAX_QUEUE_LIMIT = 5000;
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 часа
 
@@ -36,7 +37,7 @@ export async function startEngine() {
         await saveBotEvent('SUCCESS', 'Автоматическая очистка логов (30 дней) выполнена.');
       }
 
-      // 2. Control Check
+      // 2. Control Check (проверка флага активности в БД)
       const isActive = await getBotStatus();
       if (!isActive) {
         await sleep(IDLE_WAIT);
@@ -48,9 +49,9 @@ export async function startEngine() {
       // 3. Queue Management
       const queueSize = await getQueueSize();
       if (queueSize === 0) {
-        // Начальный посев, если очередь пуста
-        await addToQueue('https://humango.app');
-        await sleep(IDLE_WAIT);
+        console.log('[Engine] Queue is empty. Sleeping for 30s...');
+        // Вместо выхода из программы, просто засыпаем на 30 секунд
+        await sleep(EMPTY_QUEUE_WAIT);
         continue;
       }
 
@@ -80,7 +81,7 @@ export async function startEngine() {
     } catch (error: any) {
       console.error(`[Engine Critical] ${error.message}`);
       await sleep(errorBackoffMs);
-      errorBackoffMs = Math.min(errorBackoffMs * 2, 60000); // Экспоненциальная пауза
+      errorBackoffMs = Math.min(errorBackoffMs * 2, 60000); // Экспоненциальная пауза при ошибках БД
     }
   }
 }
