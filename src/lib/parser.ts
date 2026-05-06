@@ -29,9 +29,7 @@ export function parseHtmlContent(html: string, url: string): { issues: ScanIssue
         if (absoluteUrl.startsWith('http')) {
           discoveredLinks.push(absoluteUrl);
         }
-      } catch (e) {
-        // Игнорируем невалидные URL
-      }
+      } catch (e) {}
     }
   });
 
@@ -50,14 +48,14 @@ export function parseHtmlContent(html: string, url: string): { issues: ScanIssue
     }
   });
 
-  // 3. Проверка заголовков безопасности через мета-теги
+  // 3. Проверка Content Security Policy
   const hasCSP = $('meta[http-equiv="Content-Security-Policy"]').length > 0;
   if (!hasCSP) {
     issues.push({
       type: VIOLATION_TYPES.MISSING_CSP,
       category: 'Security',
       severity: 'medium',
-      description: 'Отсутствует Content Security Policy (CSP).',
+      description: 'Отсутствует Content Security Policy (CSP) в мета-тегах.',
       impact: 'Уязвимость для XSS атак и инъекций вредоносного кода.',
       remediation: 'Настройте заголовок Content-Security-Policy на стороне сервера или через мета-теги.'
     });
@@ -71,7 +69,7 @@ export function parseHtmlContent(html: string, url: string): { issues: ScanIssue
         type: VIOLATION_TYPES.OUTDATED_LIBRARY,
         category: 'Security',
         severity: 'high',
-        description: 'Обнаружена потенциально уязвимая версия библиотеки.',
+        description: 'Обнаружена потенциально уязвимая версия библиотеки (jQuery v1.x).',
         impact: 'Злоумышленники могут использовать известные эксплойты для компрометации сайта.',
         remediation: 'Обновите библиотеки до последних стабильных версий.'
       });
@@ -80,6 +78,6 @@ export function parseHtmlContent(html: string, url: string): { issues: ScanIssue
 
   return { 
     issues, 
-    discoveredLinks: Array.from(new Set(discoveredLinks)).slice(0, 10) // Ограничиваем до 10 уникальных ссылок с одной страницы
+    discoveredLinks: Array.from(new Set(discoveredLinks)).slice(0, 10) 
   };
 }

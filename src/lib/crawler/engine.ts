@@ -1,6 +1,6 @@
 /**
- * @fileOverview Основной координатор краулера.
- * Управляет циклом работы, обработкой ошибок БД, очередью и очисткой логов.
+ * @fileOverview Основной координатор краулера HumangoBot.
+ * Управляет циклом работы, очередью, Discovery и автоматической очисткой БД.
  */
 
 import { runCrawlTask } from './crawler';
@@ -11,8 +11,7 @@ import {
   saveBotEvent, 
   addToQueue, 
   getQueueSize,
-  cleanupOldLogs,
-  saveAuditLog
+  cleanupOldLogs
 } from '@/lib/db';
 
 const SLEEP_INTERVAL = 1500; 
@@ -24,31 +23,32 @@ let errorBackoffMs = 1000;
 let lastCleanupTime = 0;
 
 export async function startEngine() {
-  await saveBotEvent('START', 'Движок HumangoBot инициализирован и перешел в режим мониторинга очереди.');
+  console.log('[Engine] HumangoBot Worker started.');
+  await saveBotEvent('START', 'Движок HumangoBot инициализирован. Режим RFC 9309 активен.');
 
   while (true) {
     try {
-      // 1. Проверка на необходимость очистки старых логов (Retention Policy)
+      // 1. Retention Policy Check
       const now = Date.now();
       if (now - lastCleanupTime > CLEANUP_INTERVAL_MS) {
         await cleanupOldLogs(30);
         lastCleanupTime = now;
-        await saveBotEvent('SUCCESS', 'Автоматическая очистка старых логов (30 дней) завершена успешно.');
+        await saveBotEvent('SUCCESS', 'Автоматическая очистка логов (30 дней) выполнена.');
       }
 
-      // 2. Проверка статуса бота
+      // 2. Control Check
       const isActive = await getBotStatus();
-      errorBackoffMs = 1000;
-
       if (!isActive) {
         await sleep(IDLE_WAIT);
         continue;
       }
 
-      // 3. Управление очередью
+      errorBackoffMs = 1000; // Сброс ошибки при успешном доступе к БД
+
+      // 3. Queue Management
       const queueSize = await getQueueSize();
       if (queueSize === 0) {
-        // Если очередь пуста, добавляем базовый домен для старта
+        // Начальный посев, если очередь пуста
         await addToQueue('https://humango.app');
         await sleep(IDLE_WAIT);
         continue;
@@ -60,25 +60,18 @@ export async function startEngine() {
         continue;
       }
 
-      // 4. Выполнение задачи
+      // 4. Task Execution
       try {
         const result = await runCrawlTask(task.url);
         
-        // Обработка специфической ошибки Redirect Loop
-        if (result.error === 'REDIRECT_LOOP') {
-          const domain = new URL(task.url).hostname;
-          await saveAuditLog(domain, 310, 'Обнаружен бесконечный редирект (Redirect Loop)');
-          await saveBotEvent('ERROR', `Сайт ${domain} заблокирован: превышено кол-во редиректов (5).`);
-        }
-
-        // 5. Discovery: добавляем найденные ссылки в очередь
+        // 5. Discovery Mechanism
         if (queueSize < MAX_QUEUE_LIMIT && result.status === 'success' && result.discoveredLinks) {
            for (const link of result.discoveredLinks) {
              await addToQueue(link);
            }
         }
       } finally {
-        // Удаляем задачу из очереди в любом случае
+        // Гарантированное удаление из очереди для предотвращения блокировок
         await removeFromQueue(task.id);
       }
 
@@ -86,13 +79,8 @@ export async function startEngine() {
 
     } catch (error: any) {
       console.error(`[Engine Critical] ${error.message}`);
-      
-      try {
-        await saveBotEvent('ERROR', `Критический сбой цикла: ${error.message}. Повтор через ${errorBackoffMs/1000}с.`);
-      } catch (e) {}
-
       await sleep(errorBackoffMs);
-      errorBackoffMs = Math.min(errorBackoffMs * 2, 60000);
+      errorBackoffMs = Math.min(errorBackoffMs * 2, 60000); // Экспоненциальная пауза
     }
   }
 }
