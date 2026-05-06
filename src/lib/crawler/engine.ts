@@ -27,9 +27,10 @@ export async function startEngine() {
   console.log('[Engine] HumangoBot Worker started.');
   await saveBotEvent('START', 'Движок HumangoBot инициализирован. Режим RFC 9309 активен.');
 
+  // Бесконечный цикл — бот никогда не завершает процесс самостоятельно
   while (true) {
     try {
-      // 1. Retention Policy Check
+      // 1. Retention Policy Check (раз в сутки)
       const now = Date.now();
       if (now - lastCleanupTime > CLEANUP_INTERVAL_MS) {
         await cleanupOldLogs(30);
@@ -40,6 +41,7 @@ export async function startEngine() {
       // 2. Control Check (проверка флага активности в БД)
       const isActive = await getBotStatus();
       if (!isActive) {
+        console.log('[Engine] Bot is paused via settings. Checking again in 5s...');
         await sleep(IDLE_WAIT);
         continue;
       }
@@ -49,8 +51,8 @@ export async function startEngine() {
       // 3. Queue Management
       const queueSize = await getQueueSize();
       if (queueSize === 0) {
-        console.log('[Engine] Queue is empty. Sleeping for 30s...');
-        // Вместо выхода из программы, просто засыпаем на 30 секунд
+        console.log(`[Engine] Queue is empty. Waiting ${EMPTY_QUEUE_WAIT / 1000}s for new tasks...`);
+        // Вместо выхода из программы, просто засыпаем на 30 секунд и проверяем снова
         await sleep(EMPTY_QUEUE_WAIT);
         continue;
       }
@@ -62,6 +64,7 @@ export async function startEngine() {
       }
 
       // 4. Task Execution
+      console.log(`[Engine] Processing: ${task.url}`);
       try {
         const result = await runCrawlTask(task.url);
         
@@ -71,17 +74,22 @@ export async function startEngine() {
              await addToQueue(link);
            }
         }
+      } catch (taskError: any) {
+        console.error(`[Engine] Task failed for ${task.url}:`, taskError.message);
+        await saveBotEvent('ERROR', `Ошибка при обработке ${task.url}: ${taskError.message}`);
       } finally {
-        // Гарантированное удаление из очереди для предотвращения блокировок
+        // Гарантированное удаление из очереди, чтобы не зацикливаться на битых задачах
         await removeFromQueue(task.id);
       }
 
+      // Стандартная пауза между успешными запросами
       await sleep(SLEEP_INTERVAL);
 
     } catch (error: any) {
-      console.error(`[Engine Critical] ${error.message}`);
+      console.error(`[Engine Critical] Database or Runtime Error: ${error.message}`);
+      // Экспоненциальная пауза при ошибках (например, если упала БД)
       await sleep(errorBackoffMs);
-      errorBackoffMs = Math.min(errorBackoffMs * 2, 60000); // Экспоненциальная пауза при ошибках БД
+      errorBackoffMs = Math.min(errorBackoffMs * 2, 60000); 
     }
   }
 }
