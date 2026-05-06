@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -46,7 +45,7 @@ export default function Home() {
           <div className="lg:col-span-7 space-y-8">
             <div className="space-y-6">
               <Badge variant="outline" className="py-1 px-3 border-primary/20 bg-primary/5 text-primary text-[10px] font-bold uppercase tracking-[0.2em]">
-                Bot Transparency Report 2025
+                Bot Transparency Report 2026
               </Badge>
               <h1 className="text-4xl md:text-5xl xl:text-6xl font-extrabold tracking-tight leading-tight py-2 text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-400">
                 Automated Compliance <br />& Security Auditing
@@ -138,8 +137,8 @@ export default function Home() {
           </div>
           <div className="flex gap-8">
             <span>&copy; {new Date().getFullYear()} Global Infrastructure Group</span>
-            <Link href="/" className="hover:text-white transition-colors">Privacy Statement</Link>
-            <Link href="/" className="hover:text-white transition-colors">RFC 9309 Docs</Link>
+            <Link href="/legal" className="hover:text-white transition-colors">Privacy Statement</Link>
+            <Link href="/legal" className="hover:text-white transition-colors">RFC 9309 Docs</Link>
           </div>
         </div>
       </footer>
