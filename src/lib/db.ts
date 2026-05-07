@@ -36,7 +36,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
     await client.query('BEGIN');
     
     const query = `
-      INSERT INTO audit_results (
+      INSERT INTO public.audit_results (
         domain, url, category, issue_type, severity, evidence_html, 
         description, recommendation, scan_type, metadata, created_at
       )
@@ -70,7 +70,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
 }
 
 export async function saveBotEvent(type: 'START' | 'STOP' | 'ERROR' | 'SUCCESS', message: string) {
-  const query = 'INSERT INTO bot_events (type, message, timestamp) VALUES ($1, $2, NOW())';
+  const query = 'INSERT INTO public.bot_events (type, message, timestamp) VALUES ($1, $2, NOW())';
   try {
     await pool.query(query, [type, sanitize(message)]);
     return { success: true };
@@ -81,7 +81,7 @@ export async function saveBotEvent(type: 'START' | 'STOP' | 'ERROR' | 'SUCCESS',
 
 export async function getBotEvents(limit = 50) {
   try {
-    const res = await pool.query('SELECT * FROM bot_events ORDER BY timestamp DESC LIMIT $1', [limit]);
+    const res = await pool.query('SELECT * FROM public.bot_events ORDER BY timestamp DESC LIMIT $1', [limit]);
     return res.rows.map(event => ({ ...event, message: sanitize(event.message) }));
   } catch (error) {
     return [];
@@ -90,9 +90,9 @@ export async function getBotEvents(limit = 50) {
 
 export async function cleanupOldLogs(days = 30) {
   try {
-    await pool.query("DELETE FROM audit_logs WHERE created_at < NOW() - ($1 || ' days')::interval", [days]);
-    await pool.query("DELETE FROM audit_results WHERE created_at < NOW() - ($1 || ' days')::interval", [days]);
-    await pool.query("DELETE FROM bot_events WHERE timestamp < NOW() - ($1 || ' days')::interval", [days]);
+    await pool.query("DELETE FROM public.audit_logs WHERE created_at < NOW() - ($1 || ' days')::interval", [days]);
+    await pool.query("DELETE FROM public.audit_results WHERE created_at < NOW() - ($1 || ' days')::interval", [days]);
+    await pool.query("DELETE FROM public.bot_events WHERE timestamp < NOW() - ($1 || ' days')::interval", [days]);
     return { success: true };
   } catch (error) {
     return { success: false };
@@ -100,7 +100,7 @@ export async function cleanupOldLogs(days = 30) {
 }
 
 export async function saveAuditLog(domain: string, statusCode: number, errorMessage: string | null) {
-  const query = 'INSERT INTO audit_logs (domain, status_code, error_message, created_at) VALUES ($1, $2, $3, NOW())';
+  const query = 'INSERT INTO public.audit_logs (domain, status_code, error_message, created_at) VALUES ($1, $2, $3, NOW())';
   try {
     await pool.query(query, [sanitize(domain), statusCode, sanitize(errorMessage)]);
     return { success: true };
@@ -111,7 +111,7 @@ export async function saveAuditLog(domain: string, statusCode: number, errorMess
 
 export async function getBotStatus(): Promise<boolean> {
   try {
-    const res = await pool.query('SELECT is_active FROM bot_settings WHERE id = 1');
+    const res = await pool.query('SELECT is_active FROM public.bot_settings WHERE id = 1');
     return res.rows.length > 0 ? res.rows[0].is_active : true;
   } catch (error) {
     return true;
@@ -120,7 +120,7 @@ export async function getBotStatus(): Promise<boolean> {
 
 export async function setBotStatus(isActive: boolean) {
   try {
-    await pool.query('UPDATE bot_settings SET is_active = $1, updated_at = NOW() WHERE id = 1', [isActive]);
+    await pool.query('UPDATE public.bot_settings SET is_active = $1, updated_at = NOW() WHERE id = 1', [isActive]);
     return { success: true };
   } catch (error) {
     return { success: false };
@@ -129,21 +129,26 @@ export async function setBotStatus(isActive: boolean) {
 
 /**
  * Атомарное получение и резервирование задачи из очереди.
- * Использует FOR UPDATE SKIP LOCKED для поддержки многопоточности.
  */
 export async function getNextQueueItem() {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     
-    // Запрос по требованию: поиск задачи с блокировкой строки
-    const query = "SELECT id, url FROM scan_queue WHERE status = 'pending' LIMIT 1 FOR UPDATE SKIP LOCKED";
-    const res = await client.query(query);
-    const task = res.rows[0];
+    // Строгий SQL запрос с указанием схемы и сортировкой
+    const query = "SELECT id, url FROM public.scan_queue WHERE status = 'pending' ORDER BY id ASC LIMIT 1 FOR UPDATE SKIP LOCKED";
+    const result = await client.query(query);
+    
+    console.log('[DB] SQL Query executed. Result:', result.rows);
+    if (result.rows.length === 0) {
+      console.log('[DB] No tasks found with status pending!');
+    }
+    
+    const task = result.rows[0];
 
     if (task) {
-      // Переводим статус в 'processing' сразу при получении
-      await client.query("UPDATE scan_queue SET status = 'processing' WHERE id = $1", [task.id]);
+      // Сразу обновляем статус на processing
+      await client.query("UPDATE public.scan_queue SET status = 'processing' WHERE id = $1", [task.id]);
     }
 
     await client.query('COMMIT');
@@ -159,7 +164,7 @@ export async function getNextQueueItem() {
 
 export async function updateQueueStatus(id: number, status: 'pending' | 'processing' | 'completed' | 'failed') {
   try {
-    await pool.query('UPDATE scan_queue SET status = $1 WHERE id = $2', [status, id]);
+    await pool.query('UPDATE public.scan_queue SET status = $1 WHERE id = $2', [status, id]);
   } catch (error) {
     console.error('[DB Error] Failed to update status:', error);
   }
@@ -167,7 +172,7 @@ export async function updateQueueStatus(id: number, status: 'pending' | 'process
 
 export async function getQueueSize(): Promise<number> {
   try {
-    const res = await pool.query("SELECT COUNT(*) FROM scan_queue WHERE status = 'pending'");
+    const res = await pool.query("SELECT COUNT(*) FROM public.scan_queue WHERE status = 'pending'");
     return parseInt(res.rows[0].count);
   } catch (error) {
     return 0;
@@ -176,7 +181,7 @@ export async function getQueueSize(): Promise<number> {
 
 export async function addToQueue(url: string) {
   try {
-    await pool.query("INSERT INTO scan_queue (url, status) VALUES ($1, 'pending') ON CONFLICT (url) DO NOTHING", [url]);
+    await pool.query("INSERT INTO public.scan_queue (url, status) VALUES ($1, 'pending') ON CONFLICT (url) DO NOTHING", [url]);
   } catch (error) {
     console.error('[DB Error] Failed to add to queue:', error);
   }
@@ -184,9 +189,9 @@ export async function addToQueue(url: string) {
 
 export async function getStats() {
   try {
-    const pagesRes = await pool.query('SELECT COUNT(*) as count FROM audit_logs');
-    const issuesRes = await pool.query('SELECT COUNT(*) as count FROM audit_results');
-    const recentIssues = await pool.query('SELECT * FROM audit_results ORDER BY created_at DESC LIMIT 50');
+    const pagesRes = await pool.query('SELECT COUNT(*) as count FROM public.audit_logs');
+    const issuesRes = await pool.query('SELECT COUNT(*) as count FROM public.audit_results');
+    const recentIssues = await pool.query('SELECT * FROM public.audit_results ORDER BY created_at DESC LIMIT 50');
     
     return {
       pagesScanned: parseInt(pagesRes.rows[0].count),
@@ -200,7 +205,7 @@ export async function getStats() {
 
 export async function getViolations() {
   try {
-    const res = await pool.query('SELECT * FROM audit_results ORDER BY created_at DESC');
+    const res = await pool.query('SELECT * FROM public.audit_results ORDER BY created_at DESC');
     return res.rows;
   } catch (error) {
     return [];

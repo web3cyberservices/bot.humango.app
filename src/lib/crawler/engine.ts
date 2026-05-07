@@ -12,7 +12,6 @@ import {
 
 const SLEEP_INTERVAL = 1500; 
 const IDLE_WAIT = 5000;    
-const EMPTY_QUEUE_WAIT = 30000; // Ждем 30 секунд при пустой очереди
 const MAX_QUEUE_LIMIT = 5000;
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
@@ -46,12 +45,12 @@ export async function startEngine() {
 
       if (!task) {
         console.log('[Engine] No tasks. Waiting 30s...');
-        await sleep(EMPTY_QUEUE_WAIT);
+        await sleep(30000); // Ожидание 30 секунд при пустой очереди
         continue;
       }
 
-      // При успешном получении задачи она уже помечена как 'processing' внутри getNextQueueItem
-      console.log(`[Engine] Processing: ${task.url}`);
+      // Если задача найдена, начинаем сканирование
+      console.log(`[Engine] Processing: ${task.url} (ID: ${task.id})`);
       let taskStatus: 'completed' | 'failed' = 'completed';
 
       try {
@@ -71,7 +70,7 @@ export async function startEngine() {
         console.error(`[Engine] Task error for ${task.url}:`, taskError.message);
         taskStatus = 'failed';
       } finally {
-        // Обновляем статус на финальный (completed или failed)
+        // Обновляем статус на финальный в блоке finally
         await updateQueueStatus(task.id, taskStatus);
         console.log(`[DB] Status updated for ID: ${task.id} to ${taskStatus}`);
       }
