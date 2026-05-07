@@ -72,6 +72,7 @@ export default function AdminDashboard() {
   const { toast } = useToast();
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
+  const isFirstLoad = useRef(true);
   
   const [metrics, setMetrics] = useState({
     pagesScanned: 0,
@@ -90,10 +91,12 @@ export default function AdminDashboard() {
 
     setIsRefreshing(true);
     try {
+      // Добавляем timestamp для обхода агрессивного кэширования
+      const timestamp = Date.now();
       const [statusRes, statsRes, logsRes] = await Promise.all([
-        fetch('/api/admin/control'),
-        fetch('/api/admin/stats'),
-        fetch('/api/admin/system-logs')
+        fetch(`/api/admin/control?t=${timestamp}`, { cache: 'no-store' }),
+        fetch(`/api/admin/stats?t=${timestamp}`, { cache: 'no-store' }),
+        fetch(`/api/admin/system-logs?t=${timestamp}`, { cache: 'no-store' })
       ]);
 
       if (statusRes.status === 401) {
@@ -124,14 +127,14 @@ export default function AdminDashboard() {
     } catch (error) {
       console.error('[Admin] Fetch error:', error);
     } finally {
-      setTimeout(() => setIsRefreshing(false), 500);
+      setIsRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
     if (isAuthenticated === true) {
       fetchData();
-      pollingRef.current = setInterval(fetchData, 3000); // Опрос каждые 3 секунды для Real-time
+      pollingRef.current = setInterval(fetchData, 3000);
     }
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
@@ -139,8 +142,11 @@ export default function AdminDashboard() {
   }, [isAuthenticated, fetchData]);
 
   useEffect(() => {
-    if (logEndRef.current) {
+    if (logEndRef.current && !isFirstLoad.current) {
       logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+    if (systemLogs.length > 0) {
+      isFirstLoad.current = false;
     }
   }, [systemLogs]);
 
