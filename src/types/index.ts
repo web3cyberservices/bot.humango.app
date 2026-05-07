@@ -9,6 +9,7 @@ export interface Violation {
   severity: Severity;
   evidence_html: string;
   description: string;
+  recommendation?: string;
   scan_type?: ScanType;
   metadata?: any;
 }

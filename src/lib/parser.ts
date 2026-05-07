@@ -17,6 +17,7 @@ export function shouldRunDeepScan(html: string): boolean {
 
 /**
  * Основной парсер HTML для технического и комплаенс аудита.
+ * Дополнен ADA ролями, проверкой пустых секций и рекомендациями.
  */
 export function parseHtmlContent(html: string, url: string, headers: any = {}): { violations: Violation[], discoveredLinks: string[] } {
   const $ = cheerio.load(html);
@@ -45,11 +46,45 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}): 
       issue_type: 'MISSING_ALT_TEXT',
       severity: 'medium',
       evidence_html: $.html(el),
-      description: 'Элемент изображения не имеет атрибута alt. Программы чтения с экрана не смогут описать это изображение пользователю.'
+      description: 'Элемент изображения не имеет атрибута alt.',
+      recommendation: 'Добавьте атрибут alt с описанием изображения для пользователей программ экранного доступа.'
     });
   });
 
-  // 2. Пустые интерактивные элементы (ссылки и кнопки без текста)
+  // 2. Отсутствие ролей у сложных структурных элементов
+  const complexElements = ['nav', 'main', 'aside', 'section', 'article'];
+  complexElements.forEach(tag => {
+    $(tag).each((_, el) => {
+      if (!$(el).attr('role')) {
+        violations.push({
+          category: 'ADA',
+          issue_type: 'MISSING_ARIA_ROLE',
+          severity: 'low',
+          evidence_html: $.html(el).substring(0, 100) + '...',
+          description: `Элемент <${tag}> не имеет явно заданной роли ARIA.`,
+          recommendation: `Укажите атрибут role (например, role="navigation" для nav), чтобы улучшить навигацию для ассистивных технологий.`
+        });
+      }
+    });
+  });
+
+  // 3. Пустые или неинформативные теги header/footer
+  ['header', 'footer'].forEach(tag => {
+    $(tag).each((_, el) => {
+      if ($(el).text().trim().length === 0) {
+        violations.push({
+          category: 'ADA',
+          issue_type: 'EMPTY_STRUCTURAL_ELEMENT',
+          severity: 'medium',
+          evidence_html: $.html(el),
+          description: `Обнаружен пустой элемент <${tag}>.`,
+          recommendation: 'Удалите пустые структурные теги или наполните их контентом. Пустые ориентиры сбивают с толку пользователей программ экранного доступа.'
+        });
+      }
+    });
+  });
+
+  // 4. Пустые интерактивные элементы
   $('a, button').each((_, el) => {
     const text = $(el).text().trim();
     const ariaLabel = $(el).attr('aria-label');
@@ -59,59 +94,27 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}): 
         issue_type: 'EMPTY_INTERACTIVE_ELEMENT',
         severity: 'high',
         evidence_html: $.html(el),
-        description: 'Интерактивный элемент (ссылка или кнопка) не содержит текста или атрибута aria-label.'
+        description: 'Ссылка или кнопка не содержит текста или метки.',
+        recommendation: 'Добавьте текстовое содержимое или атрибут aria-label, чтобы пользователь понимал назначение элемента.'
       });
     }
   });
 
-  // 3. Отсутствие языка документа
-  if (!$('html').attr('lang')) {
-    violations.push({
-      category: 'ADA',
-      issue_type: 'MISSING_HTML_LANG',
-      severity: 'low',
-      evidence_html: '<html ...>',
-      description: 'Корневой элемент HTML не имеет атрибута lang, что затрудняет работу синтезаторов речи.'
-    });
-  }
-
   // --- GDPR & Privacy Audit ---
 
-  // 4. Внешние Google Fonts (утечка IP без согласия)
+  // 5. Внешние Google Fonts
   $('link[href*="fonts.googleapis.com"]').each((_, el) => {
     violations.push({
       category: 'GDPR',
       issue_type: 'EXTERNAL_GOOGLE_FONTS',
       severity: 'medium',
       evidence_html: $.html(el),
-      description: 'Загрузка шрифтов Google напрямую с их серверов передает IP-адреса пользователей без их явного согласия.'
+      description: 'Загрузка шрифтов Google напрямую с серверов Google (утечка IP).',
+      recommendation: 'Хостите шрифты локально на своем сервере, чтобы избежать передачи IP-адресов пользователей третьим лицам без их согласия.'
     });
   });
 
-  // 5. Наличие трекеров (Facebook Pixel, TikTok) при отсутствии Cookie-баннера
-  const trackers = [
-    { name: 'Facebook Pixel', pattern: 'connect.facebook.net' },
-    { name: 'TikTok Pixel', pattern: 'analytics.tiktok.com' }
-  ];
-
-  const hasCookieBanner = html.toLowerCase().includes('cookie') && 
-    (html.toLowerCase().includes('consent') || html.toLowerCase().includes('accept') || html.toLowerCase().includes('banner'));
-
-  if (!hasCookieBanner) {
-    trackers.forEach(tracker => {
-      if (html.includes(tracker.pattern)) {
-        violations.push({
-          category: 'GDPR',
-          issue_type: `UNAUTHORIZED_${tracker.name.toUpperCase().replace(' ', '_')}`,
-          severity: 'high',
-          evidence_html: `Script pattern: ${tracker.pattern}`,
-          description: `Обнаружен трекер ${tracker.name} на сайте без видимых механизмов управления согласием (Cookie Consent Banner).`
-        });
-      }
-    });
-  }
-
-  // 6. Незащищенные формы (передача данных по HTTP)
+  // 6. Формы на HTTP
   $('form').each((_, el) => {
     const action = $(el).attr('action') || '';
     const isUnsecure = action.startsWith('http://') || (!action.startsWith('https://') && url.startsWith('http://'));
@@ -121,12 +124,13 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}): 
         issue_type: 'UNSECURE_FORM_SUBMISSION',
         severity: 'critical',
         evidence_html: $.html(el),
-        description: 'Форма отправляет данные по незащищенному протоколу HTTP. Это критическое нарушение GDPR.'
+        description: 'Форма отправляет данные по незащищенному протоколу HTTP.',
+        recommendation: 'Настройте SSL-сертификат и используйте https:// для всех путей отправки данных. Это критическое требование безопасности.'
       });
     }
   });
 
-  // 7. Поиск ссылки на Политику Конфиденциальности
+  // 7. Поиск Политики Конфиденциальности
   const hasPrivacyLink = $('a').toArray().some(a => {
     const text = $(a).text().toLowerCase();
     const href = $(a).attr('href')?.toLowerCase() || '';
@@ -138,22 +142,24 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}): 
       category: 'Privacy',
       issue_type: 'MISSING_PRIVACY_POLICY',
       severity: 'high',
-      evidence_html: 'Footer/Main links',
-      description: 'На сайте не обнаружена ссылка на Политику конфиденциальности.'
+      evidence_html: 'Footer Links Scan',
+      description: 'Ссылка на Политику конфиденциальности не найдена.',
+      recommendation: 'Разместите ссылку на Privacy Policy на видном месте (обычно в футере), как того требует GDPR и CCPA.'
     });
   }
 
   // --- Security Audit ---
 
-  // 8. Отсутствие CSP (Content Security Policy)
+  // 8. Отсутствие CSP
   const hasCSP = $('meta[http-equiv="Content-Security-Policy"]').length > 0 || headers['content-security-policy'];
   if (!hasCSP) {
     violations.push({
       category: 'Security',
       issue_type: 'MISSING_CSP',
       severity: 'medium',
-      evidence_html: '<head> Headers',
-      description: 'Отсутствует политика безопасности контента (CSP). Это повышает риск атак типа XSS.'
+      evidence_html: 'HTTP Headers / Meta Tags',
+      description: 'Отсутствует политика безопасности контента (CSP).',
+      recommendation: 'Внедрите заголовок Content-Security-Policy для защиты сайта от XSS-атак и инъекций кода.'
     });
   }
 

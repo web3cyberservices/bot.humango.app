@@ -34,6 +34,7 @@ async function migrate() {
         severity VARCHAR(20) NOT NULL,
         evidence_html TEXT,
         description TEXT,
+        recommendation TEXT,
         scan_type VARCHAR(20) DEFAULT 'basic',
         metadata JSONB DEFAULT '{}',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

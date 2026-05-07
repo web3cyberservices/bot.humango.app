@@ -23,7 +23,7 @@ function sanitize(text: string | null | undefined): string {
 
 /**
  * Сохранение результатов аудита. 
- * Используем транзакцию для пакетной вставки всех нарушений одной страницы.
+ * Теперь включает колонку recommendation и использует транзакции.
  */
 export async function saveAuditResults(domain: string, url: string, violations: Violation[], scanType: ScanType = 'basic') {
   if (violations.length === 0) return { success: true };
@@ -33,8 +33,11 @@ export async function saveAuditResults(domain: string, url: string, violations: 
     await client.query('BEGIN');
     
     const query = `
-      INSERT INTO audit_results (domain, url, category, issue_type, severity, evidence_html, description, scan_type, metadata, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+      INSERT INTO audit_results (
+        domain, url, category, issue_type, severity, evidence_html, 
+        description, recommendation, scan_type, metadata, created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
     `;
 
     for (const v of violations) {
@@ -46,6 +49,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
         v.severity,
         sanitize(v.evidence_html),
         sanitize(v.description),
+        sanitize(v.recommendation),
         scanType,
         JSON.stringify(v.metadata || {})
       ]);
