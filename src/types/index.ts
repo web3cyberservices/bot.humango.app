@@ -7,10 +7,12 @@ export interface Violation {
   category: Category;
   issue_type: string;
   severity: Severity;
-  evidence_html: string; // Snippet for the DB
+  evidence_html: string; 
+  snippet?: string;
   description: string;
-  explanation: string; // Legal/technical reasoning
-  fine_amount: string; // Updated from potential_penalty
+  explanation: string;
+  law_name: string;        // Новый атрибут: Название закона
+  potential_fine: string;  // Новый атрибут: Сумма штрафа
   recommendation?: string;
   scan_type?: ScanType;
   metadata?: any;

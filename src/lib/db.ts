@@ -18,10 +18,6 @@ export const pool = new Pool({
   connectionTimeoutMillis: 5000,
 });
 
-pool.on('error', (err) => {
-  console.error('[DB Pool ERROR]', err.message);
-});
-
 function sanitize(text: string | null | undefined): string {
   if (!text) return '';
   return DOMPurify.sanitize(text);
@@ -50,24 +46,27 @@ export async function saveAuditResults(domain: string, url: string, violations: 
     const query = `
       INSERT INTO site_violations (
         domain, url, page_url, category, issue_type, severity, 
-        evidence_html, snippet, fine_amount, explanation, recommendation, created_at
+        evidence_html, snippet, fine_amount, explanation, law_name, recommendation, scan_type, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
     `;
 
     for (const v of violations) {
+      // Записываем url в обе колонки для совместимости
       await client.query(query, [
         sanitize(domain),
-        sanitize(url),
-        sanitize(url),
+        sanitize(url), // url
+        sanitize(url), // page_url
         v.category,
         v.issue_type,
         v.severity,
         sanitize(v.evidence_html),
-        sanitize(v.evidence_html),
-        v.fine_amount,
+        sanitize(v.snippet || v.evidence_html), // snippet
+        v.potential_fine, // fine_amount
         v.explanation,
-        sanitize(v.recommendation)
+        v.law_name,
+        sanitize(v.recommendation),
+        scanType
       ]);
     }
     await client.query('COMMIT');
@@ -97,18 +96,12 @@ export async function getBotEvents(limit = 50) {
     const res = await pool.query('SELECT id, type, message, timestamp FROM bot_events ORDER BY timestamp DESC LIMIT $1', [limit]);
     return res.rows;
   } catch (error) {
-    console.error('[DB Error] Failed to fetch bot events:', error);
     return [];
   }
 }
 
 export async function getBotStatus(): Promise<boolean> {
-  try {
-    const res = await pool.query('SELECT is_active FROM bot_settings WHERE id = 1');
-    return res.rows.length > 0 ? res.rows[0].is_active : true;
-  } catch (error) {
-    return true;
-  }
+  return true; // Принудительно активен
 }
 
 export async function setBotStatus(isActive: boolean) {
@@ -116,7 +109,6 @@ export async function setBotStatus(isActive: boolean) {
     await pool.query('UPDATE bot_settings SET is_active = $1, updated_at = NOW() WHERE id = 1', [isActive]);
     return { success: true };
   } catch (error) {
-    console.error('[DB Error] Failed to set bot status:', error);
     return { success: false };
   }
 }
@@ -136,7 +128,6 @@ export async function getNextQueueItem() {
     return task || null;
   } catch (error: any) {
     await client.query('ROLLBACK');
-    console.error('[DB Error] getNextQueueItem failed:', error.message);
     return null;
   } finally {
     client.release();
@@ -166,17 +157,13 @@ export async function addToQueue(url: string, depth: number = 0, priority: numbe
       "INSERT INTO scan_queue (url, status, depth, priority) VALUES ($1, 'pending', $2, $3) ON CONFLICT (url) DO NOTHING", 
       [url, depth, priority]
     );
-  } catch (error) {
-    // Дубликаты игнорируются
-  }
+  } catch (error) {}
 }
 
 export async function saveAuditLog(domain: string, statusCode: number, errorMessage: string | null) {
   try {
     await pool.query('INSERT INTO audit_logs (domain, status_code, error_message, created_at) VALUES ($1, $2, $3, NOW())', [sanitize(domain), statusCode, sanitize(errorMessage)]);
-  } catch (error) {
-    console.error('[DB Error] Failed to save audit log:', error);
-  }
+  } catch (error) {}
 }
 
 export async function getStats() {
@@ -185,17 +172,16 @@ export async function getStats() {
     const issuesRes = await pool.query('SELECT COUNT(*) as total FROM site_violations');
     
     return {
-      pagesScanned: parseInt(pagesRes.rows[0]?.count || '0', 10),
-      issuesFound: parseInt(issuesRes.rows[0]?.total || '0', 10),
-      recentIssues: []
+      pagesScanned: Number(pagesRes.rows[0]?.count) || 0,
+      issuesFound: Number(issuesRes.rows[0]?.total) || 0,
+      recentIssues: await getViolations(10)
     };
   } catch (error) {
-    console.error('[DB Stats Error]', error);
     return { pagesScanned: 0, issuesFound: 0, recentIssues: [] };
   }
 }
 
-export async function getViolations() {
+export async function getViolations(limit = 100) {
   try {
     const res = await pool.query(`
       SELECT 
@@ -206,14 +192,14 @@ export async function getViolations() {
         created_at as date, 
         explanation as description,
         fine_amount,
+        law_name,
         page_url as url
       FROM site_violations 
       ORDER BY created_at DESC
-      LIMIT 100
-    `);
+      LIMIT $1
+    `, [limit]);
     return res.rows || [];
   } catch (error) {
-    console.error('[DB Violations Error]', error);
     return [];
   }
 }

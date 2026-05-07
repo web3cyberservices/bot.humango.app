@@ -1,43 +1,56 @@
 
 import * as cheerio from 'cheerio';
-import { Violation, Category } from '@/types';
+import { Violation } from '@/types';
 
 /**
- * Расчет потенциального штрафа на основе категории и контекста нарушения.
+ * Определяет правовую информацию на основе доменной зоны.
  */
-function calculatePenalty(category: Category, issueType: string): string {
-  switch (category) {
-    case 'ADA':
-      return "$4,000+ (Statutory damages per incident)";
-    case 'GDPR':
-      return "Up to €20M or 4% of global turnover";
-    case 'Privacy':
-      return "Up to $7,500 per violation (CCPA/CPRA)";
-    default:
-      return "Variable based on jurisdiction";
+function getLawContext(domain: string) {
+  const d = domain.toLowerCase();
+  if (d.endsWith('.de')) {
+    return {
+      law: 'BDSG (Германия) & GDPR',
+      fine: 'до €20 млн или 4% годового оборота',
+      region: 'DE'
+    };
   }
+  if (d.endsWith('.fr')) {
+    return {
+      law: 'LIL (Франция) & GDPR',
+      fine: 'до €20 млн',
+      region: 'FR'
+    };
+  }
+  if (d.endsWith('.it')) {
+    return {
+      law: 'Codice della Privacy (Италия)',
+      fine: 'до €20 млн',
+      region: 'IT'
+    };
+  }
+  return {
+    law: 'EU GDPR',
+    fine: 'до €20 млн или 4% годового оборота',
+    region: 'EU'
+  };
 }
 
 /**
- * Эвристическая проверка: нужен ли запуск браузера (Deep Scan).
+ * Эвристика глубокого сканирования.
  */
 export function shouldRunDeepScan(html: string): boolean {
   const indicators = [
     'react.js', 'vue.js', '_next/static', 'gtm.js', 'fbevents.js', 
-    'adsbygoogle', 'intercom', 'crisp.chat', 'drift.com', 'zendesk.com',
-    'cookie-law', 'cookie-banner', 'onetrust', 'didomi', 'checkout'
+    'adsbygoogle', 'intercom', 'crisp.chat', 'cookie-law', 'cookie-banner'
   ];
   const lowerHtml = html.toLowerCase();
   return indicators.some(indicator => lowerHtml.includes(indicator.toLowerCase()));
 }
 
-// Константы для Auto-Discovery
 const EU_TLDS = ['.de', '.fr', '.it', '.es', '.pl', '.nl', '.be', '.at', '.dk', '.fi', '.se', '.ie', '.pt', '.cz', '.gr', '.hu', '.ro', '.sk', '.bg', '.ee', '.lv', '.lt', '.hr', '.si', '.mt', '.cy'];
-const SOCIAL_NETWORKS = ['facebook.com', 'instagram.com', 'twitter.com', 'x.com', 'linkedin.com', 'youtube.com', 'tiktok.com', 'pinterest.com'];
-const TECH_GIANTS = ['google.', 'wikipedia.org', 'amazon.', 'microsoft.', 'apple.', 'yahoo.', 'bing.', 'baidu.'];
 
 /**
- * Основной экспертный парсер для глубокого аудита и Auto-Discovery.
+ * Экспертный парсер с региональной логикой.
  */
 export function parseHtmlContent(html: string, url: string, headers: any = {}): { violations: Violation[], discoveredLinks: string[] } {
   const $ = cheerio.load(html);
@@ -45,80 +58,97 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}): 
   const discoveredLinks: string[] = [];
   
   const currentUrl = new URL(url);
-  const currentHostname = currentUrl.hostname.toLowerCase();
+  const domain = currentUrl.hostname.toLowerCase();
+  const lawContext = getLawContext(domain);
 
-  // --- Auto-Discovery Logic ---
+  // --- Auto-Discovery ---
   $('a[href]').each((_, el) => {
-    const href = $(el).attr('href');
-    if (!href) return;
-
     try {
+      const href = $(el).attr('href');
+      if (!href) return;
       const absoluteUrl = new URL(href, url);
       const hostname = absoluteUrl.hostname.toLowerCase();
-      
-      // Только HTTP/HTTPS
-      if (!absoluteUrl.protocol.startsWith('http')) return;
-
-      // Проверка на гигантов
-      if (TECH_GIANTS.some(giant => hostname.includes(giant))) return;
-
-      // Проверка на соцсети
-      if (SOCIAL_NETWORKS.some(social => hostname.includes(social))) return;
-
-      // Фокус только на EU TLDs
-      const isEu = EU_TLDS.some(tld => hostname.endsWith(tld));
-      
-      // Добавляем только если это внешний домен из ЕС
-      if (isEu && hostname !== currentHostname) {
+      if (EU_TLDS.some(tld => hostname.endsWith(tld)) && hostname !== domain) {
         discoveredLinks.push(absoluteUrl.href);
       }
     } catch (e) {}
   });
 
-  // --- ADA Compliance Audit ---
-  $('img:not([alt])').each((_, el) => {
-    const snippet = $.html(el);
+  // 1. Google Fonts Check (IP Leakage)
+  if (html.includes('fonts.googleapis.com') || html.includes('fonts.gstatic.com')) {
     violations.push({
-      category: 'ADA',
-      issue_type: 'MISSING_ALT_TEXT',
-      severity: 'medium',
-      evidence_html: snippet,
-      description: 'Image missing descriptive alt text.',
-      explanation: 'Изображение недоступно для программ-чтецов экрана, что нарушает раздел 508 закона ADA. Это распространенная причина гражданских исков.',
-      fine_amount: calculatePenalty('ADA', 'MISSING_ALT_TEXT'),
-      recommendation: 'Add a descriptive alt="..." attribute to the <img> tag.'
+      category: 'Privacy',
+      issue_type: 'Нарушение конфиденциальности (передача IP без согласия)',
+      severity: 'high',
+      evidence_html: 'External request to fonts.googleapis.com',
+      snippet: 'Link to Google Fonts detected in HTML source.',
+      description: 'Dynamic loading of Google Fonts from remote servers.',
+      law_name: lawContext.law,
+      potential_fine: lawContext.fine,
+      explanation: 'Использование Google Fonts без локального хостинга приводит к автоматической передаче IP-адреса пользователя на серверы Google (США) без предварительного явного согласия. Это признано нарушением GDPR судом Мюнхена (Case: 3 O 17493/20).',
+      recommendation: 'Хостите шрифты локально на своем сервере.'
     });
-  });
+  }
 
-  // --- GDPR & Privacy Audit ---
-  $('input[type="checkbox"][checked]').each((_, el) => {
+  // 2. Cookie Banner Check (ePrivacy)
+  const cookieIndicators = ['cookie-banner', 'cookie-consent', 'onetrust', 'didomi', 'cookie-law', 'cookie-overlay', 'cc-window'];
+  const hasBanner = cookieIndicators.some(ind => html.toLowerCase().includes(ind));
+  if (!hasBanner) {
     violations.push({
       category: 'GDPR',
-      issue_type: 'PREFILLED_CONSENT',
-      severity: 'high',
-      evidence_html: $.html(el),
-      description: 'Detected pre-filled consent checkbox.',
-      explanation: 'Under GDPR Art. 4(11), consent must be a clear affirmative action. Pre-checked boxes do not constitute valid voluntary consent.',
-      fine_amount: calculatePenalty('GDPR', 'PREFILLED_CONSENT'),
-      recommendation: 'Remove the "checked" attribute. Consent must be opt-in, not opt-out.'
+      issue_type: 'Нарушение ePrivacy Directive',
+      severity: 'critical',
+      evidence_html: 'No cookie consent element found',
+      snippet: 'Body source analysis: missing common consent library indicators.',
+      description: 'Missing Cookie Consent Management Platform.',
+      law_name: lawContext.law,
+      potential_fine: lawContext.fine,
+      explanation: 'Отсутствие баннера согласия нарушает ePrivacy Directive и требования GDPR о получении явного согласия перед установкой любых не строго необходимых файлов cookie.',
+      recommendation: 'Установите платформу управления согласием (CMP), например Cookiebot или OneTrust.'
     });
-  });
+  }
 
+  // 3. Impressum Check (Only for .de)
+  if (domain.endsWith('.de')) {
+    const hasImpressum = $('a').toArray().some(a => {
+      const text = $(a).text().toLowerCase();
+      const href = $(a).attr('href')?.toLowerCase() || '';
+      return text.includes('impressum') || href.includes('impressum');
+    });
+    if (!hasImpressum) {
+      violations.push({
+        category: 'Privacy',
+        issue_type: 'Нарушение § 5 TMG',
+        severity: 'high',
+        evidence_html: 'Missing link to Impressum',
+        snippet: 'A-tags search: no impressum-related labels or paths found.',
+        description: 'Missing mandatory legal disclosure (Impressum).',
+        law_name: 'Telemediengesetz (TMG) & BDSG',
+        potential_fine: 'до €50 000',
+        explanation: 'Немецкие сайты обязаны иметь легкодоступную юридическую информацию (Impressum) согласно § 5 TMG. Отсутствие ссылки в футере — основание для судебного иска (Abmahnung).',
+        recommendation: 'Добавьте ссылку "Impressum" в главное меню или футер сайта.'
+      });
+    }
+  }
+
+  // 4. Unsecure Protocol Check
   if (url.startsWith('http://')) {
     violations.push({
-      category: 'GDPR',
-      issue_type: 'UNSECURE_DATA_TRANSMISSION',
+      category: 'Security',
+      issue_type: 'Unsecure Data Transmission',
       severity: 'critical',
       evidence_html: 'Protocol: HTTP',
-      description: 'Data transmission over unencrypted HTTP.',
-      explanation: 'Failure to use TLS encryption violates GDPR Art. 32 requirements for data processing security.',
-      fine_amount: calculatePenalty('GDPR', 'UNSECURE_DATA_TRANSMISSION'),
-      recommendation: 'Install an SSL certificate and enforce HTTPS redirects.'
+      snippet: 'Scheme: http (non-encrypted)',
+      description: 'Lack of TLS encryption.',
+      law_name: lawContext.law,
+      potential_fine: lawContext.fine,
+      explanation: 'Использование протокола HTTP вместо HTTPS нарушает ст. 32 GDPR (Security of processing), так как данные пользователей передаются в открытом виде.',
+      recommendation: 'Настройте SSL-сертификат и принудительный редирект на HTTPS.'
     });
   }
 
   return { 
     violations, 
-    discoveredLinks: Array.from(new Set(discoveredLinks)).slice(0, 50) // Лимит ссылок с одной страницы
+    discoveredLinks: Array.from(new Set(discoveredLinks)).slice(0, 50) 
   };
 }
