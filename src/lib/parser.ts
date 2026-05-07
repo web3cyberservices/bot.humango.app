@@ -12,21 +12,19 @@ function getLawContext(domain: string) {
   if (d.endsWith('.de')) {
     return {
       law: 'BITV 2.0 / GDPR',
-      fine: 'до €50,000 (BGG) или до 4% оборота (GDPR)',
+      fine: 'до €50,000 (административный штраф) или согласно GDPR до 4% оборота',
       region: 'DE',
-      accessibilityLaw: 'BITV 2.0 (§ 12 BGG)',
-      legalExplanation: 'Нарушение требований доступности согласно § 12 BGG и стандарту BITV 2.0.'
+      explanation: 'Нарушение BITV 2.0 и требований доступности согласно § 12 BGG. Изображение не имеет альтернативного текста.'
     };
   }
   
   // Франция
   if (d.endsWith('.fr')) {
     return {
-      law: 'RGAA / GDPR',
+      law: 'RGAA',
       fine: 'до €25,000 (адм. штраф) или до 4% оборота (GDPR)',
       region: 'FR',
-      accessibilityLaw: 'RGAA (статья 47 закона № 2005-102)',
-      legalExplanation: 'Нарушение требований цифровой доступности согласно статье 47 закона № 2005-102.'
+      explanation: 'Нарушение требований цифровой доступности согласно статье 47 закона № 2005-102.'
     };
   }
 
@@ -36,8 +34,7 @@ function getLawContext(domain: string) {
       law: 'Stanca Act / GDPR',
       fine: 'до 5% оборота или до €20 млн',
       region: 'IT',
-      accessibilityLaw: 'Stanca Act (Закон 4/2004)',
-      legalExplanation: 'Нарушение итальянского закона о доступности (Legge Stanca).'
+      explanation: 'Нарушение итальянского закона о доступности (Legge Stanca).'
     };
   }
 
@@ -47,8 +44,7 @@ function getLawContext(domain: string) {
       law: 'ADA / Section 508',
       fine: '$4,000 - $75,000+',
       region: 'US',
-      accessibilityLaw: 'ADA Title III',
-      legalExplanation: 'Violation of Americans with Disabilities Act (ADA) requirements.'
+      explanation: 'Violation of Americans with Disabilities Act (ADA) requirements.'
     };
   }
 
@@ -57,8 +53,7 @@ function getLawContext(domain: string) {
     law: 'EU GDPR / EN 301 549',
     fine: 'до €20 млн или 4% годового оборота',
     region: 'EU',
-    accessibilityLaw: 'Web Accessibility Directive',
-    legalExplanation: 'Нарушение требований доступности согласно директивам ЕС и регламенту GDPR.'
+    explanation: 'Нарушение требований доступности согласно директивам ЕС и регламенту GDPR.'
   };
 }
 
@@ -95,6 +90,10 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}): 
       if (!href) return;
       const absoluteUrl = new URL(href, url);
       const hostname = absoluteUrl.hostname.toLowerCase();
+      // Фильтрация гигантов и соцсетей
+      const blacklist = ['google.', 'facebook.', 'amazon.', 'wikipedia.', 'linkedin.', 'twitter.', 'instagram.', 'youtube.'];
+      if (blacklist.some(b => hostname.includes(b))) return;
+
       if (EU_TLDS.some(tld => hostname.endsWith(tld)) && hostname !== domain) {
         discoveredLinks.push(absoluteUrl.href);
       }
@@ -105,7 +104,7 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}): 
   $('img:not([alt])').each((_, el) => {
     const snippet = $.html(el);
     violations.push({
-      category: 'ADA', // Категория сохраняется как ADA для совместимости, но закон меняется
+      category: 'ADA',
       issue_type: 'Отсутствие альтернативного текста (Accessibility)',
       severity: 'medium',
       evidence_html: snippet,
@@ -113,9 +112,7 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}): 
       description: 'Image lacks alt attribute.',
       law_name: lawContext.law,
       potential_fine: lawContext.fine,
-      explanation: domain.endsWith('.de') 
-        ? `Нарушение BITV 2.0 и требований доступности согласно § 12 BGG. Изображение не имеет альтернативного текста.`
-        : `${lawContext.legalExplanation} Изображение не имеет альтернативного текста.`,
+      explanation: lawContext.explanation,
       recommendation: 'Добавьте атрибут alt к тегу <img> для поддержки скринридеров.'
     });
   });
@@ -129,9 +126,9 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}): 
       evidence_html: 'External request to fonts.googleapis.com',
       snippet: 'Link to Google Fonts detected in HTML source.',
       description: 'Dynamic loading of Google Fonts from remote servers.',
-      law_name: lawContext.law,
+      law_name: domain.endsWith('.de') ? 'BDSG / GDPR' : 'EU GDPR',
       potential_fine: lawContext.fine,
-      explanation: 'Использование Google Fonts без локального хостинга приводит к автоматической передаче IP-адреса пользователя на серверы Google (США) без предварительного явного согласия. Это признано нарушением GDPR судом Мюнхена.',
+      explanation: 'Использование Google Fonts без локального хостинга приводит к автоматической передаче IP-адреса пользователя на серверы Google (США) без предварительного явного согласия.',
       recommendation: 'Хостите шрифты локально на своем сервере.'
     });
   }
@@ -147,7 +144,7 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}): 
       evidence_html: 'No cookie consent element found',
       snippet: 'Body source analysis: missing common consent library indicators.',
       description: 'Missing Cookie Consent Management Platform.',
-      law_name: lawContext.law,
+      law_name: 'ePrivacy Directive / GDPR',
       potential_fine: lawContext.fine,
       explanation: 'Отсутствие баннера согласия нарушает ePrivacy Directive и требования GDPR о получении явного согласия перед установкой куки.',
       recommendation: 'Установите платформу управления согласием (CMP).'
@@ -169,7 +166,7 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}): 
         evidence_html: 'Missing link to Impressum',
         snippet: 'A-tags search: no impressum-related labels or paths found.',
         description: 'Missing mandatory legal disclosure (Impressum).',
-        law_name: 'Telemediengesetz (TMG) & BDSG',
+        law_name: 'Telemediengesetz (TMG)',
         potential_fine: 'до €50,000',
         explanation: 'Немецкие сайты обязаны иметь легкодоступную юридическую информацию (Impressum) согласно § 5 TMG.',
         recommendation: 'Добавьте ссылку "Impressum" в главное меню или футер сайта.'
