@@ -7,34 +7,31 @@ import 'dotenv/config';
 import { startEngine } from '../lib/crawler/engine';
 
 if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL is missing in environment variables!');
+  console.error('[Worker] FATAL: DATABASE_URL environment variable is not set!');
+  process.exit(1);
 }
 
 async function bootstrap() {
-  console.log('--------------------------------------------------');
-  console.log('   HUMANGO BOT WORKER SERVICE v1.5                ');
-  console.log('   Identity: bot.humango.app                      ');
-  console.log('   Policy: RFC 9309 / GDPR Technical Audit        ');
-  console.log('--------------------------------------------------');
+  console.log('==================================================');
+  console.log('   HUMANGO BOT WORKER SERVICE v1.6                ');
+  console.log('   Status: Bootstraping...                        ');
+  console.log('==================================================');
   
   try {
-    console.log('[DEBUG] Initializing engine...');
     await startEngine();
   } catch (error: any) {
-    console.error('[CRITICAL BOOTSTRAP ERROR]', error.stack || error);
+    console.error('[Worker] CRITICAL UNHANDLED ERROR:', error.stack || error);
     process.exit(1);
   }
 }
 
-// Обработка системных сигналов для корректного завершения (Graceful Shutdown)
-process.on('SIGINT', () => {
-  console.log('\n[Worker] Received SIGINT. Shutting down gracefully...');
+// Graceful Shutdown
+const shutdown = () => {
+  console.log('\n[Worker] Termination signal received. Stopping...');
   process.exit(0);
-});
+};
 
-process.on('SIGTERM', () => {
-  console.log('\n[Worker] Received SIGTERM. Shutting down gracefully...');
-  process.exit(0);
-});
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 bootstrap();

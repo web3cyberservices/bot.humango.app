@@ -10,19 +10,23 @@ if (!process.env.DATABASE_URL) {
 
 const connectionString = process.env.DATABASE_URL;
 
-console.log('[DB] Attempting to connect to:', connectionString.replace(/:[^:]+@/, ':****@'));
+console.log('[DB] Initializing Pool for:', connectionString.replace(/:[^:]+@/, ':****@'));
 
 const pool = new Pool({
   connectionString,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000, // Таймаут подключения 5 секунд
-  statement_timeout: 10000,      // Таймаут выполнения запроса 10 секунд
+  connectionTimeoutMillis: 5000,
+  statement_timeout: 10000,
 });
 
 pool.on('error', (err) => {
-  console.error('[DB Pool Error] Unexpected error:', err);
+  console.error('[DB Pool ERROR]', err.message);
+});
+
+pool.on('connect', () => {
+  // Silent heartbeat check
 });
 
 function sanitize(text: string | null | undefined): string {
@@ -30,9 +34,20 @@ function sanitize(text: string | null | undefined): string {
   return DOMPurify.sanitize(text);
 }
 
-/**
- * Сохранение расширенных результатов аудита.
- */
+export async function testConnection() {
+  const client = await pool.connect();
+  try {
+    const res = await client.query('SELECT NOW()');
+    console.log('[DB] Connection test successful:', res.rows[0].now);
+    return true;
+  } catch (err: any) {
+    console.error('[DB] Connection test FAILED:', err.message);
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export async function saveAuditResults(domain: string, url: string, violations: Violation[], scanType: ScanType = 'basic') {
   if (violations.length === 0) return { success: true };
 
@@ -75,9 +90,8 @@ export async function saveAuditResults(domain: string, url: string, violations: 
 }
 
 export async function saveBotEvent(type: 'START' | 'STOP' | 'ERROR' | 'SUCCESS', message: string) {
-  const query = 'INSERT INTO public.bot_events (type, message, timestamp) VALUES ($1, $2, NOW())';
   try {
-    await pool.query(query, [type, sanitize(message)]);
+    await pool.query('INSERT INTO public.bot_events (type, message, timestamp) VALUES ($1, $2, NOW())', [type, sanitize(message)]);
     return { success: true };
   } catch (error) {
     return { success: false };
@@ -90,27 +104,6 @@ export async function getBotEvents(limit = 50) {
     return res.rows.map(event => ({ ...event, message: sanitize(event.message) }));
   } catch (error) {
     return [];
-  }
-}
-
-export async function cleanupOldLogs(days = 30) {
-  try {
-    await pool.query("DELETE FROM public.audit_logs WHERE created_at < NOW() - ($1 || ' days')::interval", [days]);
-    await pool.query("DELETE FROM public.audit_results WHERE created_at < NOW() - ($1 || ' days')::interval", [days]);
-    await pool.query("DELETE FROM public.bot_events WHERE timestamp < NOW() - ($1 || ' days')::interval", [days]);
-    return { success: true };
-  } catch (error) {
-    return { success: false };
-  }
-}
-
-export async function saveAuditLog(domain: string, statusCode: number, errorMessage: string | null) {
-  const query = 'INSERT INTO public.audit_logs (domain, status_code, error_message, created_at) VALUES ($1, $2, $3, NOW())';
-  try {
-    await pool.query(query, [sanitize(domain), statusCode, sanitize(errorMessage)]);
-    return { success: true };
-  } catch (error) {
-    return { success: false };
   }
 }
 
@@ -132,14 +125,12 @@ export async function setBotStatus(isActive: boolean) {
   }
 }
 
-/**
- * Атомарное получение и резервирование задачи из очереди.
- */
 export async function getNextQueueItem() {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     
+    // Explicitly target pending tasks with row-level locking
     const query = "SELECT id, url FROM public.scan_queue WHERE status = 'pending' ORDER BY id ASC LIMIT 1 FOR UPDATE SKIP LOCKED";
     const result = await client.query(query);
     
@@ -147,16 +138,17 @@ export async function getNextQueueItem() {
 
     if (task) {
       await client.query("UPDATE public.scan_queue SET status = 'processing' WHERE id = $1", [task.id]);
+      console.log(`[DB] Task claimed: ${task.url} (ID: ${task.id})`);
     }
 
     await client.query('COMMIT');
     return task || null;
-  } catch (error) {
+  } catch (error: any) {
     await client.query('ROLLBACK');
-    console.error('[DB Error] Failed to fetch/claim next queue item:', error);
+    console.error('[DB Error] Transaction failed in getNextQueueItem:', error.message);
     return null;
   } finally {
-    client.release();
+    client.release(); // Essential: release back to pool
   }
 }
 
@@ -164,7 +156,7 @@ export async function updateQueueStatus(id: number, status: 'pending' | 'process
   try {
     await pool.query('UPDATE public.scan_queue SET status = $1 WHERE id = $2', [status, id]);
   } catch (error) {
-    console.error('[DB Error] Failed to update status:', error);
+    console.error('[DB Error] Failed to update queue status:', error);
   }
 }
 
@@ -181,8 +173,14 @@ export async function addToQueue(url: string) {
   try {
     await pool.query("INSERT INTO public.scan_queue (url, status) VALUES ($1, 'pending') ON CONFLICT (url) DO NOTHING", [url]);
   } catch (error) {
-    console.error('[DB Error] Failed to add to queue:', error);
+    // Ignore duplicates
   }
+}
+
+export async function saveAuditLog(domain: string, statusCode: number, errorMessage: string | null) {
+  try {
+    await pool.query('INSERT INTO public.audit_logs (domain, status_code, error_message, created_at) VALUES ($1, $2, $3, NOW())', [sanitize(domain), statusCode, sanitize(errorMessage)]);
+  } catch (error) {}
 }
 
 export async function getStats() {

@@ -7,51 +7,46 @@ import {
   saveBotEvent, 
   addToQueue, 
   getQueueSize,
-  cleanupOldLogs
+  testConnection
 } from '@/lib/db';
 
 const SLEEP_INTERVAL = 1500; 
-const IDLE_WAIT = 5000;    
+const IDLE_WAIT = 30000;    
 const MAX_QUEUE_LIMIT = 5000;
-const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
-
-let errorBackoffMs = 1000;
-let lastCleanupTime = 0;
 
 export async function startEngine() {
-  console.log('[Engine] HumangoBot Worker started.');
-  await saveBotEvent('START', 'Движок HumangoBot инициализирован. Режим RFC 9309 активен.');
+  console.log('[Engine] HumangoBot Engine starting...');
+  
+  // Initial sanity check
+  try {
+    await testConnection();
+    await saveBotEvent('SUCCESS', 'Движок HumangoBot запущен. Связь с БД установлена.');
+  } catch (err) {
+    console.error('[Engine] FATAL: Database unreachable. Check DATABASE_URL.');
+    return;
+  }
 
   while (true) {
     try {
-      const now = Date.now();
-      if (now - lastCleanupTime > CLEANUP_INTERVAL_MS) {
-        await cleanupOldLogs(30);
-        lastCleanupTime = now;
-        await saveBotEvent('SUCCESS', 'Автоматическая очистка логов выполнена.');
-      }
-
+      // Heartbeat
+      console.log(`[Engine] Cycle heartbeat at ${new Date().toLocaleTimeString()}`);
+      
       const isActive = await getBotStatus();
       if (!isActive) {
+        console.log('[Engine] Engine is paused by settings.');
         await sleep(IDLE_WAIT);
         continue;
       }
 
-      errorBackoffMs = 1000;
-
-      // Поиск задач в БД
-      console.log('[DEBUG] Calling getNextQueueItem...');
       const task = await getNextQueueItem();
-      console.log('[DEBUG] Task received:', task);
-
+      
       if (!task) {
-        console.log('[Engine] No tasks. Waiting 30s...');
-        await sleep(30000); 
+        console.log('[Engine] Queue is empty. Waiting for new tasks...');
+        await sleep(IDLE_WAIT); 
         continue;
       }
 
-      // Если задача найдена, начинаем сканирование
-      console.log(`[Engine] Processing: ${task.url} (ID: ${task.id})`);
+      console.log(`[Engine] Processing task: ${task.url}`);
       let taskStatus: 'completed' | 'failed' = 'completed';
 
       try {
@@ -59,8 +54,10 @@ export async function startEngine() {
         
         if (result.status === 'failed') {
           taskStatus = 'failed';
+          console.error(`[Engine] Task failed for ${task.url}: ${result.error || 'Unknown error'}`);
         }
 
+        // Auto-discovery logic
         const queueSize = await getQueueSize();
         if (queueSize < MAX_QUEUE_LIMIT && result.status === 'success' && result.discoveredLinks) {
            for (const link of result.discoveredLinks) {
@@ -68,19 +65,18 @@ export async function startEngine() {
            }
         }
       } catch (taskError: any) {
-        console.error(`[Engine] Task error for ${task.url}:`, taskError.message);
+        console.error(`[Engine] Unexpected error during crawl:`, taskError.message);
         taskStatus = 'failed';
       } finally {
         await updateQueueStatus(task.id, taskStatus);
-        console.log(`[DB] Status updated for ID: ${task.id} to ${taskStatus}`);
+        console.log(`[Engine] Task finished: ${task.url} -> ${taskStatus}`);
       }
 
       await sleep(SLEEP_INTERVAL);
 
     } catch (error: any) {
-      console.error('[CRITICAL ENGINE ERROR]', error.stack || error);
-      await sleep(errorBackoffMs);
-      errorBackoffMs = Math.min(errorBackoffMs * 2, 60000); 
+      console.error('[Engine Loop CRITICAL ERROR]', error.stack || error);
+      await sleep(5000); // Backoff
     }
   }
 }

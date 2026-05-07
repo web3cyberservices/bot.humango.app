@@ -6,120 +6,114 @@ import { ScanType } from '@/types';
 
 const MAX_REDIRECTS = 5;
 const REQUEST_TIMEOUT = 10000;
+const CHROME_PATH = '/root/.cache/puppeteer/chrome/linux-148.0.7778.97/chrome-linux64/chrome';
 
 /**
- * Глубокое сканирование для обнаружения динамических нарушений (Cookie Wall, JS-трекеры).
+ * Глубокое сканирование для обнаружения динамических нарушений.
  */
 async function deepScrapeUrl(url: string) {
-  console.log(`[Scraper] Starting deep scan for: ${url}`);
-  
-  const executablePath = '/root/.cache/puppeteer/chrome/linux-148.0.7778.97/chrome-linux64/chrome';
-  console.log('[DEBUG] Launching Chrome from:', executablePath);
+  console.log(`[Scraper] Deep Scan: Launching Chrome for ${url}`);
   
   let browser;
   try {
     browser = await puppeteer.launch({
-      executablePath,
+      executablePath: CHROME_PATH,
       headless: 'new',
       args: [
         '--no-sandbox', 
         '--disable-setuid-sandbox', 
         '--disable-dev-shm-usage', 
-        '--disable-gpu'
+        '--disable-gpu',
+        '--single-process'
       ]
     });
-    console.log('[Scraper] Browser launched successfully');
-  } catch (error) {
-    console.error('[Scraper FATAL] Failed to launch browser:', error);
-    throw error;
+  } catch (error: any) {
+    console.error('[Scraper] Chrome launch failed:', error.message);
+    throw new Error('CHROME_LAUNCH_FAILED');
   }
 
   try {
     const page = await browser.newPage();
     
-    // Блокировка тяжелых ресурсов для экономии RAM
+    // Safety timeout for the entire page logic
+    await page.setDefaultNavigationTimeout(25000);
+    
     await page.setRequestInterception(true);
     page.on('request', (req) => {
-      const resourceType = req.resourceType();
-      if (['image', 'media', 'font'].includes(resourceType)) {
+      if (['image', 'media', 'font'].includes(req.resourceType())) {
         req.abort();
       } else {
         req.continue();
       }
     });
 
-    // Отслеживаем установку куки ДО взаимодействия
-    const initialCookies: any[] = [];
-    page.on('response', async (response) => {
-      const setCookie = response.headers()['set-cookie'];
-      if (setCookie) initialCookies.push(setCookie);
-    });
-
-    console.log(`[Scraper] Navigating to ${url}...`);
+    console.log(`[Scraper] Navigating: ${url}`);
     await page.goto(url, { 
-      waitUntil: 'networkidle2', 
-      timeout: 20000 
+      waitUntil: 'networkidle0', // Wait until network is idle
+      timeout: 25000 
     });
 
     const html = await page.content();
     const cookies = await page.cookies();
     
-    return { html, cookies, initialCookies };
+    return { html, cookies };
   } catch (error: any) {
-    console.error(`[Scraper Error] Deep scan failed for ${url}:`, error.message);
+    console.error(`[Scraper] Puppeteer error for ${url}:`, error.message);
     throw error;
   } finally {
     if (browser) {
+      console.log('[Scraper] Closing browser...');
       await browser.close();
-      console.log(`[Scraper] Browser closed for: ${url}`);
     }
   }
 }
 
 /**
- * Гибридный скрейпинг: Fetch -> Heuristic Analysis -> Puppeteer.
+ * Гибридный скрейпинг: Fetch -> Heuristic -> Puppeteer.
  */
 export async function scrapeUrl(url: string, redirectCount = 0): Promise<{html: string, security: any, rawHeaders: any, scanType: ScanType, dynamicCookies?: any[]}> {
   if (redirectCount > MAX_REDIRECTS) throw new Error('REDIRECT_LOOP');
 
-  console.log(`[Scraper] Basic fetch: ${url}`);
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'User-Agent': settings.userAgent,
-      'X-Crawler-Contact': settings.abuseEmail,
-      'X-Compliance-Portal': 'https://bot.humango.app'
-    },
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT)
-  });
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': settings.userAgent,
+        'X-Crawler-Contact': settings.abuseEmail,
+        'X-Compliance-Portal': 'https://bot.humango.app'
+      },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT)
+    });
 
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-  let html = await response.text();
-  const headers: Record<string, string> = {};
-  response.headers.forEach((v, k) => { headers[k.toLowerCase()] = v; });
+    let html = await response.text();
+    const headers: Record<string, string> = {};
+    response.headers.forEach((v, k) => { headers[k.toLowerCase()] = v; });
 
-  const security = {
-    ssl: url.startsWith('https') ? 'TLS 1.3' : 'None',
-    hsts: !!headers['strict-transport-security'],
-    csp: !!headers['content-security-policy'] || html.includes('Content-Security-Policy')
-  };
+    const security = {
+      ssl: url.startsWith('https') ? 'TLS 1.3' : 'None',
+      hsts: !!headers['strict-transport-security'],
+      csp: !!headers['content-security-policy'] || html.includes('Content-Security-Policy')
+    };
 
-  let scanType: ScanType = 'basic';
-  let dynamicCookies: any[] = [];
+    let scanType: ScanType = 'basic';
+    let dynamicCookies: any[] = [];
 
-  // Эвристическая проверка: нужен ли Deep Scan (браузер)
-  if (shouldRunDeepScan(html)) {
-    try {
-      console.log(`[Scraper] Potential risks detected. Initiating Deep Scan...`);
-      const deepResult = await deepScrapeUrl(url);
-      html = deepResult.html;
-      dynamicCookies = deepResult.cookies;
-      scanType = 'deep';
-    } catch (e: any) {
-      console.error(`[Scraper] Deep Scan fallback to basic: ${e.message}`);
+    if (shouldRunDeepScan(html)) {
+      try {
+        const deepResult = await deepScrapeUrl(url);
+        html = deepResult.html;
+        dynamicCookies = deepResult.cookies;
+        scanType = 'deep';
+      } catch (e: any) {
+        console.warn(`[Scraper] Deep scan failed, falling back to basic result: ${e.message}`);
+      }
     }
-  }
 
-  return { html, rawHeaders: headers, security, scanType, dynamicCookies };
+    return { html, rawHeaders: headers, security, scanType, dynamicCookies };
+  } catch (error: any) {
+    console.error(`[Scraper] Fetch failed for ${url}:`, error.message);
+    throw error;
+  }
 }
