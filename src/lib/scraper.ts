@@ -12,18 +12,20 @@ const REQUEST_TIMEOUT = 10000;
  */
 async function deepScrapeUrl(url: string) {
   console.log(`[Scraper] Starting deep scan for: ${url}`);
-  console.log('[Scraper] Launching browser...');
+  
+  const executablePath = '/root/.cache/puppeteer/chrome/linux-148.0.7778.97/chrome-linux64/chrome';
+  console.log('[DEBUG] Launching Chrome from:', executablePath);
   
   let browser;
   try {
     browser = await puppeteer.launch({
+      executablePath,
       headless: 'new',
       args: [
         '--no-sandbox', 
         '--disable-setuid-sandbox', 
         '--disable-dev-shm-usage', 
-        '--disable-gpu',
-        '--single-process'
+        '--disable-gpu'
       ]
     });
     console.log('[Scraper] Browser launched successfully');
