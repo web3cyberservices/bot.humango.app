@@ -31,12 +31,19 @@ export async function startEngine() {
       // Heartbeat
       console.log(`[Engine] Cycle heartbeat at ${new Date().toLocaleTimeString()}`);
       
+      // Forced start: ignoring pause settings as requested by user
+      console.log('[Engine] Forced start: ignoring pause settings.');
+      const isActive = true; // Hardcoded to true to bypass DB check if table is missing
+      
+      /* 
+      // Original check disabled to prevent blocking if table 'bot_settings' is missing
       const isActive = await getBotStatus();
       if (!isActive) {
         console.log('[Engine] Engine is paused by settings.');
         await sleep(IDLE_WAIT);
         continue;
       }
+      */
 
       const task = await getNextQueueItem();
       
