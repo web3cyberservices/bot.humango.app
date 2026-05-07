@@ -184,24 +184,26 @@ export async function saveAuditLog(domain: string, statusCode: number, errorMess
 export async function getStats() {
   try {
     const pagesRes = await pool.query('SELECT COUNT(*) as count FROM public.audit_logs');
-    const issuesRes = await pool.query('SELECT COUNT(*) as count FROM public.site_violations');
-    const recentIssues = await pool.query('SELECT * FROM public.site_violations ORDER BY created_at DESC LIMIT 50');
+    const issuesRes = await pool.query('SELECT COUNT(*) as total FROM public.site_violations');
+    const recentIssues = await pool.query('SELECT id, domain, issue_type as type, severity as level, created_at as date, description FROM public.site_violations ORDER BY created_at DESC LIMIT 10');
     
     return {
-      pagesScanned: parseInt(pagesRes.rows[0].count),
-      issuesFound: parseInt(issuesRes.rows[0].count),
+      pagesScanned: parseInt(pagesRes.rows[0]?.count || '0'),
+      issuesFound: parseInt(issuesRes.rows[0]?.total || '0'),
       recentIssues: recentIssues.rows
     };
   } catch (error) {
+    console.error('[DB Stats Error]', error);
     return { pagesScanned: 0, issuesFound: 0, recentIssues: [] };
   }
 }
 
 export async function getViolations() {
   try {
-    const res = await pool.query('SELECT * FROM public.site_violations ORDER BY created_at DESC');
+    const res = await pool.query('SELECT id, domain, issue_type as type, severity as level, created_at as date, description FROM public.site_violations ORDER BY created_at DESC');
     return res.rows;
   } catch (error) {
+    console.error('[DB Violations Error]', error);
     return [];
   }
 }

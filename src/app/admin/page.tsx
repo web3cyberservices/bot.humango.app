@@ -50,9 +50,9 @@ import {
 interface DetectedIssue {
   id: string | number;
   domain: string;
-  issue_type: string;
-  severity: string;
-  created_at: string;
+  type: string;
+  level: string;
+  date: string;
   description: string;
 }
 
@@ -119,7 +119,7 @@ export default function AdminDashboard() {
       
       setIsLoading(false);
     } catch (error) {
-      // Ignored
+      console.error('[Admin] Fetch error:', error);
     }
   }, []);
 
@@ -167,9 +167,9 @@ export default function AdminDashboard() {
       const rows = data.violations.map((v: DetectedIssue) => [
         v.id,
         v.domain,
-        v.issue_type,
-        v.severity,
-        new Date(v.created_at).toLocaleString(),
+        v.type,
+        v.level,
+        new Date(v.date).toLocaleString(),
         `"${v.description.replace(/"/g, '""')}"`
       ]);
 
@@ -327,14 +327,14 @@ export default function AdminDashboard() {
                     {detectedIssues.map((issue) => (
                       <TableRow key={issue.id} className="border-white/5 hover:bg-white/[0.01]">
                         <TableCell className="text-xs font-medium">{issue.domain}</TableCell>
-                        <TableCell className="text-xs text-slate-400">{issue.issue_type}</TableCell>
+                        <TableCell className="text-xs text-slate-400">{issue.type}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={`text-[8px] font-bold ${issue.severity === 'critical' ? 'border-rose-500/50 text-rose-500' : 'border-amber-500/50 text-amber-500'}`}>
-                            {issue.severity}
+                          <Badge variant="outline" className={`text-[8px] font-bold ${issue.level === 'critical' ? 'border-rose-500/50 text-rose-500' : 'border-amber-500/50 text-amber-500'}`}>
+                            {issue.level}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right text-[9px] font-mono text-slate-500">
-                          {new Date(issue.created_at).toLocaleTimeString()}
+                          {new Date(issue.date).toLocaleTimeString()}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -389,11 +389,11 @@ export default function AdminDashboard() {
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-sm">{issue.domain}</span>
-                            <Badge className={issue.severity === 'critical' ? 'bg-rose-500' : 'bg-amber-500'}>{issue.severity}</Badge>
+                            <Badge className={issue.level === 'critical' ? 'bg-rose-500' : 'bg-amber-500'}>{issue.level}</Badge>
                           </div>
-                          <p className="text-[10px] text-slate-500">{issue.issue_type}</p>
+                          <p className="text-[10px] text-slate-500">{issue.type}</p>
                         </div>
-                        <span className="text-[10px] text-slate-500">{new Date(issue.created_at).toLocaleString()}</span>
+                        <span className="text-[10px] text-slate-500">{new Date(issue.date).toLocaleString()}</span>
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="pb-4">
