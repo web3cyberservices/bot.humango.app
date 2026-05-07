@@ -38,7 +38,8 @@ import {
   ShieldCheck,
   Zap,
   Download,
-  Bug
+  Bug,
+  Activity
 } from "lucide-react";
 
 interface DetectedIssue {
@@ -67,8 +68,10 @@ export default function AdminDashboard() {
   const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
   const [showIssuesDialog, setShowIssuesDialog] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const logEndRef = useRef<HTMLDivElement>(null);
   
   const [metrics, setMetrics] = useState({
     pagesScanned: 0,
@@ -85,18 +88,24 @@ export default function AdminDashboard() {
       return;
     }
 
+    setIsRefreshing(true);
     try {
-      const statusRes = await fetch('/api/admin/control');
+      const [statusRes, statsRes, logsRes] = await Promise.all([
+        fetch('/api/admin/control'),
+        fetch('/api/admin/stats'),
+        fetch('/api/admin/system-logs')
+      ]);
+
       if (statusRes.status === 401) {
         setIsAuthenticated(false);
         return;
       }
+
       if (statusRes.ok) {
         const statusData = await statusRes.json();
         setIsActive(statusData.isActive);
       }
 
-      const statsRes = await fetch('/api/admin/stats');
       if (statsRes.ok) {
         const statsData = await statsRes.json();
         setMetrics({
@@ -106,7 +115,6 @@ export default function AdminDashboard() {
         setDetectedIssues(statsData.recentIssues || []);
       }
 
-      const logsRes = await fetch('/api/admin/system-logs');
       if (logsRes.ok) {
         const logsData = await logsRes.json();
         setSystemLogs(logsData.logs || []);
@@ -115,18 +123,26 @@ export default function AdminDashboard() {
       setIsLoading(false);
     } catch (error) {
       console.error('[Admin] Fetch error:', error);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
     }
   }, []);
 
   useEffect(() => {
     if (isAuthenticated === true) {
       fetchData();
-      pollingRef.current = setInterval(fetchData, 5000);
+      pollingRef.current = setInterval(fetchData, 3000); // Опрос каждые 3 секунды для Real-time
     }
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
   }, [isAuthenticated, fetchData]);
+
+  useEffect(() => {
+    if (logEndRef.current) {
+      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [systemLogs]);
 
   const handleToggleBot = async (checked: boolean) => {
     try {
@@ -237,9 +253,10 @@ export default function AdminDashboard() {
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-16 border-b border-white/5 flex items-center justify-between px-8 bg-[#0b1120]/50 backdrop-blur-xl">
           <div className="flex items-center gap-4">
-            <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary">Compliance v1.8</Badge>
+            <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary">Compliance v1.9</Badge>
             <div className="hidden lg:flex items-center gap-2 text-[10px] text-slate-500 font-mono">
               <Zap className={`w-3 h-3 ${isActive ? 'animate-pulse text-emerald-500' : ''}`} /> {isActive ? 'SCANNING' : 'IDLE'}
+              {isRefreshing && <Activity className="w-3 h-3 text-primary animate-spin ml-2" />}
             </div>
           </div>
           <div className="flex items-center gap-4 bg-white/5 px-4 py-1.5 rounded-full border border-white/10">
@@ -254,61 +271,61 @@ export default function AdminDashboard() {
 
         <div className="flex-1 overflow-y-auto p-8 space-y-8 scrollbar-hide">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="bg-white/[0.03] border-white/10">
+            <Card className="bg-white/[0.03] border-white/10 transition-all duration-300 hover:border-primary/30">
               <CardHeader className="pb-2"><CardTitle className="text-[10px] text-slate-500 uppercase font-bold">Просканировано</CardTitle></CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">{metrics.pagesScanned}</div>
-                <p className="text-[10px] text-emerald-400 mt-1 font-bold flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> Live Postgres Audit</p>
+                <div className="text-3xl font-bold transition-all tabular-nums">{metrics.pagesScanned}</div>
+                <p className="text-[10px] text-emerald-400 mt-1 font-bold flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> Live Audit Feed</p>
               </CardContent>
             </Card>
             
-            <Card className="bg-white/[0.03] border-white/10 border-amber-500/20">
+            <Card className="bg-white/[0.03] border-white/10 border-amber-500/20 transition-all duration-300 hover:border-amber-500/40">
               <CardHeader className="pb-2"><CardTitle className="text-[10px] text-slate-500 uppercase font-bold">Нарушения</CardTitle></CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-amber-500">{metrics.issuesFound}</div>
-                <p className="text-[10px] text-slate-400 mt-1 font-bold flex items-center gap-1"><Bug className="w-3 h-3" /> Всего найдено нарушений</p>
+                <div className="text-3xl font-bold text-amber-500 tabular-nums">{metrics.issuesFound}</div>
+                <p className="text-[10px] text-slate-400 mt-1 font-bold flex items-center gap-1"><Bug className="w-3 h-3" /> Обнаружено инцидентов</p>
               </CardContent>
             </Card>
 
-            <Card className="bg-white/[0.03] border-white/10">
+            <Card className="bg-white/[0.03] border-white/10 transition-all duration-300 hover:border-emerald-500/30">
               <CardHeader className="pb-2"><CardTitle className="text-[10px] text-slate-500 uppercase font-bold">Система</CardTitle></CardHeader>
               <CardContent>
                 <div className={`text-3xl font-bold ${isActive ? 'text-emerald-500' : 'text-rose-500'}`}>
-                  {isActive ? 'ACTIVE' : 'OFF'}
+                  {isActive ? 'ACTIVE' : 'PAUSED'}
                 </div>
-                <p className="text-[10px] text-slate-400 mt-1 font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> Crawler Engine</p>
+                <p className="text-[10px] text-slate-400 mt-1 font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> Crawler Engine Status</p>
               </CardContent>
             </Card>
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-            <Card className="bg-white/[0.03] border-white/10 overflow-hidden">
+            <Card className="bg-white/[0.03] border-white/10 overflow-hidden shadow-2xl">
               <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 py-4">
                 <CardTitle className="text-sm font-bold flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-500" /> Последние инциденты
+                  <AlertTriangle className="w-4 h-4 text-amber-500" /> Последние инциденты (Live)
                 </CardTitle>
-                <Button size="sm" variant="ghost" className="h-8 text-[10px] font-bold uppercase" onClick={() => setShowIssuesDialog(true)}>Все</Button>
+                <Button size="sm" variant="ghost" className="h-8 text-[10px] font-bold uppercase" onClick={() => setShowIssuesDialog(true)}>История</Button>
               </CardHeader>
-              <CardContent className="p-0 max-h-[400px] overflow-y-auto scrollbar-hide">
+              <CardContent className="p-0 max-h-[450px] overflow-y-auto scrollbar-hide">
                 <Table>
-                  <TableHeader className="bg-white/[0.02] sticky top-0 z-10">
+                  <TableHeader className="bg-[#0b1120] sticky top-0 z-10">
                     <TableRow className="border-white/5">
                       <TableHead className="text-[9px] uppercase font-bold">Домен</TableHead>
                       <TableHead className="text-[9px] uppercase font-bold">Тип</TableHead>
                       <TableHead className="text-[9px] uppercase font-bold">Уровень</TableHead>
-                      <TableHead className="text-right text-[9px] uppercase font-bold">Дата</TableHead>
+                      <TableHead className="text-right text-[9px] uppercase font-bold">Время</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {detectedIssues.length === 0 ? (
-                      <TableRow><TableCell colSpan={4} className="text-center py-8 text-slate-500 text-xs italic">Нарушений не обнаружено</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={4} className="text-center py-12 text-slate-500 text-xs italic">Нарушений не обнаружено</TableCell></TableRow>
                     ) : (
                       detectedIssues.map((issue) => (
-                        <TableRow key={issue.id} className="border-white/5 hover:bg-white/[0.01]">
-                          <TableCell className="text-xs font-medium">{issue.domain}</TableCell>
-                          <TableCell className="text-xs text-slate-400">{issue.type}</TableCell>
+                        <TableRow key={issue.id} className="border-white/5 hover:bg-white/[0.02] transition-colors group animate-in fade-in slide-in-from-left-2">
+                          <TableCell className="text-xs font-medium group-hover:text-primary transition-colors">{issue.domain}</TableCell>
+                          <TableCell className="text-xs text-slate-400 truncate max-w-[150px]">{issue.type}</TableCell>
                           <TableCell>
-                            <Badge variant="outline" className={`text-[8px] font-bold uppercase ${issue.level === 'critical' ? 'border-rose-500/50 text-rose-500' : 'border-amber-500/50 text-amber-500'}`}>
+                            <Badge variant="outline" className={`text-[8px] font-bold uppercase ${issue.level === 'critical' ? 'border-rose-500/50 text-rose-500 bg-rose-500/5' : 'border-amber-500/50 text-amber-500 bg-amber-500/5'}`}>
                               {issue.level}
                             </Badge>
                           </TableCell>
@@ -323,22 +340,25 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
 
-            <div className="bg-[#0b1120] rounded-xl border border-white/10 p-6 font-mono text-[11px] h-[450px] flex flex-col">
+            <div className="bg-[#0b1120] rounded-xl border border-white/10 p-6 font-mono text-[11px] h-[510px] flex flex-col shadow-2xl">
               <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-4">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">System Logs (Live Terminal)</span>
-                <TerminalIcon className="w-4 h-4 text-primary" />
+                <div className="flex items-center gap-3">
+                  <TerminalIcon className="w-4 h-4 text-primary" />
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">System Logs (Live Stream)</span>
+                </div>
+                {isActive && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
               </div>
-              <div className="flex-1 overflow-y-auto space-y-2 scrollbar-hide text-slate-400">
+              <div className="flex-1 overflow-y-auto space-y-2 scrollbar-hide text-slate-400 pr-2">
                 {isLoading ? (
-                  <div className="h-full flex items-center justify-center italic">Загрузка логов...</div>
+                  <div className="h-full flex items-center justify-center italic">Подключение к терминалу...</div>
                 ) : (
                   systemLogs.map((log) => (
-                    <div key={log.id} className="flex gap-3 leading-relaxed">
-                      <span className="text-slate-600 shrink-0">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+                    <div key={log.id} className="flex gap-3 leading-relaxed animate-in fade-in slide-in-from-bottom-1">
+                      <span className="text-slate-600 shrink-0 font-bold">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
                       <span className={`font-bold shrink-0 ${
                         log.type === 'ERROR' ? 'text-rose-500' : 
-                        log.type === 'START' ? 'text-emerald-500' : 
-                        log.type === 'STOP' ? 'text-amber-500' : 'text-blue-500'
+                        log.type === 'START' ? 'text-blue-500' : 
+                        log.type === 'STOP' ? 'text-amber-500' : 'text-emerald-500'
                       }`}>
                         {log.type}:
                       </span>
@@ -349,6 +369,7 @@ export default function AdminDashboard() {
                   ))
                 )}
                 {systemLogs.length === 0 && !isLoading && <div className="text-slate-600 italic">Событий пока нет...</div>}
+                <div ref={logEndRef} />
               </div>
             </div>
           </div>
@@ -358,24 +379,24 @@ export default function AdminDashboard() {
       <Dialog open={showIssuesDialog} onOpenChange={setShowIssuesDialog}>
         <DialogContent className="bg-[#0b1120] border-white/10 text-slate-50 max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
           <DialogHeader className="p-6 border-b border-white/5">
-            <DialogTitle className="flex items-center gap-2 text-xl font-bold"><AlertTriangle className="text-amber-500" /> История нарушений комплаенса (Last 100)</DialogTitle>
+            <DialogTitle className="flex items-center gap-2 text-xl font-bold"><AlertTriangle className="text-amber-500" /> История нарушений комплаенса</DialogTitle>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto p-4 scrollbar-hide">
              <Accordion type="single" collapsible className="w-full space-y-2">
                 {detectedIssues.map((issue) => (
-                  <AccordionItem key={issue.id} value={String(issue.id)} className="border border-white/5 bg-white/[0.02] rounded-lg px-4">
+                  <AccordionItem key={issue.id} value={String(issue.id)} className="border border-white/5 bg-white/[0.02] rounded-lg px-4 hover:border-white/10 transition-all">
                     <AccordionTrigger className="hover:no-underline">
                       <div className="flex flex-1 items-center justify-between text-left pr-4">
-                        <div>
+                        <div className="space-y-1">
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-sm">{issue.domain}</span>
                             <Badge className={issue.level === 'critical' ? 'bg-rose-500' : 'bg-amber-500'}>{issue.level}</Badge>
                           </div>
                           <p className="text-[10px] text-slate-500">{issue.type}</p>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right space-y-1">
                            <span className="text-[10px] text-slate-500 block">{new Date(issue.date).toLocaleString()}</span>
-                           <span className="text-[10px] text-rose-400 font-bold">{issue.fine_amount}</span>
+                           <span className="text-xs text-primary font-bold">{issue.fine_amount}</span>
                         </div>
                       </div>
                     </AccordionTrigger>
@@ -385,9 +406,15 @@ export default function AdminDashboard() {
                           <p className="font-bold text-primary mb-1 uppercase tracking-tighter">Legal Explanation:</p>
                           {issue.description}
                         </div>
-                        <div className="p-3 bg-black/40 rounded border border-white/5 text-[10px] font-mono text-emerald-400 overflow-x-auto">
-                           <p className="text-slate-500 mb-1 uppercase tracking-tighter">Source URL:</p>
-                           {issue.url}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           <div className="p-3 bg-black/40 rounded border border-white/5 text-[10px] font-mono text-emerald-400 overflow-x-auto">
+                              <p className="text-slate-500 mb-1 uppercase tracking-tighter">Source URL:</p>
+                              <a href={issue.url} target="_blank" rel="noreferrer" className="hover:underline">{issue.url}</a>
+                           </div>
+                           <div className="p-3 bg-black/40 rounded border border-white/5 text-[10px] font-mono text-amber-400 overflow-x-auto">
+                              <p className="text-slate-500 mb-1 uppercase tracking-tighter">Evidence Snippet:</p>
+                              {issue.description.length > 0 ? 'Data captured and logged to security audit trail.' : 'No visual evidence captured.'}
+                           </div>
                         </div>
                       </div>
                     </AccordionContent>
