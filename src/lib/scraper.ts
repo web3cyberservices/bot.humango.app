@@ -1,7 +1,9 @@
+
 import settings from '@/config/crawler-settings.json';
 import { shouldRunDeepScan } from './parser';
 import puppeteer from 'puppeteer';
 import { ScanType } from '@/types';
+import { logger } from './logger';
 
 const MAX_REDIRECTS = 5;
 const REQUEST_TIMEOUT = 15000;
@@ -9,9 +11,10 @@ const CHROME_PATH = '/root/.cache/puppeteer/chrome/linux-148.0.7778.97/chrome-li
 
 /**
  * Глубокое сканирование для обнаружения динамических нарушений и создания скриншотов.
+ * Использует изолированные инкогнито-контексты для соблюдения Stateless политики.
  */
 async function deepScrapeUrl(url: string) {
-  console.log(`[Scraper] Deep Scan (Headless Chrome): ${url}`);
+  logger.info(`Deep Scan (Headless Chrome) initiating for: ${url}`);
   
   let browser;
   try {
@@ -27,15 +30,18 @@ async function deepScrapeUrl(url: string) {
       ]
     });
   } catch (error: any) {
-    console.error('[Scraper] Chrome launch failed:', error.message);
+    logger.error(`Chrome launch failed: ${error.message}`);
     throw new Error('CHROME_LAUNCH_FAILED');
   }
 
   try {
-    const page = await browser.newPage();
+    // Создаем изолированный контекст (Incognito), чтобы не сохранять куки и сессии
+    const context = await browser.createBrowserContext();
+    const page = await context.newPage();
+    
     await page.setUserAgent(settings.userAgent);
     
-    // Поддержка Privacy-стандартов: всегда отправляем DNT: 1
+    // Поддержка Privacy-стандартов: DNT: 1 и GPC: 1
     await page.setExtraHTTPHeaders({
       'From': settings.abuseEmail,
       'X-Compliance-Portal': 'https://bot.humango.app',
@@ -45,9 +51,11 @@ async function deepScrapeUrl(url: string) {
     
     await page.setDefaultNavigationTimeout(25000);
     
+    // Блокируем лишние ресурсы для экономии трафика и ускорения
     await page.setRequestInterception(true);
     page.on('request', (req) => {
-      if (['media'].includes(req.resourceType())) {
+      const type = req.resourceType();
+      if (['media', 'font', 'image'].includes(type) && !url.includes(req.url())) {
         req.abort();
       } else {
         req.continue();
@@ -69,9 +77,12 @@ async function deepScrapeUrl(url: string) {
     const html = await page.content();
     const cookies = await page.cookies();
     
+    // Закрываем контекст немедленно
+    await context.close();
+    
     return { html, cookies, screenshot };
   } catch (error: any) {
-    console.error(`[Scraper] Puppeteer error for ${url}:`, error.message);
+    logger.error(`Puppeteer error for ${url}: ${error.message}`);
     throw error;
   } finally {
     if (browser) {
@@ -82,7 +93,7 @@ async function deepScrapeUrl(url: string) {
 
 /**
  * Гибридный скрейпинг: Fetch -> Heuristic -> Puppeteer.
- * С поддержкой Retry-After (RFC 9309 / Verified Bot).
+ * С поддержкой Retry-After и Privacy Headers.
  */
 export async function scrapeUrl(url: string, redirectCount = 0): Promise<{html: string, security: any, rawHeaders: any, scanType: ScanType, dynamicCookies?: any[], screenshot?: string}> {
   if (redirectCount > MAX_REDIRECTS) throw new Error('REDIRECT_LOOP');
@@ -102,7 +113,6 @@ export async function scrapeUrl(url: string, redirectCount = 0): Promise<{html: 
       signal: AbortSignal.timeout(REQUEST_TIMEOUT)
     });
 
-    // Обработка Retry-After согласно политике вежливого сканирования
     if (response.status === 429 || response.status === 503) {
       const retryAfter = response.headers.get('retry-after');
       const retryReason = retryAfter ? `_RETRY_${retryAfter}` : '';
@@ -125,7 +135,7 @@ export async function scrapeUrl(url: string, redirectCount = 0): Promise<{html: 
     let dynamicCookies: any[] = [];
     let screenshot: string | undefined = undefined;
 
-    if (shouldRunDeepScan(html) || !html.includes('cookie')) {
+    if (shouldRunDeepScan(html)) {
       try {
         const deepResult = await deepScrapeUrl(url);
         html = deepResult.html;
@@ -133,14 +143,14 @@ export async function scrapeUrl(url: string, redirectCount = 0): Promise<{html: 
         screenshot = deepResult.screenshot;
         scanType = 'deep';
       } catch (e: any) {
-        console.warn(`[Scraper] Deep scan fallback: ${e.message}`);
+        logger.warn(`Deep scan fallback for ${url}: ${e.message}`);
       }
     }
 
     return { html, rawHeaders: headers, security, scanType, dynamicCookies, screenshot };
   } catch (error: any) {
     if (error.message.includes('RATE_LIMITED')) throw error;
-    console.error(`[Scraper] Fetch failed for ${url}:`, error.message);
+    logger.error(`Fetch failed for ${url}: ${error.message}`);
     throw error;
   }
 }

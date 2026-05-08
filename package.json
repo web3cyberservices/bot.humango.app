@@ -61,7 +61,9 @@
     "tailwind-merge": "^3.0.1",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^3.24.2",
-    "tsx": "^4.7.1"
+    "tsx": "^4.7.1",
+    "winston": "^3.11.0",
+    "winston-daily-rotate-file": "^5.0.0"
   },
   "devDependencies": {
     "@types/dompurify": "^3.0.5",

@@ -11,6 +11,7 @@ import {
 } from '@/lib/db';
 import settings from '@/config/crawler-settings.json';
 import { isUrlAllowed } from '@/config/robots-rules';
+import { logger } from '../logger';
 
 const DEFAULT_SLEEP = settings.scanIntervalMs || 5000; 
 const IDLE_WAIT = 15000;    
@@ -19,17 +20,18 @@ const MAX_QUEUE_LIMIT = 50000;
 const lastScanByDomain = new Map<string, number>();
 
 export async function startEngine() {
-  console.log('==================================================');
-  console.log('   HUMANGO BOT COMPLIANCE ENGINE v2.5             ');
-  console.log(`   User-Agent: ${settings.userAgent}            `);
-  console.log('   Policy: Verified Bot / RFC 9309 Compliance    ');
-  console.log('==================================================');
+  logger.info('==================================================');
+  logger.info('   HUMANGO BOT COMPLIANCE ENGINE v2.6             ');
+  logger.info(`   User-Agent: ${settings.userAgent}            `);
+  logger.info('   Stateless: Isolated contexts enabled          ');
+  logger.info('   Logging: Winston with 365d rotation           ');
+  logger.info('==================================================');
   
   try {
     await testConnection();
     await saveBotEvent('SUCCESS', 'Движок вежливого сканирования запущен. Соответствие политике ботов подтверждено.');
   } catch (err) {
-    console.error('[Engine] FATAL: Database unreachable.');
+    logger.error('FATAL: Database unreachable.');
     return;
   }
 
@@ -53,7 +55,7 @@ export async function startEngine() {
       
       const robotsCheck = await isUrlAllowed(urlStr);
       if (!robotsCheck.allowed) {
-        console.log(`[Polite] Skipping ${urlStr}: ${robotsCheck.reason}`);
+        logger.info(`[Polite] Skipping ${urlStr}: ${robotsCheck.reason}`);
         await updateQueueStatus(task.id, 'failed');
         continue;
       }
@@ -65,7 +67,7 @@ export async function startEngine() {
       
       if (timeSinceLastScan < dynamicDelay) {
         const wait = dynamicDelay - timeSinceLastScan;
-        console.log(`[Polite] Respecting Crawl-delay: Waiting ${wait}ms for ${domain}`);
+        logger.info(`[Polite] Respecting Crawl-delay: Waiting ${wait}ms for ${domain}`);
         await sleep(wait);
       }
 
@@ -89,14 +91,13 @@ export async function startEngine() {
           }
         }
       } catch (taskError: any) {
-        console.error(`[Engine] Task error:`, taskError.message);
+        logger.error(`Task error for ${domain}: ${taskError.message}`);
         taskStatus = 'failed';
         
-        // Обработка Retry-After (Verified Bot Policy)
         if (taskError.message.includes('RATE_LIMITED')) {
           const retryMatch = taskError.message.match(/_RETRY_(\d+)/);
           const waitSeconds = retryMatch ? parseInt(retryMatch[1], 10) : 30;
-          console.log(`[Backoff] Server requested wait: ${waitSeconds}s for ${domain}.`);
+          logger.warn(`[Backoff] Server requested wait: ${waitSeconds}s for ${domain}.`);
           await saveBotEvent('ERROR', `Rate Limit for ${domain}. Waiting ${waitSeconds}s (Retry-After).`);
           await sleep(waitSeconds * 1000);
         }
@@ -106,7 +107,7 @@ export async function startEngine() {
 
       await sleep(1000);
     } catch (error: any) {
-      console.error('[Engine Loop Error]', error.stack || error);
+      logger.error('Engine Loop Error: ' + (error.stack || error));
       await sleep(10000);
     }
   }
