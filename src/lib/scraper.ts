@@ -1,4 +1,3 @@
-
 import settings from '@/config/crawler-settings.json';
 import { shouldRunDeepScan } from './parser';
 import puppeteer from 'puppeteer';
@@ -38,6 +37,9 @@ async function deepScrapeUrl(url: string) {
     // Создаем изолированный контекст (Incognito), чтобы не сохранять куки и сессии
     context = await browser.createBrowserContext();
     const page = await context.newPage();
+    
+    // Предотвращение ошибок Protocol error (Target.createTarget)
+    page.on('error', err => logger.error(`Puppeteer page error: ${err.message}`));
     
     await page.setUserAgent(settings.userAgent);
     
@@ -82,9 +84,10 @@ async function deepScrapeUrl(url: string) {
     logger.error(`Puppeteer deep scan failed for ${url}: ${error.message}`);
     throw error;
   } finally {
+    // Безопасное закрытие ресурсов
     try {
-      if (context) await context.close();
-      if (browser) await browser.close();
+      if (context) await context.close().catch(() => {});
+      if (browser) await browser.close().catch(() => {});
     } catch (closeError: any) {
       logger.warn(`Error during browser cleanup: ${closeError.message}`);
     }

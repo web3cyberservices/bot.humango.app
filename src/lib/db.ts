@@ -1,4 +1,3 @@
-
 import 'dotenv/config';
 import { Pool } from 'pg';
 import DOMPurify from 'isomorphic-dompurify';
@@ -46,9 +45,9 @@ export async function saveAuditResults(domain: string, url: string, violations: 
     const query = `
       INSERT INTO site_violations (
         domain, url, page_url, category, issue_type, severity, 
-        evidence_html, snippet, fine_amount, explanation, law_name, recommendation, scan_type, created_at
+        evidence_html, snippet, fine_amount, explanation, law_name, recommendation, scan_type, created_at, potential_fine
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), $14)
     `;
 
     for (const v of violations) {
@@ -61,11 +60,12 @@ export async function saveAuditResults(domain: string, url: string, violations: 
         v.severity,
         sanitize(v.evidence_html),
         sanitize(v.snippet || v.evidence_html),
-        v.potential_fine, // Маппим на fine_amount
+        v.potential_fine, 
         v.explanation,
         v.law_name,
         sanitize(v.recommendation),
-        scanType
+        scanType,
+        v.potential_fine
       ]);
       
       await saveBotEvent('SUCCESS', `[ИНЦИДЕНТ] ${domain} | ${v.issue_type} | ${v.severity.toUpperCase()} | Риск: ${v.potential_fine}`);
