@@ -6,12 +6,11 @@ import settings from '@/config/crawler-settings.json';
  * Логика проверки разрешений robots.txt на основе стандартов RFC 9309.
  * Использует библиотеку robots-parser для корректной интерпретации правил.
  */
-export async function isUrlAllowed(urlStr: string): Promise<{allowed: boolean, reason?: string}> {
+export async function isUrlAllowed(urlStr: string): Promise<{allowed: boolean, reason?: string, delay?: number}> {
   try {
     const targetUrl = new URL(urlStr);
     const robotsUrl = `${targetUrl.protocol}//${targetUrl.hostname}/robots.txt`;
     
-    // В продакшене мы бы кэшировали содержимое robots.txt для каждого домена
     let robotsTxt = '';
     try {
       const response = await fetch(robotsUrl, { 
@@ -22,17 +21,18 @@ export async function isUrlAllowed(urlStr: string): Promise<{allowed: boolean, r
         robotsTxt = await response.text();
       }
     } catch (e) {
-      // Если robots.txt недоступен, RFC 9309 предписывает считать доступ разрешенным
+      // Если robots.txt недоступен (404), RFC 9309 предписывает считать доступ разрешенным
       console.log(`[Robots] No robots.txt found for ${targetUrl.hostname}, assuming allowed.`);
     }
 
     const robots = robotsParser(robotsUrl, robotsTxt);
     const allowed = robots.isAllowed(urlStr, settings.userAgent) ?? true;
+    const crawlDelay = robots.getCrawlDelay(settings.userAgent);
 
     if (!allowed) {
       return { 
         allowed: false, 
-        reason: 'Запрещено правилами robots.txt (RFC 9309 compliance)' 
+        reason: 'Forbidden by robots.txt directives (RFC 9309 compliance)' 
       };
     }
 
@@ -42,12 +42,15 @@ export async function isUrlAllowed(urlStr: string): Promise<{allowed: boolean, r
       return { allowed: false, reason: 'Internal protected path' };
     }
 
-    return { allowed: true };
+    return { 
+      allowed: true, 
+      delay: crawlDelay ? crawlDelay * 1000 : settings.scanIntervalMs 
+    };
   } catch (e) {
-    return { allowed: false, reason: 'Invalid URL structure or network error during robots check' };
+    return { allowed: false, reason: 'Invalid URL or network error during robots.txt check' };
   }
 }
 
 export function getCrawlDelay(): number {
-  return settings.scanIntervalMs / 1000 || 1.5;
+  return settings.scanIntervalMs / 1000 || 5;
 }

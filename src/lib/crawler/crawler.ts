@@ -3,8 +3,8 @@
 
 import { scrapeUrl } from '@/lib/scraper';
 import { parseHtmlContent } from '@/lib/parser';
-import { isUrlAllowed, getCrawlDelay } from '@/config/robots-rules';
-import { getBotStatus, saveAuditLog, saveBotEvent, saveAuditResults } from '@/lib/db';
+import { isUrlAllowed } from '@/config/robots-rules';
+import { saveAuditLog, saveBotEvent, saveAuditResults } from '@/lib/db';
 import { CrawlResult, Violation } from '@/types';
 import * as cheerio from 'cheerio';
 import { z } from 'zod';
@@ -34,14 +34,18 @@ export async function runCrawlTask(seedUrl: string): Promise<CrawlResult> {
       return { url: seedUrl, timestamp, status: 'skipped', issuesFound: 0, scanType: 'basic', reason: 'Global giant domain blacklist.' };
     }
 
-    const { allowed, reason } = await isUrlAllowed(seedUrl);
+    // 1. Robots.txt Check (RFC 9309)
+    const { allowed, reason, delay } = await isUrlAllowed(seedUrl);
     if (!allowed) {
       await saveAuditLog(domain, 403, reason || 'Blocked by robots.txt');
       return { url: seedUrl, timestamp, status: 'blocked', issuesFound: 0, scanType: 'basic', reason };
     }
 
-    await new Promise(resolve => setTimeout(resolve, getCrawlDelay() * 1000));
+    // 2. Polite Wait (Respecting Crawl-delay or default)
+    const waitTime = delay || 5000;
+    await new Promise(resolve => setTimeout(resolve, waitTime));
 
+    // 3. Scrape with Retry/Backoff Handling
     const { html, security, rawHeaders, scanType, dynamicCookies } = await scrapeUrl(seedUrl);
     
     // Lang Check for non-EU TLDs
@@ -99,6 +103,12 @@ export async function runCrawlTask(seedUrl: string): Promise<CrawlResult> {
   } catch (error: any) {
     let d = 'unknown';
     try { d = new URL(seedUrl).hostname; } catch(e) {}
+    
+    if (error.message.includes('RATE_LIMITED')) {
+       await saveBotEvent('ERROR', `Rate Limit (429/503) for ${d}. Backoff applied.`);
+       return { url: seedUrl, timestamp, status: 'blocked', issuesFound: 0, scanType: 'basic', reason: 'Target server is rate limiting our crawler.' };
+    }
+
     await saveAuditLog(d, 500, error.message);
     return { url: seedUrl, timestamp, status: 'failed', issuesFound: 0, scanType: 'basic', error: error.message };
   }

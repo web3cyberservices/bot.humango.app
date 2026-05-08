@@ -5,14 +5,14 @@ import puppeteer from 'puppeteer';
 import { ScanType } from '@/types';
 
 const MAX_REDIRECTS = 5;
-const REQUEST_TIMEOUT = 10000;
+const REQUEST_TIMEOUT = 15000;
 const CHROME_PATH = '/root/.cache/puppeteer/chrome/linux-148.0.7778.97/chrome-linux64/chrome';
 
 /**
  * Глубокое сканирование для обнаружения динамических нарушений.
  */
 async function deepScrapeUrl(url: string) {
-  console.log(`[Scraper] Deep Scan: Launching Chrome for ${url}`);
+  console.log(`[Scraper] Deep Scan (Headless Chrome): ${url}`);
   
   let browser;
   try {
@@ -34,10 +34,15 @@ async function deepScrapeUrl(url: string) {
 
   try {
     const page = await browser.newPage();
+    await page.setUserAgent(settings.userAgent);
+    await page.setExtraHTTPHeaders({
+      'From': settings.abuseEmail,
+      'X-Compliance-Portal': 'https://bot.humango.app'
+    });
     
-    // Safety timeout for the entire page logic
     await page.setDefaultNavigationTimeout(25000);
     
+    // Блокируем тяжелые медиа для вежливости и скорости
     await page.setRequestInterception(true);
     page.on('request', (req) => {
       if (['image', 'media', 'font'].includes(req.resourceType())) {
@@ -47,9 +52,8 @@ async function deepScrapeUrl(url: string) {
       }
     });
 
-    console.log(`[Scraper] Navigating: ${url}`);
     await page.goto(url, { 
-      waitUntil: 'networkidle0', // Wait until network is idle
+      waitUntil: 'networkidle2', 
       timeout: 25000 
     });
 
@@ -62,7 +66,6 @@ async function deepScrapeUrl(url: string) {
     throw error;
   } finally {
     if (browser) {
-      console.log('[Scraper] Closing browser...');
       await browser.close();
     }
   }
@@ -70,6 +73,7 @@ async function deepScrapeUrl(url: string) {
 
 /**
  * Гибридный скрейпинг: Fetch -> Heuristic -> Puppeteer.
+ * Поддерживает вежливые заголовки и обработку лимитов.
  */
 export async function scrapeUrl(url: string, redirectCount = 0): Promise<{html: string, security: any, rawHeaders: any, scanType: ScanType, dynamicCookies?: any[]}> {
   if (redirectCount > MAX_REDIRECTS) throw new Error('REDIRECT_LOOP');
@@ -79,13 +83,20 @@ export async function scrapeUrl(url: string, redirectCount = 0): Promise<{html: 
       method: 'GET',
       headers: {
         'User-Agent': settings.userAgent,
+        'From': settings.abuseEmail,
         'X-Crawler-Contact': settings.abuseEmail,
-        'X-Compliance-Portal': 'https://bot.humango.app'
+        'X-Compliance-Portal': 'https://bot.humango.app',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
       },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT)
     });
 
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    // Обработка вежливого отказа (Rate Limiting)
+    if (response.status === 429 || response.status === 503) {
+      throw new Error(`RATE_LIMITED_${response.status}`);
+    }
+
+    if (!response.ok) throw new Error(`HTTP_ERROR_${response.status}`);
 
     let html = await response.text();
     const headers: Record<string, string> = {};
@@ -107,12 +118,13 @@ export async function scrapeUrl(url: string, redirectCount = 0): Promise<{html: 
         dynamicCookies = deepResult.cookies;
         scanType = 'deep';
       } catch (e: any) {
-        console.warn(`[Scraper] Deep scan failed, falling back to basic result: ${e.message}`);
+        console.warn(`[Scraper] Deep scan fallback: ${e.message}`);
       }
     }
 
     return { html, rawHeaders: headers, security, scanType, dynamicCookies };
   } catch (error: any) {
+    if (error.message.includes('RATE_LIMITED')) throw error;
     console.error(`[Scraper] Fetch failed for ${url}:`, error.message);
     throw error;
   }

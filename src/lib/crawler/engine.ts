@@ -9,17 +9,24 @@ import {
   getQueueSize,
   testConnection
 } from '@/lib/db';
+import settings from '@/config/crawler-settings.json';
 
-const SLEEP_INTERVAL = 1500; 
-const IDLE_WAIT = 10000;    
-const MAX_QUEUE_LIMIT = 100000; 
+const DEFAULT_SLEEP = settings.scanIntervalMs || 5000; 
+const IDLE_WAIT = 15000;    
+const MAX_QUEUE_LIMIT = 50000; 
+
+// Карта для отслеживания последнего сканирования домена (Rate Limiting)
+const lastScanByDomain = new Map<string, number>();
 
 export async function startEngine() {
-  console.log('[Engine] HumangoBot EU Compliance Engine starting with Auto-Discovery...');
+  console.log('==================================================');
+  console.log('   HUMANGO BOT POLITE ENGINE v2.0                 ');
+  console.log(`   User-Agent: ${settings.userAgent}            `);
+  console.log('==================================================');
   
   try {
     await testConnection();
-    await saveBotEvent('SUCCESS', 'Движок HumangoBot запущен. Режим Auto-Discovery активен.');
+    await saveBotEvent('SUCCESS', 'Движок вежливого сканирования запущен. RFC 9309 активен.');
   } catch (err) {
     console.error('[Engine] FATAL: Database unreachable.');
     return;
@@ -27,25 +34,44 @@ export async function startEngine() {
 
   while (true) {
     try {
+      // Проверка общего статуса бота
+      const active = await getBotStatus();
+      if (!active) {
+        await sleep(5000);
+        continue;
+      }
+
       const task = await getNextQueueItem();
       
       if (!task) {
-        console.log('[Engine] Queue is empty. Waiting...');
         await sleep(IDLE_WAIT); 
         continue;
       }
 
-      const domain = new URL(task.url).hostname;
-      await saveBotEvent('START', `Начинаю сканирование: ${domain} (глубина: ${task.depth})`);
+      const url = new URL(task.url);
+      const domain = url.hostname.toLowerCase();
+      
+      // 1. Дополнительный Rate Limiting на уровне домена (Polite Check)
+      const lastScan = lastScanByDomain.get(domain) || 0;
+      const now = Date.now();
+      const timeSinceLastScan = now - lastScan;
+      
+      if (timeSinceLastScan < DEFAULT_SLEEP) {
+        const wait = DEFAULT_SLEEP - timeSinceLastScan;
+        console.log(`[Polite] Waiting ${wait}ms before next request to ${domain}`);
+        await sleep(wait);
+      }
+
+      await saveBotEvent('START', `Политкорректный скан: ${domain}`);
       
       let taskStatus: 'completed' | 'failed' = 'completed';
 
       try {
         const result = await runCrawlTask(task.url);
+        lastScanByDomain.set(domain, Date.now()); // Обновляем время последнего сканирования
         
         if (result.status === 'failed') {
           taskStatus = 'failed';
-          await saveBotEvent('ERROR', `Ошибка сканирования ${domain}: ${result.error}`);
         } else if (result.status === 'success') {
           // Auto-Discovery Logic
           if (result.discoveredLinks && result.discoveredLinks.length > 0) {
@@ -60,16 +86,22 @@ export async function startEngine() {
       } catch (taskError: any) {
         console.error(`[Engine] Task error:`, taskError.message);
         taskStatus = 'failed';
-        await saveBotEvent('ERROR', `Критический сбой задачи ${domain}`);
+        
+        // Экспоненциальный откат при ошибках сервера
+        if (taskError.message.includes('RATE_LIMITED')) {
+          console.log(`[Backoff] Server ${domain} is tired. Sleeping for 30s.`);
+          await sleep(30000);
+        }
       } finally {
         await updateQueueStatus(task.id, taskStatus);
       }
 
-      await sleep(SLEEP_INTERVAL);
+      // Глобальная пауза между задачами
+      await sleep(DEFAULT_SLEEP);
 
     } catch (error: any) {
       console.error('[Engine Loop Error]', error.stack || error);
-      await sleep(5000);
+      await sleep(10000);
     }
   }
 }

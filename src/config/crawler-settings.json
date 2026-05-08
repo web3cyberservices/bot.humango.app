@@ -1,10 +1,10 @@
 
 {
-  "userAgent": "Mozilla/5.0 (compatible; HumangoBot/1.0; +http://bot.humango.app)",
+  "userAgent": "Mozilla/5.0 (compatible; HumangoBot/1.0; +https://bot.humango.app)",
   "timeout": 30000,
-  "maxConcurrency": 5,
+  "maxConcurrency": 1,
   "proxyEnabled": false,
-  "scanIntervalMs": 1500,
+  "scanIntervalMs": 5000,
   "complianceRules": [
     "GDPR_PII_LEAK",
     "SSL_TLS_VERSION_CHECK",
