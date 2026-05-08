@@ -3,17 +3,25 @@
   "policy_compliance": {
     "traffic_volume": {
       "target": ">1000 requests/day",
-      "strategy": "Multi-domain queue rotation"
+      "strategy": "Multi-domain queue rotation",
+      "status": "Required for Cloudflare Verified Bot status"
     },
     "bot_identification": {
       "user_agent_format": "HumangoBot/1.0 (+https://bot.humango.app)",
-      "min_length": 15,
-      "special_chars_allowed": "Standard delimiters (/, ., +, :)",
+      "min_length_requirement": ">5 characters",
+      "special_chars_policy": "Standard delimiters only (/, ., :, +)",
+      "is_generic_agent": false,
       "verified_identity": "HumangoBot"
+    },
+    "ip_verification": {
+      "method": "Static IP & Reverse DNS",
+      "static_ips": ["116.203.3.75"],
+      "rdns_suffix": "bot.humango.app",
+      "rdns_status": "PTR records must match domain"
     },
     "consent_protocols": {
       "robots_txt": "Strict adherence (RFC 9309)",
-      "crawl_delay": "Highest priority over internal settings",
+      "crawl_delay": "Mandatory priority (Full support)",
       "implicit_consent": "Limited to public technical headers assessment"
     },
     "service_mission": {
@@ -29,7 +37,8 @@
     },
     "public_docs": {
       "portal": "https://bot.humango.app",
-      "transparency_report": "Enabled",
+      "privacy_policy": "https://bot.humango.app/legal/privacy",
+      "rfc_compliance": "https://bot.humango.app/legal/rfc9309",
       "abuse_contact": "abuse@humango.app"
     }
   }

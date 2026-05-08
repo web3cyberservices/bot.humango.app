@@ -14,5 +14,6 @@
   ],
   "abuseEmail": "abuse@humango.app",
   "staticIp": "116.203.3.75",
-  "minDailyTraffic": 1000
+  "minDailyTraffic": 1000,
+  "identityDomain": "bot.humango.app"
 }
