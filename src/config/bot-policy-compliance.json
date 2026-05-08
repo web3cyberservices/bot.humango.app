@@ -1,0 +1,36 @@
+
+{
+  "policy_compliance": {
+    "traffic_volume": {
+      "target": ">1000 requests/day",
+      "strategy": "Multi-domain queue rotation"
+    },
+    "bot_identification": {
+      "user_agent_format": "HumangoBot/1.0 (+https://bot.humango.app)",
+      "min_length": 15,
+      "special_chars_allowed": "Standard delimiters (/, ., +, :)",
+      "verified_identity": "HumangoBot"
+    },
+    "consent_protocols": {
+      "robots_txt": "Strict adherence (RFC 9309)",
+      "crawl_delay": "Highest priority over internal settings",
+      "implicit_consent": "Limited to public technical headers assessment"
+    },
+    "service_mission": {
+      "category": "Harmless / Beneficial",
+      "purpose": "Security Auditing & GDPR Compliance Monitoring",
+      "prohibited_actions": [
+        "No scalping",
+        "No directory traversal",
+        "No aggressive data harvesting",
+        "No DDoS simulation",
+        "No bypass of security controls"
+      ]
+    },
+    "public_docs": {
+      "portal": "https://bot.humango.app",
+      "transparency_report": "Enabled",
+      "abuse_contact": "abuse@humango.app"
+    }
+  }
+}

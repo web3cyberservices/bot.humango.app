@@ -1,6 +1,6 @@
 
 {
-  "userAgent": "Mozilla/5.0 (compatible; HumangoBot/1.0; +https://bot.humango.app)",
+  "userAgent": "HumangoBot/1.0 (+https://bot.humango.app)",
   "timeout": 30000,
   "maxConcurrency": 1,
   "proxyEnabled": false,
@@ -13,5 +13,6 @@
     "RFC_9309_COMPLIANCE"
   ],
   "abuseEmail": "abuse@humango.app",
-  "staticIp": "116.203.3.75"
+  "staticIp": "116.203.3.75",
+  "minDailyTraffic": 1000
 }
