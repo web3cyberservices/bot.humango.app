@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -36,7 +35,7 @@ export default function PrivacyPage() {
         <div className="space-y-12">
           <div className="space-y-4">
             <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary text-[10px] font-bold uppercase tracking-[0.2em]">
-              GDPR Compliance
+              GDPR Compliance Framework
             </Badge>
             <h1 className="text-4xl font-extrabold tracking-tight text-white">
               Privacy Statement

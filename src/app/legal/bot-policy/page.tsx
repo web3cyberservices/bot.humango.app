@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -43,7 +42,7 @@ export default function BotPolicyPage() {
               Bot Policy & Operations
             </h1>
             <p className="text-slate-400 leading-relaxed text-lg">
-              Detailed technical and legal specifications for the HumangoBot audit network, fully compliant with GDPR and RFC 9309.
+              Detailed technical and legal specifications for the HumangoBot audit network, aligning with GDPR and RFC 9309 standards.
             </p>
           </div>
 
@@ -57,13 +56,13 @@ export default function BotPolicyPage() {
             <div className="grid md:grid-cols-2 gap-4">
               <Card className="bg-white/5 border-white/5 p-4">
                 <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-emerald-500" /> Authorized Audit
+                  <ShieldCheck className="w-4 h-4 text-emerald-500" /> Infrastructure Audit
                 </h3>
                 <p className="text-xs text-slate-500">Scanning for TLS versions, Security Headers, and certificate validity without traffic interception.</p>
               </Card>
               <Card className="bg-white/5 border-white/5 p-4">
                 <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
-                  <Scale className="w-4 h-4 text-amber-500" /> GDPR Compliance
+                  <Scale className="w-4 h-4 text-amber-500" /> Compliance Monitoring
                 </h3>
                 <p className="text-xs text-slate-500">Detecting missing Cookie Banners and mandatory legal disclosures (Impressum).</p>
               </Card>
@@ -77,7 +76,7 @@ export default function BotPolicyPage() {
             <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <EyeOff className="w-4 h-4 text-primary" /> No Cookie Storage
+                  <EyeOff className="w-4 h-4 text-primary" /> Stateless Operation
                 </h3>
                 <p className="text-xs text-slate-400 leading-relaxed">
                   Our bot operates in a <strong>stateless mode</strong>. We do not store or transmit "Set-Cookie" headers across requests. Every page scan is performed with a "clean" session.

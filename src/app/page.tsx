@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -32,8 +31,8 @@ export default function Home() {
             </span>
           </div>
           <nav className="flex items-center gap-6">
-            <Badge variant="outline" className="hidden sm:flex border-emerald-500/20 bg-emerald-500/5 text-emerald-400 text-[10px] font-bold tracking-[0.2em] px-3 py-1 rounded-full uppercase">
-              Verified Candidate
+            <Badge variant="outline" className="hidden sm:flex border-primary/20 bg-primary/5 text-primary text-[10px] font-bold tracking-[0.2em] px-3 py-1 rounded-full uppercase">
+              Audit Candidate
             </Badge>
           </nav>
         </div>
@@ -81,7 +80,7 @@ export default function Home() {
               </CardHeader>
               <CardContent className="space-y-6 pt-6">
                 <div className="space-y-3">
-                  <label className="text-[10px] uppercase tracking-[0.2em] text-primary font-bold">Verified User-Agent</label>
+                  <label className="text-[10px] uppercase tracking-[0.2em] text-primary font-bold">Bot User-Agent</label>
                   <div className="p-4 bg-black/40 rounded-xl border border-white/5 font-mono text-[10px] text-slate-300 break-all leading-relaxed">
                     HumangoBot/1.0 (+https://bot.humango.app)
                   </div>
@@ -95,7 +94,7 @@ export default function Home() {
                         <Globe className="w-3.5 h-3.5 text-primary" />
                         <span>116.203.3.75</span>
                       </div>
-                      <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[8px] px-2 h-4">Dedicated</Badge>
+                      <Badge className="bg-primary/10 text-primary border-primary/20 text-[8px] px-2 h-4">Dedicated</Badge>
                     </div>
                   </div>
 
@@ -110,7 +109,7 @@ export default function Home() {
 
                 <div className="p-4 bg-primary/10 rounded-xl border border-primary/20">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-bold uppercase text-primary">Service Traffic</span>
+                    <span className="text-[10px] font-bold uppercase text-primary">Target Traffic</span>
                     <span className="text-[10px] font-bold text-white">&gt; 1,000 req/day</span>
                   </div>
                   <div className="w-full bg-primary/20 h-1.5 rounded-full overflow-hidden">
@@ -141,7 +140,7 @@ export default function Home() {
         <div className="container mx-auto flex flex-col md:flex-row justify-between items-center gap-8 text-[9px] text-slate-500 uppercase tracking-[0.25em] font-bold">
           <div className="flex items-center gap-3">
             <ShieldCheck className="w-4 h-4 text-primary opacity-80" />
-            <span>Humango Compliance • Verified Bot Protocol v2.5</span>
+            <span>Humango Compliance • Audit Protocol v2.5</span>
           </div>
           <div className="flex gap-8">
             <Link href="/legal/privacy" className="hover:text-white transition-colors">Privacy Statement</Link>
