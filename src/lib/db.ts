@@ -61,19 +61,17 @@ export async function saveAuditResults(domain: string, url: string, violations: 
         v.severity,
         sanitize(v.evidence_html),
         sanitize(v.snippet || v.evidence_html),
-        v.potential_fine,
+        v.potential_fine, // Маппим на fine_amount
         v.explanation,
         v.law_name,
         sanitize(v.recommendation),
         scanType
       ]);
       
-      // Мгновенная трансляция в системные логи (как просил пользователь)
       await saveBotEvent('SUCCESS', `[ИНЦИДЕНТ] ${domain} | ${v.issue_type} | ${v.severity.toUpperCase()} | Риск: ${v.potential_fine}`);
     }
     
     await client.query('COMMIT');
-    console.log(`[DB] Saved ${violations.length} violations for ${domain}`);
     return { success: true };
   } catch (error: any) {
     await client.query('ROLLBACK');
@@ -177,7 +175,6 @@ export async function saveAuditLog(domain: string, statusCode: number, errorMess
 
 export async function getStats() {
   try {
-    // Прямой подсчет без кэширования
     const pagesRes = await pool.query('SELECT COUNT(*) as count FROM audit_logs');
     const issuesRes = await pool.query('SELECT COUNT(*) as total FROM site_violations');
     const recentIssues = await getViolations(10);
@@ -205,7 +202,8 @@ export async function getViolations(limit = 100) {
         explanation as description,
         fine_amount,
         law_name,
-        page_url as url
+        page_url as url,
+        evidence_html
       FROM site_violations 
       ORDER BY created_at DESC
       LIMIT $1

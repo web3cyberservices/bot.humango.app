@@ -12,75 +12,84 @@ const pool = new Pool({
 async function migrate() {
   const client = await pool.connect();
   try {
-    console.log('[Migration] Starting database schema initialization...');
+    console.log('[Migration] Starting database schema initialization based on provided schema...');
     
+    // audit_logs
     await client.query(`
-      CREATE TABLE IF NOT EXISTS audit_logs (
+      CREATE TABLE IF NOT EXISTS public.audit_logs (
         id SERIAL PRIMARY KEY,
-        domain VARCHAR(255) NOT NULL,
-        status_code INTEGER,
-        error_message TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        domain character varying(255) NOT NULL,
+        status_code integer,
+        error_message text,
+        created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
       );
     `);
     
+    // bot_events
     await client.query(`
-      CREATE TABLE IF NOT EXISTS site_violations (
+      CREATE TABLE IF NOT EXISTS public.bot_events (
         id SERIAL PRIMARY KEY,
-        domain VARCHAR(255) NOT NULL,
-        url TEXT NOT NULL,
-        page_url TEXT,
-        category VARCHAR(50) NOT NULL,
-        issue_type VARCHAR(200) NOT NULL,
-        severity VARCHAR(20) NOT NULL,
-        evidence_html TEXT,
-        snippet TEXT,
-        explanation TEXT,
-        fine_amount TEXT,
-        law_name TEXT,
-        recommendation TEXT,
-        scan_type VARCHAR(20) DEFAULT 'basic',
-        metadata JSONB DEFAULT '{}',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        type character varying(20) NOT NULL,
+        message text,
+        "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
+    // bot_settings
     await client.query(`
-      CREATE TABLE IF NOT EXISTS bot_events (
-        id SERIAL PRIMARY KEY,
-        type VARCHAR(20) NOT NULL,
-        message TEXT,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS bot_settings (
-        id INTEGER PRIMARY KEY DEFAULT 1,
-        is_active BOOLEAN DEFAULT true,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      CREATE TABLE IF NOT EXISTS public.bot_settings (
+        id integer DEFAULT 1 NOT NULL PRIMARY KEY,
+        is_active boolean DEFAULT true,
+        updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT one_row CHECK (id = 1)
       );
     `);
 
+    // scan_queue
     await client.query(`
-      CREATE TABLE IF NOT EXISTS scan_queue (
+      CREATE TABLE IF NOT EXISTS public.scan_queue (
         id SERIAL PRIMARY KEY,
-        url TEXT NOT NULL UNIQUE,
-        status VARCHAR(20) DEFAULT 'pending',
-        depth INTEGER DEFAULT 0,
-        priority INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        url text NOT NULL UNIQUE,
+        status character varying(20) DEFAULT 'pending',
+        priority integer DEFAULT 0,
+        depth integer DEFAULT 0,
+        created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
+    // site_violations
     await client.query(`
-      INSERT INTO bot_settings (id, is_active)
+      CREATE TABLE IF NOT EXISTS public.site_violations (
+        id SERIAL PRIMARY KEY,
+        domain character varying(255),
+        url text,
+        category character varying(50),
+        issue_type character varying(100),
+        severity character varying(20),
+        evidence_html text,
+        recommendation text,
+        created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+        page_url text,
+        snippet text,
+        fine_amount character varying(100),
+        explanation text,
+        law_name text,
+        potential_fine text,
+        scan_type character varying(255)
+      );
+    `);
+
+    // Indexes
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_violations_domain ON public.site_violations USING btree (domain);`);
+
+    // Initial Data
+    await client.query(`
+      INSERT INTO public.bot_settings (id, is_active)
       VALUES (1, true)
       ON CONFLICT (id) DO NOTHING;
     `);
     
-    console.log('[Migration] All tables and initial data updated successfully.');
+    console.log('[Migration] Schema synchronized successfully.');
   } catch (err) {
     console.error('[Migration] Critical Error:', err);
     process.exit(1);
