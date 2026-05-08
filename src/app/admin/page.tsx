@@ -39,7 +39,8 @@ import {
   Zap,
   Download,
   Bug,
-  Activity
+  Activity,
+  Clock
 } from "lucide-react";
 
 interface DetectedIssue {
@@ -69,11 +70,11 @@ export default function AdminDashboard() {
   const [showIssuesDialog, setShowIssuesDialog] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastSync, setLastSync] = useState<string>("");
   const { toast } = useToast();
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
   
-  // Флаги для предотвращения прыжков скролла
   const isFirstLoad = useRef(true);
   const prevLogLength = useRef(0);
   
@@ -94,7 +95,6 @@ export default function AdminDashboard() {
 
     setIsRefreshing(true);
     try {
-      // Добавляем timestamp для обхода любого кэша (Cache Busting)
       const timestamp = Date.now();
       const [statusRes, statsRes, logsRes] = await Promise.all([
         fetch(`/api/admin/control?t=${timestamp}`, { cache: 'no-store' }),
@@ -119,6 +119,7 @@ export default function AdminDashboard() {
           issuesFound: Number(statsData.issuesFound) || 0
         });
         setDetectedIssues(statsData.recentIssues || []);
+        setLastSync(new Date().toLocaleTimeString());
       }
 
       if (logsRes.ok) {
@@ -137,8 +138,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (isAuthenticated === true) {
       fetchData();
-      // Интервал обновления 5 секунд для реального времени
-      pollingRef.current = setInterval(fetchData, 5000);
+      pollingRef.current = setInterval(fetchData, 4000);
     }
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
@@ -146,17 +146,15 @@ export default function AdminDashboard() {
   }, [isAuthenticated, fetchData]);
 
   useEffect(() => {
-    // Скроллим только если появились НОВЫЕ логи и это НЕ первая загрузка
-    if (systemLogs.length > prevLogLength.current && !isFirstLoad.current) {
+    // Скроллим ТОЛЬКО если это не первая загрузка и пришли новые данные
+    if (!isFirstLoad.current && systemLogs.length > prevLogLength.current) {
       logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
     
-    // После первой отрисовки логов снимаем флаг первой загрузки
-    if (systemLogs.length > 0 && isFirstLoad.current) {
+    if (systemLogs.length > 0) {
       isFirstLoad.current = false;
+      prevLogLength.current = systemLogs.length;
     }
-    
-    prevLogLength.current = systemLogs.length;
   }, [systemLogs]);
 
   const handleToggleBot = async (checked: boolean) => {
@@ -272,6 +270,7 @@ export default function AdminDashboard() {
             <div className="hidden lg:flex items-center gap-2 text-[10px] text-slate-500 font-mono">
               <Zap className={`w-3 h-3 ${isActive ? 'animate-pulse text-emerald-500' : ''}`} /> {isActive ? 'SCANNING' : 'IDLE'}
               {isRefreshing && <Activity className="w-3 h-3 text-primary animate-spin ml-2" />}
+              {lastSync && <span className="ml-2 flex items-center gap-1"><Clock className="w-3 h-3" /> Sync: {lastSync}</span>}
             </div>
           </div>
           <div className="flex items-center gap-4 bg-white/5 px-4 py-1.5 rounded-full border border-white/10">
