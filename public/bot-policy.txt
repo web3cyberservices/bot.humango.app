@@ -1,31 +1,45 @@
 
-HUMANGO BOT COMPLIANCE MANIFEST
--------------------------------
-Version: 1.2
-Operator: Humango Limited (UK)
-Portal: https://bot.humango.app
-Contact: abuse@humango.app
+HUMANGO BOT COMPLIANCE MANIFESTO v1.5
+=====================================
 
-IDENTIFICATION:
+1. BOT IDENTITY
+---------------
 User-Agent: HumangoBot/1.0 (+https://bot.humango.app)
-Static IPs: 116.203.3.75
-rDNS: bot.humango.app
+Contact: abuse@humango.app
+Static IP: 116.203.3.75
+Reverse DNS: bot.humango.app
 
-CRAWLING RULES:
-- Strict adherence to robots.txt (RFC 9309).
-- Respects 'Crawl-delay' and 'Retry-After' headers.
-- Default rate limit: 1 request per 5 seconds per domain.
-- Automated exponential backoff on 429/503 status codes.
+2. POLITE CRAWLING (RFC 9309)
+-----------------------------
+- Robots.txt: Strict adherence to all Disallow directives.
+- Crawl-delay: Prioritized and strictly followed.
+- Rate Limiting: Minimum 5s interval per domain (unless delay specified).
+- Error Handling: Exponential backoff on 429/503 status codes.
+- Retry-After: Fully supported and respected.
 
-PURPOSE:
-Automated Technical Security & GDPR Compliance Auditing. 
-We do not scrape personal data, resell content, or perform DDoS activities.
+3. COOKIES & TRACKING (GDPR COMPLIANCE)
+---------------------------------------
+- No Cookie Storage: Stateless scanning mode. "Set-Cookie" headers are never persisted.
+- No Fingerprinting: No execution of tracking or device fingerprinting scripts.
+- Session Policy: Every page request initiates a clean session slate.
 
-DATA RETENTION:
-Technical violation logs and evidence are stored for 365 days.
-PII is automatically excluded from indexing.
+4. SECURITY AUDIT PROTOCOLS
+---------------------------
+- TLS/SSL Inspection: Encryption audit only (TLS version, certificate validity). 
+- Payload Privacy: No interception of encrypted data or sensitive payloads.
 
-EXCLUSION:
-To exclude your domain, please update robots.txt with:
-User-agent: HumangoBot
-Disallow: /
+5. DATA MINIMIZATION & PRIVACY
+------------------------------
+- Metadata Only: Collection is limited to technical headers and HTML structure.
+- No PII Scraping: Automatic redaction of emails, phone numbers, and PII in page content.
+- Legal Basis: Legitimate Interest (Article 6(1)(f) GDPR) for cyber-security monitoring.
+- Retention: 365 days for legal audit evidence, followed by automatic deletion.
+
+6. SERVICE MISSION
+------------------
+HumangoBot is a harmless security auditing crawler. We do not perform scalping, 
+data harvesting for resale, or bypass security controls. Our purpose is the 
+improvement of the global digital compliance ecosystem.
+
+Documentation: https://bot.humango.app/legal/bot-policy
+Inquiries: abuse@humango.app
