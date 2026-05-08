@@ -56,10 +56,10 @@ export default function SFCCLandingPage() {
         </div>
       </header>
 
-      <main className="flex-1">
-        {/* Hero Section */}
-        <section className="container mx-auto px-6 py-24 md:py-32">
-          <div className="max-w-4xl space-y-8">
+      <main className="flex-1 flex flex-col">
+        {/* Hero Section - Tightened layout */}
+        <section className="container mx-auto px-6 pt-12 pb-24 md:pt-16 md:pb-32">
+          <div className="max-w-4xl space-y-6">
             <Badge variant="outline" className="py-1.5 px-4 border-primary/20 bg-primary/5 text-primary text-[10px] font-bold uppercase tracking-[0.3em] rounded-full">
               Enterprise Retail Audit
             </Badge>
@@ -70,7 +70,7 @@ export default function SFCCLandingPage() {
               </span> <br />
               Monitoring
             </h1>
-            <p className="text-xl md:text-2xl text-slate-400 max-w-2xl leading-relaxed font-light">
+            <p className="text-xl md:text-2xl text-slate-400 max-w-2xl leading-relaxed font-light mt-4">
               Continuous infrastructure auditing for global <span className="text-white font-medium">SFCC storefronts</span>. 
               We identify third-party risks, compliance gaps, and technical glitches in real-time.
             </p>
