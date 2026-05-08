@@ -1,6 +1,6 @@
 
 {
-  "userAgent": "HumangoBot/1.0 (+https://bot.humango.app)",
+  "userAgent": "HumangoBot/1.0 (+https://humango.app)",
   "timeout": 30000,
   "maxConcurrency": 1,
   "proxyEnabled": false,

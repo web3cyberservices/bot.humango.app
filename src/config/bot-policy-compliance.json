@@ -1,3 +1,4 @@
+
 {
   "policy_compliance": {
     "version": "1.1",
@@ -8,7 +9,7 @@
       "strategy": "Multi-domain queue rotation"
     },
     "bot_identification": {
-      "user_agent_format": "HumangoBot/1.0 (+https://bot.humango.app)",
+      "user_agent_format": "HumangoBot/1.0 (+https://humango.app)",
       "identity": "HumangoBot",
       "gpc_support": true,
       "dnt_enabled": true

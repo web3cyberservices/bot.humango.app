@@ -80,7 +80,7 @@ export default function RFCPage() {
                 To avoid being flagged as generic traffic, our User-Agent is unique and informative. We do not use generic headers (like Go-http-client or node-fetch).
               </p>
               <div className="mt-4 p-4 bg-black/40 rounded-lg font-mono text-xs text-primary">
-                HumangoBot/1.0 (+https://bot.humango.app)
+                HumangoBot/1.0 (+https://humango.app)
               </div>
             </div>
           </section>

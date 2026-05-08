@@ -1,34 +1,25 @@
-HUMANGO BOT COMPLIANCE MANIFESTO v1.1
+
+HUMANGO BOT COMPLIANCE MANIFESTO v1.0
 
 IDENTITY & CONTACT
-------------------
-Operator: Humango Limited
-Address: 182-184 High Street North, London, England, E6 2JA
-Company No: 16750477
-User-Agent: HumangoBot/1.0 (+https://bot.humango.app)
+User-Agent: HumangoBot/1.0 (+https://humango.app)
 Static IP: 116.203.3.75
 Reverse DNS: bot.humango.app
-DPO Contact: abuse@humango.app
+Contact: abuse@humango.app
 
 TECHNICAL STANDARDS (RFC 9309)
-------------------------------
-- Strict adherence to robots.txt and 'Crawl-delay'.
-- Rate limiting: 1 request / 5 seconds per domain default.
-- Automated backoff on 429/503 status codes and 'Retry-After' headers.
-- Privacy Headers: Always sends 'DNT: 1' (Do Not Track) and 'Sec-GPC: 1'.
+Full robots.txt and 'Crawl-delay' support.
+Rate limiting: 1 request / 5 seconds per domain.
+Automated backoff on 429/503/Retry-After status.
 
-PRIVACY & GDPR ETHICS
----------------------
-- Stateless: No cookie storage or session persistence across scans.
-- No Tracking: Script execution for fingerprinting or behavioral tracking is disabled.
-- PII Protection: Automated redaction of emails, phone numbers, and personal data from content.
-- Data Minimization: Collection is strictly limited to technical HTTP headers and legal disclosure presence.
-- Retention: 365-day storage for audit evidence, followed by automated deletion.
-- Right to Erasure: Full support for Article 17 requests via DPO.
+PRIVACY & DATA ETHICS
+Stateless: No cookie storage or session persistence.
+No Tracking: Script execution and fingerprinting are disabled.
+PII Protection: Automatic redaction of emails and personal data.
+Audit Only: Collection is limited to technical headers and HTML structure.
+Retention: 365-day storage for audit evidence, then auto-deletion.
 
-MISSION & LEGAL BASIS
----------------------
-HumangoBot is a harmless auditing crawler focused on global digital compliance.
-Purpose: Automated GDPR compliance monitoring and security vulnerability identification.
-Legal Basis: Legitimate Interest (Art. 6(1)(f) GDPR) for cyber-security and compliance monitoring.
-Full Policy: https://bot.humango.app/legal/bot-policy
+MISSION
+HumangoBot is a security auditing crawler focused on global digital compliance.
+Legal Basis: Legitimate Interest (Art. 6(1)(f) GDPR) for security monitoring.
+Documentation: https://bot.humango.app/legal/bot-policy
