@@ -143,14 +143,7 @@ export default function AdminDashboard() {
     setIsHistoryLoading(true);
     try {
       const timestamp = Date.now();
-      // Force no-cache with timestamp and header params
-      const res = await fetch(`/api/admin/violations?t=${timestamp}`, { 
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        }
-      });
+      const res = await fetch(`/api/admin/violations?t=${timestamp}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setAllViolations(data.violations || []);
@@ -174,15 +167,19 @@ export default function AdminDashboard() {
   }, [isAuthenticated, fetchData]);
 
   useEffect(() => {
+    // Скроллим только если это не первая загрузка И количество логов увеличилось
     if (!isFirstLoad.current && systemLogs.length > prevLogLength.current) {
       logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
     
-    if (systemLogs.length > 0 && isFirstLoad.current) {
-      isFirstLoad.current = false;
-      prevLogLength.current = systemLogs.length;
-    } else if (systemLogs.length > prevLogLength.current) {
-      prevLogLength.current = systemLogs.length;
+    // Инициализируем prevLogLength и снимаем флаг первой загрузки
+    if (systemLogs.length > 0) {
+      if (isFirstLoad.current) {
+        isFirstLoad.current = false;
+        prevLogLength.current = systemLogs.length;
+      } else if (systemLogs.length > prevLogLength.current) {
+        prevLogLength.current = systemLogs.length;
+      }
     }
   }, [systemLogs]);
 

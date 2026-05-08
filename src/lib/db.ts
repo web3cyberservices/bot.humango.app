@@ -67,13 +67,18 @@ export async function saveAuditResults(domain: string, url: string, violations: 
         sanitize(v.recommendation),
         scanType
       ]);
+      
+      // Мгновенная трансляция в системные логи (как просил пользователь)
+      await saveBotEvent('SUCCESS', `[ИНЦИДЕНТ] ${domain} | ${v.issue_type} | ${v.severity.toUpperCase()} | Риск: ${v.potential_fine}`);
     }
+    
     await client.query('COMMIT');
     console.log(`[DB] Saved ${violations.length} violations for ${domain}`);
     return { success: true };
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('[DB SAVE ERROR]', error.stack || error.message);
+    await saveBotEvent('ERROR', `Ошибка сохранения данных для ${domain}: ${error.message}`);
     return { success: false, error };
   } finally {
     client.release();
@@ -172,7 +177,7 @@ export async function saveAuditLog(domain: string, statusCode: number, errorMess
 
 export async function getStats() {
   try {
-    // Выполняем прямые запросы к таблицам для получения актуальных данных
+    // Прямой подсчет без кэширования
     const pagesRes = await pool.query('SELECT COUNT(*) as count FROM audit_logs');
     const issuesRes = await pool.query('SELECT COUNT(*) as total FROM site_violations');
     const recentIssues = await getViolations(10);
