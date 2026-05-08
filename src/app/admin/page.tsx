@@ -428,8 +428,8 @@ export default function AdminDashboard() {
               </div>
               {isHistoryLoading && <Activity className="w-4 h-4 animate-spin text-primary" />}
             </DialogTitle>
-            <DialogDescription className="sr-only">
-              Подробный список всех обнаруженных технических нарушений и правовых рисков.
+            <DialogDescription>
+              Подробный список всех обнаруженных технических нарушений и правовых рисков с разбивкой по законам и штрафам.
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto p-4 scrollbar-hide">
