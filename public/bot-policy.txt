@@ -1,32 +1,29 @@
+
 HUMANGO BOT COMPLIANCE MANIFESTO v1.1
+=====================================
 
 IDENTITY & CONTACT
-------------------
 User-Agent: HumangoBot/1.0 (+https://humango.app)
 Static IP: 116.203.3.75
 Reverse DNS: bot.humango.app
-Operator: Humango Limited (UK)
 Contact: abuse@humango.app
-Portal: https://humango.app
+Operator: Humango Limited, 182-184 High Street North, London, E6 2JA
 
 TECHNICAL STANDARDS (RFC 9309)
-------------------------------
-- Strict adherence to robots.txt 'Disallow' directives.
-- Full support for 'Crawl-delay' and 'Retry-After' headers.
-- Default rate limit: 1 request / 5 seconds per domain.
-- Automated exponential backoff on 429/503 status codes.
+- Full robots.txt and 'Crawl-delay' support.
+- Rate limiting: 1 request / 5 seconds per domain (default).
+- Automated backoff on 429/503/Retry-After status codes.
+- Privacy Headers: DNT: 1 and Sec-GPC: 1 sent with every request.
 
-PRIVACY & DATA ETHICS (GDPR)
-----------------------------
-- Stateless Operation: No cookie storage, session persistence, or fingerprinting.
-- Privacy Headers: Every request transmits 'DNT: 1' and 'Sec-GPC: 1' headers.
-- Data Minimization: Automated redaction of emails and PII from collected logs.
-- Audit Focus: Collection limited to technical headers, HTML structure, and accessibility metrics.
-- Retention: 365-day storage for audit evidence, followed by permanent deletion.
+AUDIT SCOPE
+HumangoBot audits legal content, technical security, and GDPR compliance.
+Full scope documentation: https://humango.app/audit-scope.txt
 
-MISSION & LEGAL BASIS
----------------------
-HumangoBot is a specialized security crawler for global compliance monitoring.
-Legal Basis: Legitimate Interest (Art. 6(1)(f) GDPR) for security and transparency.
-Audit Scope: https://humango.app/audit-scope.txt
-Full Policy: https://humango.app/legal/bot-policy
+PRIVACY & DATA ETHICS
+- Stateless: No cookie storage, no session persistence, no fingerprinting.
+- PII Protection: Automatic redaction of emails and names found in page source.
+- Legal Basis: Legitimate Interest (Art. 6(1)(f) GDPR) for security and compliance monitoring.
+- Retention: 365-day storage for technical audit evidence, followed by auto-deletion.
+
+RIGHTS
+Domain owners may request exclusion (Opt-Out) or data erasure (Art. 17 GDPR) via abuse@humango.app.

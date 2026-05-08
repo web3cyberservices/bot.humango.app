@@ -1,34 +1,37 @@
-HUMANGO BOT AUDIT SCOPE & DETECTION LOGIC v1.0
 
-Official documentation of technical vulnerabilities and compliance gaps monitored by the HumangoBot audit network.
+HUMANGO BOT AUDIT SCOPE v1.2
+============================
 
-1. GDPR & PRIVACY COMPLIANCE
-- Missing Consent Management Platforms (CMP): Detection of absent cookie banners or consent overlays on pages using tracking technologies.
-- Illegal Cookie Placement: Identification of non-essential cookies (marketing/analytics) set before explicit user consent.
-- Legal Disclosure Validation (Impressum): Automated check for mandatory 'Impressum' or 'Legal Notice' sections (specifically for EU domains .de, .at, .fr, .it).
-- Unsecure Data Transmission: Identifying forms (<form>) transmitting data over unencrypted HTTP instead of HTTPS (Art. 32 GDPR).
-- PII Exposure Risk: Heuristic detection of potential personal data exposure in public technical logs or directory listings.
+HumangoBot performes a comprehensive semantic and technical audit of web resources.
+The following checks are active as of 2025:
 
-2. SECURITY & INFRASTRUCTURE
-- Missing Security Headers: Verification of 'Content-Security-Policy' (CSP), 'X-Frame-Options' (Clickjacking protection), and 'Strict-Transport-Security' (HSTS).
-- Transport Layer Security: Assessment of SSL/TLS certificate validity and the use of deprecated protocols (e.g., TLS 1.0/1.1).
-- Client-Side Vulnerabilities: Signature-based detection of outdated or known-vulnerable JavaScript libraries and frameworks.
+1. CONTENT DISCOVERY
+- Deep crawl of all accessible internal links.
+- Identification of legal sections: Privacy, Cookies, Terms, Impressum, Contact.
+- Multi-language keyword matching (EN, DE, FR, IT, ES, PL).
 
-3. ACCESSIBILITY (ADA / EN 301 549 / BITV)
-- Visual Impairment Support: Identification of <img> tags missing descriptive 'alt' attributes or using redundant placeholders.
-- Semantic HTML Integrity: Basic audit of HTML structure to ensure compatibility with screen readers and assistive technologies.
+2. LEGAL DOCUMENT ANALYSIS
+- Completeness Audit: Verification of mandatory GDPR clauses (Art. 13/14).
+- Data Categories: Identification of IP, Cookies, PII collection disclosures.
+- User Rights: Verification of mentions regarding Erasure (Art. 17), Portability (Art. 20), Access (Art. 15).
+- Retention Periods: Detection of data storage and deletion schedules.
+- Recency Check: Identification of "Last Updated" dates; flagging documents older than 12 months.
 
-4. E-COMMERCE INTEGRITY (SFCC SPECIALIZED)
-- Third-Party Pixel Audit: Real-time monitoring of marketing pixel behavior and unauthorized third-party script injections.
-- Transactional Flow Security: Identifying technical errors in critical checkout stages that could lead to data leakage or lost transactions.
+3. LANGUAGE & TRANSPARENCY
+- Local Language Matching: Ensuring legal documents are available in the website's primary interface language.
+- Semantic Clarity: Identification of vague or non-compliant processing purposes.
 
-LEGAL BASIS:
-Audits are conducted under 'Legitimate Interest' (Art. 6(1)(f) GDPR). HumangoBot acts as a passive, stateless observer. No personal data is harvested or stored; only technical metadata and evidentiary artifacts are collected.
+4. TECHNICAL COMPLIANCE
+- HTTPS Enforcement: Verification of SSL/TLS encryption for all pages.
+- Status Monitoring: Ensuring all legal documents return 200 OK.
+- Link Integrity: Automated detection of broken internal links within legal texts.
+- Cookie Consent: Detection of Consent Management Platforms (CMP) and tracking scripts.
 
-RETENTION POLICY:
-Technical evidence (redacted snippets and low-res screenshots) is stored for 365 days for verification and audit trail purposes, followed by automated permanent deletion.
+5. SECURITY HEADERS
+- Verification of CSP (Content Security Policy).
+- HSTS (HTTP Strict Transport Security) header presence.
+- X-Frame-Options (Clickjacking protection).
 
-VERIFICATION:
-User-Agent: HumangoBot/1.0 (+https://humango.app)
-Identity: https://humango.app/legal/bot-policy
-Technical Scope: https://humango.app/audit-scope.txt
+Operator: Humango Limited (London)
+Policy: https://humango.app/legal/bot-policy
+Contact: abuse@humango.app

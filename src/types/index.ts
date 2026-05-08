@@ -1,6 +1,6 @@
 
 export type Severity = 'low' | 'medium' | 'high' | 'critical';
-export type Category = 'ADA' | 'GDPR' | 'Privacy' | 'Security' | 'AI' | 'Transactional' | 'HR_Edu';
+export type Category = 'ADA' | 'GDPR' | 'Privacy' | 'Security' | 'AI' | 'Transactional' | 'HR_Edu' | 'Legal_Content';
 export type ScanType = 'basic' | 'deep';
 
 export interface Violation {
@@ -11,8 +11,8 @@ export interface Violation {
   snippet?: string;
   description: string;
   explanation: string;
-  law_name: string;        // Новый атрибут: Название закона
-  potential_fine: string;  // Новый атрибут: Сумма штрафа
+  law_name: string;        
+  potential_fine: string;  
   recommendation?: string;
   scan_type?: ScanType;
   metadata?: any;
