@@ -38,7 +38,8 @@ const nextConfig: NextConfig = {
       object-src 'none';
       base-uri 'self';
       form-action 'self';
-      frame-ancestors 'self' *;
+      frame-ancestors 'none';
+      upgrade-insecure-requests;
     `.replace(/\s{2,}/g, ' ').trim();
 
     return [
@@ -56,6 +57,10 @@ const nextConfig: NextConfig = {
           {
             key: 'X-Content-Type-Options',
             value: 'nosniff',
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
           },
           {
             key: 'Referrer-Policy',

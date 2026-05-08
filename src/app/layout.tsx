@@ -1,8 +1,10 @@
+
 import type {Metadata} from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { FirebaseProvider } from "@/components/providers/firebase-provider";
+import { CookieBanner } from "@/components/ui/cookie-banner";
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -37,12 +39,16 @@ export const metadata: Metadata = {
     description: 'HumangoBot is a specialized security crawler designed to identify technical vulnerabilities and monitor GDPR compliance across global web infrastructure.',
     url: 'https://humango.app',
     siteName: 'HumangoBot',
+    images: [
+      {
+        url: '/logo.png',
+        width: 800,
+        height: 600,
+        alt: 'HumangoBot Logo',
+      },
+    ],
     locale: 'en_US',
     type: 'website',
-  },
-  verification: {
-    google: '',
-    yandex: '',
   },
 };
 
@@ -57,6 +63,7 @@ export default function RootLayout({
         <FirebaseProvider>
           {children}
           <Toaster />
+          <CookieBanner />
         </FirebaseProvider>
       </body>
     </html>

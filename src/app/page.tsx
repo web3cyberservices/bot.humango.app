@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail, Globe, Terminal, Scale, Clock, ShieldCheck, FileText, Lock, Activity, ShoppingCart, ArrowRight } from "lucide-react";
+import { Mail, Globe, Terminal, Scale, Clock, ShieldCheck, FileText, Lock, Activity, ShoppingCart, ArrowRight, Info } from "lucide-react";
 
 export default function Home() {
   return (
@@ -21,7 +21,7 @@ export default function Home() {
           <div className="flex items-center gap-3 group cursor-default">
             <Image 
               src="/logo.png" 
-              alt="HumangoBot Logo" 
+              alt="HumangoBot Logo - Security Crawler Identity" 
               width={40}
               height={40}
               className="object-contain"
@@ -160,13 +160,16 @@ export default function Home() {
         </div>
       </main>
 
-      <footer className="py-8 px-6 border-t border-white/5 bg-[#010413]/50">
+      <footer className="py-8 px-6 border-t border-white/5 bg-[#010413]/50 mt-auto">
         <div className="container mx-auto flex flex-col md:flex-row justify-between items-center gap-8 text-[9px] text-slate-500 uppercase tracking-[0.25em] font-bold">
           <div className="flex items-center gap-3">
             <ShieldCheck className="w-4 h-4 text-primary opacity-80" />
             <span>Humango Compliance • Audit Protocol v2.5</span>
           </div>
-          <div className="flex gap-8">
+          <div className="flex gap-8 items-center">
+            <Link href="/legal/impressum" className="hover:text-white transition-colors flex items-center gap-1">
+              <Info className="w-3 h-3" /> Impressum
+            </Link>
             <Link href="/legal/privacy" className="hover:text-white transition-colors">Privacy Statement</Link>
             <Link href="/legal/rfc9309" className="hover:text-white transition-colors">RFC 9309 Compliance</Link>
           </div>
