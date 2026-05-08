@@ -51,6 +51,7 @@ interface DetectedIssue {
   date: string;
   description: string;
   fine_amount?: string;
+  law_name?: string;
   url?: string;
 }
 
@@ -65,11 +66,13 @@ export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [passphrase, setPassphrase] = useState("");
   const [isActive, setIsActive] = useState(false);
-  const [detectedIssues, setDetectedIssues] = useState<DetectedIssue[]>([]);
+  const [recentIssues, setRecentIssues] = useState<DetectedIssue[]>([]);
+  const [allViolations, setAllViolations] = useState<DetectedIssue[]>([]);
   const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
   const [showIssuesDialog, setShowIssuesDialog] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [lastSync, setLastSync] = useState<string>("");
   const { toast } = useToast();
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -96,7 +99,6 @@ export default function AdminDashboard() {
     setIsRefreshing(true);
     try {
       const timestamp = Date.now();
-      // Добавляем timestamp для обхода кэша на всех уровнях
       const [statusRes, statsRes, logsRes] = await Promise.all([
         fetch(`/api/admin/control?t=${timestamp}`, { cache: 'no-store' }),
         fetch(`/api/admin/stats?t=${timestamp}`, { cache: 'no-store' }),
@@ -119,7 +121,7 @@ export default function AdminDashboard() {
           pagesScanned: Number(statsData.pagesScanned) || 0,
           issuesFound: Number(statsData.issuesFound) || 0
         });
-        setDetectedIssues(statsData.recentIssues || []);
+        setRecentIssues(statsData.recentIssues || []);
         setLastSync(new Date().toLocaleTimeString());
       }
 
@@ -136,10 +138,26 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  const fetchFullHistory = async () => {
+    setIsHistoryLoading(true);
+    try {
+      const timestamp = Date.now();
+      const res = await fetch(`/api/admin/violations?t=${timestamp}`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        setAllViolations(data.violations || []);
+      }
+    } catch (error) {
+      console.error('[Admin] History fetch error:', error);
+    } finally {
+      setIsHistoryLoading(false);
+      setShowIssuesDialog(true);
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated === true) {
       fetchData();
-      // Поллинг каждые 4 секунды для актуальности данных
       pollingRef.current = setInterval(fetchData, 4000);
     }
     return () => {
@@ -148,12 +166,10 @@ export default function AdminDashboard() {
   }, [isAuthenticated, fetchData]);
 
   useEffect(() => {
-    // Скроллим к новым логам только ЕСЛИ это не первая загрузка и пришли новые данные
     if (!isFirstLoad.current && systemLogs.length > prevLogLength.current) {
       logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
     
-    // После того как логи загрузились в первый раз, помечаем загрузку завершенной
     if (systemLogs.length > 0 && isFirstLoad.current) {
       isFirstLoad.current = false;
       prevLogLength.current = systemLogs.length;
@@ -254,7 +270,7 @@ export default function AdminDashboard() {
           <Button variant="secondary" className="w-full justify-start gap-3 bg-primary/10 text-primary border-primary/20">
             <LayoutDashboard className="w-4 h-4" /> Дашборд
           </Button>
-          <Button variant="ghost" onClick={() => setShowIssuesDialog(true)} className="w-full justify-start gap-3 text-slate-400 hover:text-white">
+          <Button variant="ghost" onClick={fetchFullHistory} className="w-full justify-start gap-3 text-slate-400 hover:text-white">
             <AlertTriangle className="w-4 h-4" /> Все нарушения
           </Button>
           <Button variant="ghost" onClick={handleDownloadCSV} className="w-full justify-start gap-3 text-slate-400 hover:text-white">
@@ -274,7 +290,7 @@ export default function AdminDashboard() {
             <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary">Compliance v1.9</Badge>
             <div className="hidden lg:flex items-center gap-2 text-[10px] text-slate-500 font-mono">
               <Zap className={`w-3 h-3 ${isActive ? 'animate-pulse text-emerald-500' : ''}`} /> {isActive ? 'SCANNING' : 'IDLE'}
-              {isRefreshing && <Activity className="w-3 h-3 text-primary animate-spin ml-2" />}
+              {(isRefreshing || isHistoryLoading) && <Activity className="w-3 h-3 text-primary animate-spin ml-2" />}
               {lastSync && <span className="ml-2 flex items-center gap-1"><Clock className="w-3 h-3" /> Sync: {lastSync}</span>}
             </div>
           </div>
@@ -323,7 +339,7 @@ export default function AdminDashboard() {
                 <CardTitle className="text-sm font-bold flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-amber-500" /> Последние инциденты (Live)
                 </CardTitle>
-                <Button size="sm" variant="ghost" className="h-8 text-[10px] font-bold uppercase" onClick={() => setShowIssuesDialog(true)}>История</Button>
+                <Button size="sm" variant="ghost" className="h-8 text-[10px] font-bold uppercase" onClick={fetchFullHistory}>История</Button>
               </CardHeader>
               <CardContent className="p-0 max-h-[450px] overflow-y-auto scrollbar-hide">
                 <Table>
@@ -336,10 +352,10 @@ export default function AdminDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {detectedIssues.length === 0 ? (
+                    {recentIssues.length === 0 ? (
                       <TableRow><TableCell colSpan={4} className="text-center py-12 text-slate-500 text-xs italic">Нарушений не обнаружено</TableCell></TableRow>
                     ) : (
-                      detectedIssues.map((issue) => (
+                      recentIssues.map((issue) => (
                         <TableRow key={issue.id} className="border-white/5 hover:bg-white/[0.02] transition-colors group animate-in fade-in slide-in-from-left-2">
                           <TableCell className="text-xs font-medium group-hover:text-primary transition-colors">{issue.domain}</TableCell>
                           <TableCell className="text-xs text-slate-400 truncate max-w-[150px]">{issue.type}</TableCell>
@@ -398,48 +414,70 @@ export default function AdminDashboard() {
       <Dialog open={showIssuesDialog} onOpenChange={setShowIssuesDialog}>
         <DialogContent className="bg-[#0b1120] border-white/10 text-slate-50 max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
           <DialogHeader className="p-6 border-b border-white/5">
-            <DialogTitle className="flex items-center gap-2 text-xl font-bold"><AlertTriangle className="text-amber-500" /> История нарушений комплаенса</DialogTitle>
+            <DialogTitle className="flex items-center justify-between text-xl font-bold">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="text-amber-500" /> История всех нарушений
+              </div>
+              {isHistoryLoading && <Activity className="w-4 h-4 animate-spin text-primary" />}
+            </DialogTitle>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto p-4 scrollbar-hide">
-             <Accordion type="single" collapsible className="w-full space-y-2">
-                {detectedIssues.map((issue) => (
-                  <AccordionItem key={issue.id} value={String(issue.id)} className="border border-white/5 bg-white/[0.02] rounded-lg px-4 hover:border-white/10 transition-all">
-                    <AccordionTrigger className="hover:no-underline">
-                      <div className="flex flex-1 items-center justify-between text-left pr-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm">{issue.domain}</span>
-                            <Badge className={issue.level === 'critical' ? 'bg-rose-500' : 'bg-amber-500'}>{issue.level}</Badge>
+             {allViolations.length === 0 ? (
+               <div className="flex flex-col items-center justify-center py-20 text-slate-500 space-y-2">
+                 <ShieldCheck className="w-12 h-12 opacity-20" />
+                 <p className="text-sm italic">Список пуст или загружается...</p>
+               </div>
+             ) : (
+               <Accordion type="single" collapsible className="w-full space-y-2">
+                  {allViolations.map((issue) => (
+                    <AccordionItem key={issue.id} value={String(issue.id)} className="border border-white/5 bg-white/[0.02] rounded-lg px-4 hover:border-white/10 transition-all">
+                      <AccordionTrigger className="hover:no-underline">
+                        <div className="flex flex-1 items-center justify-between text-left pr-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-sm">{issue.domain}</span>
+                              <Badge className={issue.level === 'critical' ? 'bg-rose-500' : 'bg-amber-500'}>{issue.level}</Badge>
+                            </div>
+                            <p className="text-[10px] text-slate-500">{issue.type}</p>
                           </div>
-                          <p className="text-[10px] text-slate-500">{issue.type}</p>
+                          <div className="text-right space-y-1">
+                             <span className="text-[10px] text-slate-500 block">{new Date(issue.date).toLocaleString()}</span>
+                             <span className="text-xs text-primary font-bold">{issue.fine_amount}</span>
+                          </div>
                         </div>
-                        <div className="text-right space-y-1">
-                           <span className="text-[10px] text-slate-500 block">{new Date(issue.date).toLocaleString()}</span>
-                           <span className="text-xs text-primary font-bold">{issue.fine_amount}</span>
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-4">
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
+                             <div className="p-2 bg-white/5 rounded border border-white/5">
+                                <span className="text-[8px] text-slate-500 uppercase font-bold block">Применимый закон</span>
+                                <span className="text-xs text-slate-200">{issue.law_name || 'EU GDPR'}</span>
+                             </div>
+                             <div className="p-2 bg-white/5 rounded border border-white/5">
+                                <span className="text-[8px] text-slate-500 uppercase font-bold block">Риск штрафа</span>
+                                <span className="text-xs text-rose-400 font-bold">{issue.fine_amount}</span>
+                             </div>
+                          </div>
+                          <div className="p-3 bg-primary/5 rounded border border-primary/10 text-xs text-slate-300 leading-relaxed">
+                            <p className="font-bold text-primary mb-1 uppercase tracking-tighter">Правовое обоснование:</p>
+                            {issue.description}
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <div className="p-3 bg-black/40 rounded border border-white/5 text-[10px] font-mono text-emerald-400 overflow-x-auto">
+                                <p className="text-slate-500 mb-1 uppercase tracking-tighter">URL страницы:</p>
+                                <a href={issue.url} target="_blank" rel="noreferrer" className="hover:underline break-all">{issue.url}</a>
+                             </div>
+                             <div className="p-3 bg-black/40 rounded border border-white/5 text-[10px] font-mono text-amber-400 overflow-x-auto">
+                                <p className="text-slate-500 mb-1 uppercase tracking-tighter">Фрагмент кода (Evidence):</p>
+                                <div className="max-h-20 overflow-y-auto">{issue.description || 'Data logged to secure audit trail.'}</div>
+                             </div>
+                          </div>
                         </div>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="pb-4">
-                      <div className="space-y-4">
-                        <div className="p-3 bg-primary/5 rounded border border-primary/10 text-xs text-slate-300 leading-relaxed">
-                          <p className="font-bold text-primary mb-1 uppercase tracking-tighter">Legal Explanation:</p>
-                          {issue.description}
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                           <div className="p-3 bg-black/40 rounded border border-white/5 text-[10px] font-mono text-emerald-400 overflow-x-auto">
-                              <p className="text-slate-500 mb-1 uppercase tracking-tighter">Source URL:</p>
-                              <a href={issue.url} target="_blank" rel="noreferrer" className="hover:underline">{issue.url}</a>
-                           </div>
-                           <div className="p-3 bg-black/40 rounded border border-white/5 text-[10px] font-mono text-amber-400 overflow-x-auto">
-                              <p className="text-slate-500 mb-1 uppercase tracking-tighter">Evidence Snippet:</p>
-                              {issue.description.length > 0 ? 'Data captured and logged to security audit trail.' : 'No visual evidence captured.'}
-                           </div>
-                        </div>
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+             )}
           </div>
         </DialogContent>
       </Dialog>
