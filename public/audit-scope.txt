@@ -1,0 +1,34 @@
+HUMANGO BOT AUDIT SCOPE & DETECTION LOGIC v1.0
+
+Official documentation of technical vulnerabilities and compliance gaps monitored by the HumangoBot audit network.
+
+1. GDPR & PRIVACY COMPLIANCE
+- Missing Consent Management Platforms (CMP): Detection of absent cookie banners or consent overlays on pages using tracking technologies.
+- Illegal Cookie Placement: Identification of non-essential cookies (marketing/analytics) set before explicit user consent.
+- Legal Disclosure Validation (Impressum): Automated check for mandatory 'Impressum' or 'Legal Notice' sections (specifically for EU domains .de, .at, .fr, .it).
+- Unsecure Data Transmission: Identifying forms (<form>) transmitting data over unencrypted HTTP instead of HTTPS (Art. 32 GDPR).
+- PII Exposure Risk: Heuristic detection of potential personal data exposure in public technical logs or directory listings.
+
+2. SECURITY & INFRASTRUCTURE
+- Missing Security Headers: Verification of 'Content-Security-Policy' (CSP), 'X-Frame-Options' (Clickjacking protection), and 'Strict-Transport-Security' (HSTS).
+- Transport Layer Security: Assessment of SSL/TLS certificate validity and the use of deprecated protocols (e.g., TLS 1.0/1.1).
+- Client-Side Vulnerabilities: Signature-based detection of outdated or known-vulnerable JavaScript libraries and frameworks.
+
+3. ACCESSIBILITY (ADA / EN 301 549 / BITV)
+- Visual Impairment Support: Identification of <img> tags missing descriptive 'alt' attributes or using redundant placeholders.
+- Semantic HTML Integrity: Basic audit of HTML structure to ensure compatibility with screen readers and assistive technologies.
+
+4. E-COMMERCE INTEGRITY (SFCC SPECIALIZED)
+- Third-Party Pixel Audit: Real-time monitoring of marketing pixel behavior and unauthorized third-party script injections.
+- Transactional Flow Security: Identifying technical errors in critical checkout stages that could lead to data leakage or lost transactions.
+
+LEGAL BASIS:
+Audits are conducted under 'Legitimate Interest' (Art. 6(1)(f) GDPR). HumangoBot acts as a passive, stateless observer. No personal data is harvested or stored; only technical metadata and evidentiary artifacts are collected.
+
+RETENTION POLICY:
+Technical evidence (redacted snippets and low-res screenshots) is stored for 365 days for verification and audit trail purposes, followed by automated permanent deletion.
+
+VERIFICATION:
+User-Agent: HumangoBot/1.0 (+https://humango.app)
+Identity: https://humango.app/legal/bot-policy
+Technical Scope: https://humango.app/audit-scope.txt

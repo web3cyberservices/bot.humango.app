@@ -18,7 +18,8 @@ import {
   ShieldAlert,
   Cpu,
   FileSearch,
-  History
+  History,
+  ExternalLink
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,26 @@ export default function BotPolicyPage() {
             </p>
           </div>
 
+          {/* New Section: Audit Scope Link */}
+          <section>
+            <Link href="/audit-scope.txt" target="_blank">
+              <Card className="bg-primary/5 border-primary/20 hover:bg-primary/10 transition-all border-dashed">
+                <CardContent className="p-6 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="bg-primary/20 p-3 rounded-xl">
+                      <FileSearch className="w-6 h-6 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Technical Audit Scope</h3>
+                      <p className="text-xs text-slate-500">View the detailed list of compliance checks and detection logic.</p>
+                    </div>
+                  </div>
+                  <ExternalLink className="w-4 h-4 text-primary" />
+                </CardContent>
+              </Card>
+            </Link>
+          </section>
+
           {/* 1. Identity & Operator */}
           <section className="space-y-8">
             <h2 className="text-2xl font-bold flex items-center gap-3 text-white">
@@ -73,7 +94,7 @@ export default function BotPolicyPage() {
             <div className="grid gap-6">
               <div className="p-8 bg-white/[0.02] rounded-3xl border border-white/5 space-y-6 shadow-2xl">
                 <p className="text-slate-400 leading-relaxed">
-                  HumangoBot is a specialized security crawler operated by <strong>Humango Limited</strong>. Our primary mission is the automated identification of technical vulnerabilities and GDPR compliance gaps (e.g., missing legal disclosures, unencrypted forms) across global web infrastructure.
+                  HumangoBot is a specialized security crawler operated by <strong>Humango Limited</strong>. Our primary mission is the automated identification of technical vulnerabilities and GDPR compliance gaps across global web infrastructure.
                 </p>
                 <div className="grid md:grid-cols-2 gap-8 pt-4">
                   <div className="space-y-2">
@@ -102,7 +123,7 @@ export default function BotPolicyPage() {
                 <Card className="bg-white/5 border-white/5 p-4 text-center">
                   <Cpu className="w-5 h-5 text-primary mx-auto mb-2" />
                   <p className="text-[10px] font-bold text-slate-500 uppercase">User-Agent</p>
-                  <p className="text-[10px] font-mono text-white">HumangoBot/1.0</p>
+                  <p className="text-[9px] font-mono text-white">HumangoBot/1.0 (+https://humango.app)</p>
                 </Card>
                 <Card className="bg-white/5 border-white/5 p-4 text-center">
                   <ShieldCheck className="w-5 h-5 text-primary mx-auto mb-2" />
@@ -135,14 +156,14 @@ export default function BotPolicyPage() {
                   <div className="bg-blue-500/10 p-2 rounded-xl text-blue-500 font-bold text-xs shrink-0">DELAY</div>
                   <div>
                     <h3 className="text-white font-bold text-sm mb-1">Crawl-Delay & Backoff</h3>
-                    <p className="text-xs leading-relaxed">We support <code>Crawl-delay</code>. In its absence, we maintain a minimum of 5 seconds between requests. We respect <code>Retry-After</code> headers and 429/503 status codes with exponential backoff.</p>
+                    <p className="text-xs leading-relaxed">We support <code>Crawl-delay</code>. In its absence, we maintain a minimum of 5 seconds between requests. We respect <code>Retry-After</code> headers with exponential backoff.</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-4 p-5 bg-white/5 rounded-2xl border border-white/5">
                   <div className="bg-emerald-500/10 p-2 rounded-xl text-emerald-500 font-bold text-xs shrink-0">DNT</div>
                   <div>
                     <h3 className="text-white font-bold text-sm mb-1">Privacy Headers (DNT/GPC)</h3>
-                    <p className="text-xs leading-relaxed">Every request transmits <code>DNT: 1</code> (Do Not Track) and <code>Sec-GPC: 1</code> (Global Privacy Control) headers, signaling our intent not to track or fingerprint users.</p>
+                    <p className="text-xs leading-relaxed">Every request transmits <code>DNT: 1</code> (Do Not Track) and <code>Sec-GPC: 1</code> headers, signaling our intent not to track or fingerprint users.</p>
                   </div>
                 </li>
               </ul>
@@ -221,7 +242,7 @@ export default function BotPolicyPage() {
 
       <footer className="py-8 px-6 border-t border-white/5 bg-[#010413]/50">
         <div className="container mx-auto text-[9px] text-slate-500 uppercase tracking-[0.25em] font-bold text-center">
-          &copy; {new Date().getFullYear()} Humango Limited • 182-184 High Street North, London • Policy v1.1
+          &copy; {new Date().getFullYear()} Humango Limited • London • Policy v1.1
         </div>
       </footer>
     </div>

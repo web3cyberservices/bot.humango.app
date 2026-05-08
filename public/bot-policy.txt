@@ -1,25 +1,32 @@
-
-HUMANGO BOT COMPLIANCE MANIFESTO v1.0
+HUMANGO BOT COMPLIANCE MANIFESTO v1.1
 
 IDENTITY & CONTACT
+------------------
 User-Agent: HumangoBot/1.0 (+https://humango.app)
 Static IP: 116.203.3.75
 Reverse DNS: bot.humango.app
+Operator: Humango Limited (UK)
 Contact: abuse@humango.app
+Portal: https://humango.app
 
 TECHNICAL STANDARDS (RFC 9309)
-Full robots.txt and 'Crawl-delay' support.
-Rate limiting: 1 request / 5 seconds per domain.
-Automated backoff on 429/503/Retry-After status.
+------------------------------
+- Strict adherence to robots.txt 'Disallow' directives.
+- Full support for 'Crawl-delay' and 'Retry-After' headers.
+- Default rate limit: 1 request / 5 seconds per domain.
+- Automated exponential backoff on 429/503 status codes.
 
-PRIVACY & DATA ETHICS
-Stateless: No cookie storage or session persistence.
-No Tracking: Script execution and fingerprinting are disabled.
-PII Protection: Automatic redaction of emails and personal data.
-Audit Only: Collection is limited to technical headers and HTML structure.
-Retention: 365-day storage for audit evidence, then auto-deletion.
+PRIVACY & DATA ETHICS (GDPR)
+----------------------------
+- Stateless Operation: No cookie storage, session persistence, or fingerprinting.
+- Privacy Headers: Every request transmits 'DNT: 1' and 'Sec-GPC: 1' headers.
+- Data Minimization: Automated redaction of emails and PII from collected logs.
+- Audit Focus: Collection limited to technical headers, HTML structure, and accessibility metrics.
+- Retention: 365-day storage for audit evidence, followed by permanent deletion.
 
-MISSION
-HumangoBot is a security auditing crawler focused on global digital compliance.
-Legal Basis: Legitimate Interest (Art. 6(1)(f) GDPR) for security monitoring.
-Documentation: https://bot.humango.app/legal/bot-policy
+MISSION & LEGAL BASIS
+---------------------
+HumangoBot is a specialized security crawler for global compliance monitoring.
+Legal Basis: Legitimate Interest (Art. 6(1)(f) GDPR) for security and transparency.
+Audit Scope: https://humango.app/audit-scope.txt
+Full Policy: https://humango.app/legal/bot-policy
