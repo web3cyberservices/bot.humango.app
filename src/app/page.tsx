@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail, Globe, Terminal, Scale, Clock, ShieldCheck, FileText, Lock, Activity } from "lucide-react";
+import { Mail, Globe, Terminal, Scale, Clock, ShieldCheck, FileText, Lock, Activity, ShoppingCart, ArrowRight } from "lucide-react";
 
 export default function Home() {
   return (
@@ -32,6 +32,12 @@ export default function Home() {
             </span>
           </div>
           <nav className="flex items-center gap-6">
+            <Link 
+              href="https://sfcc.humango.app" 
+              className="hidden md:flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-primary transition-colors"
+            >
+              <ShoppingCart className="w-3 h-3" /> Enterprise SFCC
+            </Link>
             <Badge variant="outline" className="hidden sm:flex border-primary/20 bg-primary/5 text-primary text-[10px] font-bold tracking-[0.2em] px-3 py-1 rounded-full uppercase">
               Audit Candidate
             </Badge>
@@ -69,6 +75,23 @@ export default function Home() {
                   <p className="text-xs text-slate-500 leading-relaxed">{item.desc}</p>
                 </Card>
               ))}
+
+              <Link href="https://sfcc.humango.app" className="md:col-span-2 group">
+                <Card className="bg-primary/5 border-primary/20 p-6 hover:bg-primary/10 transition-all border-dashed">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="bg-primary/20 w-12 h-12 rounded-xl flex items-center justify-center">
+                        <ShoppingCart className="w-6 h-6 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-white">Enterprise SFCC Monitoring</h3>
+                        <p className="text-xs text-slate-500 leading-relaxed">Specialized audit infrastructure for Salesforce Commerce Cloud storefronts.</p>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-5 h-5 text-primary group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </Card>
+              </Link>
             </div>
           </div>
 
