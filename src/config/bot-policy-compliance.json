@@ -25,6 +25,21 @@
       "retry_after": "Supported (Respects server load)",
       "implicit_consent": "Limited to public technical headers assessment"
     },
+    "cookies_tracking": {
+      "no_cookie_storage": "Stateless scanning. No Set-Cookie headers are persisted or shared between sessions.",
+      "no_fingerprinting": "Zero execution of fingerprinting or tracking scripts.",
+      "session_policy": "Clean slate for every page request."
+    },
+    "security_audit": {
+      "tls_inspection": "Encryption audit only (TLS version, certificate validity). No interception of encrypted payloads.",
+      "vulnerability_scan": "Limited to publicly visible headers and HTML indicators."
+    },
+    "data_processing": {
+      "retention_period": "365 days (for legal evidence)",
+      "pii_policy": "Automatic masking/exclusion. Zero storage of emails, phones, or form data.",
+      "minimization": "Collection limited to technical metadata and compliance markers.",
+      "legal_basis": "Legitimate Interest (Art. 6(1)(f) GDPR) for cybersecurity and legal compliance monitoring."
+    },
     "service_mission": {
       "category": "Harmless / Beneficial",
       "purpose": "Security Auditing & GDPR Compliance Monitoring",
@@ -35,11 +50,6 @@
         "No DDoS simulation",
         "No bypass of security controls"
       ]
-    },
-    "data_processing": {
-      "retention_period": "365 days (for legal evidence)",
-      "pii_policy": "Automatic masking/exclusion",
-      "purpose": "Technical vulnerability identification"
     },
     "public_docs": {
       "portal": "https://bot.humango.app",

@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { ShieldCheck, ArrowLeft, Mail, Lock, Info, Scale, FileText } from "lucide-react";
+import { ShieldCheck, ArrowLeft, Mail, Lock, Info, Scale, FileText, EyeOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -36,33 +36,33 @@ export default function PrivacyPage() {
         <div className="space-y-12">
           <div className="space-y-4">
             <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary text-[10px] font-bold uppercase tracking-[0.2em]">
-              Legal Compliance
+              GDPR Compliance
             </Badge>
             <h1 className="text-4xl font-extrabold tracking-tight text-white">
               Privacy Statement
             </h1>
             <p className="text-slate-400 leading-relaxed text-lg">
-              Official policy regarding the collection, processing, and storage of technical data by the HumangoBot audit network.
+              Official policy regarding the collection, processing, and storage of technical data by the HumangoBot network.
             </p>
           </div>
 
           <section className="space-y-6">
             <h2 className="text-xl font-bold flex items-center gap-3 text-white border-l-2 border-primary pl-4">
-              <ShieldCheck className="w-5 h-5 text-primary" /> Data Minimization & Crawler Scope
+              <ShieldCheck className="w-5 h-5 text-primary" /> Data Minimization & Ethics
             </h2>
             <div className="space-y-4 text-slate-400 leading-relaxed">
               <p>
-                HumangoBot strictly adheres to the principle of <strong>Data Minimization</strong> (Art. 5 GDPR). Our scanning activities are limited to the objective assessment of technical infrastructure.
+                HumangoBot strictly adheres to <strong>Art. 5 GDPR</strong>. Our scanning is limited to infrastructure assessment as an external observer.
               </p>
               <ul className="list-disc pl-6 space-y-4">
                 <li>
-                  <strong className="text-white">Technical Scope:</strong> We index technical metadata (HTTP headers, SSL versions, CSP policies, cookie names).
+                  <strong className="text-white">Stateless Scanning:</strong> We do not store cookies or fingerprint users. Every request is a clean session.
                 </li>
                 <li>
-                  <strong className="text-white">No PII Harvesting:</strong> We do not index user profiles, email addresses, or private credentials. Our engine automatically ignores text blocks containing personal data using regex-based masking.
+                  <strong className="text-white">Zero PII Storage:</strong> We automatically redact emails, names, and phone numbers found in HTML content. We do not scrape form inputs.
                 </li>
                 <li>
-                  <strong className="text-white">Retention:</strong> Audit data is stored for a maximum of 365 days for compliance evidence purposes before automatic deletion.
+                  <strong className="text-white">Retention:</strong> Technical audit logs are kept for 365 days for compliance verification and legal evidence.
                 </li>
               </ul>
             </div>
@@ -70,10 +70,10 @@ export default function PrivacyPage() {
 
           <section className="space-y-6">
             <h2 className="text-xl font-bold flex items-center gap-3 text-white border-l-2 border-primary pl-4">
-              <Scale className="w-5 h-5 text-primary" /> Legal Basis for Processing
+              <Scale className="w-5 h-5 text-primary" /> Legal Basis (Art. 6 GDPR)
             </h2>
             <p className="text-slate-400 leading-relaxed">
-              Our data processing is based on <strong>Legitimate Interest</strong> (Art. 6(1)(f) GDPR) for the purpose of ensuring web security and monitoring the digital compliance posture of European web infrastructure.
+              Our data processing is justified under <strong>Legitimate Interest (Art. 6(1)(f) GDPR)</strong>. The purpose is to identify technical vulnerabilities and monitor the digital compliance posture of web infrastructure to ensure a secure internet environment.
             </p>
           </section>
 
@@ -83,7 +83,7 @@ export default function PrivacyPage() {
               Data Protection Officer (DPO)
             </div>
             <p className="text-sm text-slate-400">
-              For any questions regarding our data handling, your rights under GDPR, or exclusion requests:
+              For GDPR rights (access, erasure, objection) or exclusion requests, contact:
             </p>
             <a href="mailto:abuse@humango.app" className="inline-block text-primary font-bold hover:underline">
               abuse@humango.app
@@ -94,7 +94,7 @@ export default function PrivacyPage() {
 
       <footer className="py-8 px-6 border-t border-white/5 bg-[#010413]/50">
         <div className="container mx-auto text-[9px] text-slate-500 uppercase tracking-[0.25em] font-bold text-center">
-          &copy; {new Date().getFullYear()} Global Infrastructure Group • HumangoBot
+          &copy; {new Date().getFullYear()} Global Infrastructure Group • Humango Privacy v1.5
         </div>
       </footer>
     </div>
