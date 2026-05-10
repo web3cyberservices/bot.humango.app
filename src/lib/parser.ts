@@ -17,7 +17,7 @@ const CONTENT_MARKERS = {
   purposes: ['analytics', 'marketing', 'security', 'service', 'provision', 'optimization', 'zwecke'],
   retention: ['retention', 'storage', 'duration', 'deletion', 'period', 'aufbewahrung'],
   rights: ['right to access', 'erasure', 'portability', 'rectification', 'objection', 'withdraw consent', 'betroffenenrechte'],
-  contacts: ['contact', 'email', 'address', 'controller', 'dpo', 'datenschutzbeauftragter'],
+  contacts: ['contact', 'email', 'address', 'controller', 'dpo', 'datenschutzbeachter'],
   laws: ['gdpr', 'dsgvo', 'rgpd', 'uk gdpr', 'data protection act']
 };
 
@@ -46,9 +46,28 @@ function detectLanguage(text: string): string {
 
 function getLawContext(domain: string) {
   const d = domain.toLowerCase();
-  if (d.endsWith('.de')) return { law: 'BITV 2.0 / GDPR / TMG', fine: 'до €50,000 / 4% оборота' };
-  if (d.endsWith('.fr')) return { law: 'RGAA / GDPR / LIL', fine: 'до €20 млн / 4% оборота' };
-  return { law: 'EU GDPR / ePrivacy', fine: 'до €20 млн или 4% оборота' };
+  if (d.endsWith('.de')) return { law: 'BITV 2.0 / GDPR / TMG', fine: 'up to €50,000 / 4% turnover' };
+  if (d.endsWith('.fr')) return { law: 'RGAA / GDPR / LIL', fine: 'up to €20m / 4% turnover' };
+  return { law: 'EU GDPR / ePrivacy', fine: 'up to €20m or 4% turnover' };
+}
+
+/**
+ * Heuristic to determine if the page likely uses tracking scripts that require JS execution.
+ */
+export function shouldRunDeepScan(html: string): boolean {
+  const lowerHtml = html.toLowerCase();
+  const dynamicMarkers = [
+    'fbq(', // Facebook Pixel
+    'gtag(', // Google Tag Manager
+    'analytics.js',
+    'googletagmanager',
+    'cookiebot',
+    'onetrust',
+    'trustarc',
+    'civicuk',
+    'cookie-consent'
+  ];
+  return dynamicMarkers.some(m => lowerHtml.includes(m));
 }
 
 export function parseHtmlContent(html: string, url: string, headers: any = {}, screenshot?: string): { violations: Violation[], discoveredLinks: string[] } {
@@ -59,7 +78,6 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
   const domain = currentUrl.hostname.toLowerCase();
   const lawContext = getLawContext(domain);
   
-  const pageTitle = $('title').text() || $('h1').first().text();
   const bodyText = $('body').text().toLowerCase();
   const siteLang = $('html').attr('lang')?.toLowerCase()?.split('-')[0] || detectLanguage(bodyText);
 
@@ -78,14 +96,14 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
     violations.push({
       category: 'Security',
       report_type: 'Manual',
-      issue_type: 'Отсутствие HTTPS',
+      issue_type: 'Missing HTTPS',
       severity: 'critical',
       evidence_html: url,
       description: 'Site is running over unencrypted HTTP.',
       law_name: 'GDPR Art. 32',
       potential_fine: lawContext.fine,
-      explanation: 'Отсутствие шифрования ставит под угрозу данные пользователей.',
-      recommendation: 'Настройте SSL и редирект на HTTPS.'
+      explanation: 'Lack of encryption endangers user data.',
+      recommendation: 'Configure SSL and redirect to HTTPS.'
     });
   }
 
@@ -110,14 +128,14 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
       violations.push({
         category: 'Legal_Content',
         report_type: 'SaaS',
-        issue_type: `Документ отсутствует: ${doc.toUpperCase()}`,
+        issue_type: `Document Missing: ${doc.toUpperCase()}`,
         severity: 'critical',
         evidence_html: url,
         description: `Mandatory ${doc} document not found on the website.`,
         law_name: 'GDPR Art. 13',
         potential_fine: lawContext.fine,
-        explanation: 'Отсутствие обязательной юридической информации является грубым нарушением прозрачности.',
-        recommendation: `Создайте и опубликуйте документ ${doc}.`
+        explanation: 'Missing mandatory legal information is a gross violation of transparency.',
+        recommendation: `Create and publish a ${doc} document.`
       });
     }
   });
@@ -130,37 +148,37 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
       violations.push({
         category: 'Legal_Content',
         report_type: 'SaaS',
-        issue_type: 'Нет локального языка',
+        issue_type: 'Missing Local Language',
         severity: 'medium',
         evidence_html: url,
         description: `Policy is in ${docLang} but site is in ${siteLang}.`,
         law_name: 'GDPR Art. 12 (Transparency)',
-        potential_fine: 'до €20 млн',
-        explanation: 'Юридические документы должны быть понятны пользователю на его языке.',
-        recommendation: 'Переведите юридические документы на язык интерфейса сайта.'
+        potential_fine: 'up to €20m',
+        explanation: 'Legal documents must be understandable to the user in their language.',
+        recommendation: 'Translate legal documents into the site interface language.'
       });
     }
 
     // Completeness (SaaS Report)
     const missingBlocks = [];
-    if (!CONTENT_MARKERS.data_categories.some(m => bodyText.includes(m))) missingBlocks.push('Категории данных');
-    if (!CONTENT_MARKERS.retention.some(m => bodyText.includes(m))) missingBlocks.push('Сроки хранения');
-    if (!CONTENT_MARKERS.rights.some(m => bodyText.includes(m))) missingBlocks.push('Права субъектов');
-    if (!CONTENT_MARKERS.contacts.some(m => bodyText.includes(m))) missingBlocks.push('Контакты контроллера');
+    if (!CONTENT_MARKERS.data_categories.some(m => bodyText.includes(m))) missingBlocks.push('Data Categories');
+    if (!CONTENT_MARKERS.retention.some(m => bodyText.includes(m))) missingBlocks.push('Retention Periods');
+    if (!CONTENT_MARKERS.rights.some(m => bodyText.includes(m))) missingBlocks.push('User Rights');
+    if (!CONTENT_MARKERS.contacts.some(m => bodyText.includes(m))) missingBlocks.push('Controller Contacts');
 
     if (missingBlocks.length > 0 && bodyText.length > 300) {
       violations.push({
         category: 'Legal_Content',
         report_type: 'SaaS',
-        issue_type: 'Неполный документ',
+        issue_type: 'Incomplete Document',
         severity: 'high',
         evidence_html: screenshot ? `data:image/jpeg;base64,${screenshot}` : url,
         snippet: `Missing blocks: ${missingBlocks.join(', ')}`,
         description: 'Privacy document is missing mandatory GDPR clauses.',
         law_name: 'GDPR Art. 13/14',
         potential_fine: lawContext.fine,
-        explanation: 'В документе отсутствуют критически важные сведения о правах или сроках хранения.',
-        recommendation: 'Добавьте недостающие разделы в текст документа.'
+        explanation: 'The document lacks critical information about rights or retention periods.',
+        recommendation: 'Add missing sections to the text of the document.'
       });
     }
 
@@ -176,27 +194,19 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
           violations.push({
             category: 'Legal_Content',
             report_type: 'SaaS',
-            issue_type: 'Устаревший документ',
+            issue_type: 'Outdated Document',
             severity: 'medium',
             evidence_html: url,
             description: 'Document has not been updated for over 12 months.',
             law_name: 'GDPR Art. 5 (Transparency)',
-            potential_fine: 'до €20 млн',
-            explanation: 'Документы должны отражать актуальные процессы обработки данных.',
-            recommendation: 'Проведите ежегодный аудит и обновите дату документа.'
+            potential_fine: 'up to €20m',
+            explanation: 'Documents must reflect current data processing activities.',
+            recommendation: 'Conduct an annual audit and update the document date.'
           });
         }
       } catch (e) {}
     }
   }
-
-  // Internal Broken Link Check (Manual Report)
-  $('a').each((_, el) => {
-    const href = $(el).attr('href');
-    if (href && href.startsWith('#')) return; // ignore anchors
-    // Note: Actual 404 check happens in the crawler task, 
-    // here we just gather candidates for manual review if needed.
-  });
 
   return { violations, discoveredLinks: Array.from(new Set(discoveredLinks)).slice(0, 50) };
 }
