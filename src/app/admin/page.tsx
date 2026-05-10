@@ -47,7 +47,8 @@ import {
   Globe,
   Scale,
   Camera,
-  Layers
+  Layers,
+  Info
 } from "lucide-react";
 
 interface DetectedIssue {
@@ -56,6 +57,7 @@ interface DetectedIssue {
   type: string;
   level: string;
   date: string;
+  summary: string;
   description: string;
   fine_amount?: string;
   law_name?: string;
@@ -149,7 +151,7 @@ export default function AdminDashboard() {
     });
     if (res.ok) {
       setIsActive(checked);
-      toast({ title: checked ? "Сканирование запущено" : "Сканирование приостановлено" });
+      toast({ title: checked ? "Scanning active" : "Scanning paused" });
     }
   };
 
@@ -170,11 +172,11 @@ export default function AdminDashboard() {
         <Card className="w-full max-w-md bg-white/[0.03] border-white/10 p-8 space-y-8 text-slate-50">
           <div className="flex flex-col items-center text-center space-y-4">
             <Image src="/logo.png" alt="Logo" width={64} height={64} priority />
-            <h1 className="text-2xl font-bold">Вход в Терминал</h1>
+            <h1 className="text-2xl font-bold">Terminal Access</h1>
           </div>
           <form onSubmit={(e) => { e.preventDefault(); if (passphrase === "humango-admin-2025") { document.cookie = "admin_authenticated=true; path=/; max-age=3600"; setIsAuthenticated(true); } }} className="space-y-4">
-            <Input type="password" placeholder="Пароль" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} className="bg-white/5 text-center" />
-            <Button type="submit" className="w-full">Разблокировать</Button>
+            <Input type="password" placeholder="Passphrase" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} className="bg-white/5 text-center" />
+            <Button type="submit" className="w-full">Unlock</Button>
           </form>
         </Card>
       </div>
@@ -189,11 +191,11 @@ export default function AdminDashboard() {
           <span className="font-bold text-lg">HumangoBot</span>
         </div>
         <nav className="flex-1 p-4 space-y-2">
-          <Button variant="secondary" className="w-full justify-start gap-3 bg-primary/10 text-primary"><LayoutDashboard className="w-4 h-4" /> Дашборд</Button>
-          <Button variant="ghost" onClick={fetchFullHistory} className="w-full justify-start gap-3 text-slate-400"><AlertTriangle className="w-4 h-4" /> Все нарушения</Button>
+          <Button variant="secondary" className="w-full justify-start gap-3 bg-primary/10 text-primary"><LayoutDashboard className="w-4 h-4" /> Dashboard</Button>
+          <Button variant="ghost" onClick={fetchFullHistory} className="w-full justify-start gap-3 text-slate-400"><AlertTriangle className="w-4 h-4" /> All Violations</Button>
         </nav>
         <div className="p-4 border-t border-white/5">
-          <Button onClick={() => { setIsAuthenticated(false); document.cookie = "admin_authenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"; }} variant="ghost" className="w-full justify-start gap-3 text-rose-400"><LogOut className="w-4 h-4" /> Выйти</Button>
+          <Button onClick={() => { setIsAuthenticated(false); document.cookie = "admin_authenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"; }} variant="ghost" className="w-full justify-start gap-3 text-rose-400"><LogOut className="w-4 h-4" /> Logout</Button>
         </div>
       </aside>
 
@@ -207,7 +209,7 @@ export default function AdminDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-4 bg-white/5 px-4 py-1.5 rounded-full border border-white/10">
-            <span className="text-[10px] font-bold text-slate-500">MASTER POWER</span>
+            <span className="text-[10px] font-bold text-slate-500 uppercase">Master Power</span>
             <Switch checked={isActive} onCheckedChange={handleToggleBot} className="data-[state=checked]:bg-emerald-500" />
           </div>
         </header>
@@ -215,15 +217,15 @@ export default function AdminDashboard() {
         <div className="flex-1 overflow-y-auto p-8 space-y-8 scrollbar-hide">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card className="bg-white/[0.03] border-white/10">
-              <CardHeader className="pb-2"><CardTitle className="text-[10px] text-slate-500 uppercase">Просканировано</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-[10px] text-slate-500 uppercase">Pages Scanned</CardTitle></CardHeader>
               <CardContent><div className="text-3xl font-bold tabular-nums">{metrics.pagesScanned}</div></CardContent>
             </Card>
             <Card className="bg-white/[0.03] border-white/10 border-amber-500/20">
-              <CardHeader className="pb-2"><CardTitle className="text-[10px] text-slate-500 uppercase">Нарушения</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-[10px] text-slate-500 uppercase">Violations</CardTitle></CardHeader>
               <CardContent><div className="text-3xl font-bold text-amber-500 tabular-nums">{metrics.issuesFound}</div></CardContent>
             </Card>
             <Card className="bg-white/[0.03] border-white/10">
-              <CardHeader className="pb-2"><CardTitle className="text-[10px] text-slate-500 uppercase">Система</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-[10px] text-slate-500 uppercase">System Status</CardTitle></CardHeader>
               <CardContent><div className={`text-3xl font-bold ${isActive ? 'text-emerald-500' : 'text-rose-500'}`}>{isActive ? 'ACTIVE' : 'PAUSED'}</div></CardContent>
             </Card>
           </div>
@@ -231,21 +233,21 @@ export default function AdminDashboard() {
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
             <Card className="bg-white/[0.03] border-white/10">
               <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 py-4">
-                <CardTitle className="text-sm font-bold flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-500" /> Последние инциденты</CardTitle>
-                <Button size="sm" variant="ghost" className="h-8 text-[10px]" onClick={fetchFullHistory}>История</Button>
+                <CardTitle className="text-sm font-bold flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-500" /> Recent Incidents</CardTitle>
+                <Button size="sm" variant="ghost" className="h-8 text-[10px]" onClick={fetchFullHistory}>History</Button>
               </CardHeader>
               <CardContent className="p-0 max-h-[450px] overflow-y-auto">
                 <Table>
                   <TableHeader className="bg-[#0b1120] sticky top-0 z-10">
                     <TableRow className="border-white/5">
-                      <TableHead className="text-[9px]">ДОМЕН</TableHead>
-                      <TableHead className="text-[9px]">ТИП ОТЧЕТА</TableHead>
-                      <TableHead className="text-[9px]">УРОВЕНЬ</TableHead>
-                      <TableHead className="text-right text-[9px]">ВРЕМЯ</TableHead>
+                      <TableHead className="text-[9px]">DOMAIN</TableHead>
+                      <TableHead className="text-[9px]">MODULE</TableHead>
+                      <TableHead className="text-[9px]">SEVERITY</TableHead>
+                      <TableHead className="text-right text-[9px]">TIME</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {recentIssues.length === 0 ? <TableRow><TableCell colSpan={4} className="text-center py-12 text-slate-500 text-xs">Нет данных</TableCell></TableRow> : recentIssues.map((issue) => (
+                    {recentIssues.length === 0 ? <TableRow><TableCell colSpan={4} className="text-center py-12 text-slate-500 text-xs">No data</TableCell></TableRow> : recentIssues.map((issue) => (
                       <TableRow key={issue.id} className="border-white/5 hover:bg-white/[0.02] transition-colors group">
                         <TableCell className="text-xs font-medium">{issue.domain}</TableCell>
                         <TableCell>
@@ -284,7 +286,7 @@ export default function AdminDashboard() {
       <Dialog open={showIssuesDialog} onOpenChange={setShowIssuesDialog}>
         <DialogContent className="bg-[#0b1120] border-white/10 text-slate-50 max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
           <DialogHeader className="p-6 border-b border-white/5">
-            <DialogTitle className="flex items-center gap-2"><Layers className="text-primary" /> История нарушений (SaaS & Manual Modules)</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><Layers className="text-primary" /> Violation History (SaaS & Manual Modules)</DialogTitle>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto p-4 scrollbar-hide">
              <Accordion type="single" collapsible className="w-full space-y-3">
@@ -317,14 +319,26 @@ export default function AdminDashboard() {
                               <span className="text-xs text-rose-400 font-bold">{issue.fine_amount}</span>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="p-3 bg-white/5 rounded-lg">
-                                <p className="text-[9px] text-primary font-bold mb-1 uppercase tracking-widest"><Scale className="w-3 h-3 inline mr-1" /> Обоснование:</p>
-                                <p className="text-xs text-slate-300">{issue.description}</p>
-                                <p className="text-[9px] text-slate-500 mt-2 italic">Source: {issue.law_name}</p>
+                              <div className="p-3 bg-white/5 rounded-lg space-y-3">
+                                <div>
+                                  <p className="text-[9px] text-primary font-bold mb-1 uppercase tracking-widest"><Info className="w-3 h-3 inline mr-1" /> Summary:</p>
+                                  <p className="text-xs text-slate-300">{issue.summary}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[9px] text-emerald-500 font-bold mb-1 uppercase tracking-widest"><Scale className="w-3 h-3 inline mr-1" /> Legal Explanation:</p>
+                                  <p className="text-xs text-slate-400 italic">"{issue.description}"</p>
+                                  <p className="text-[9px] text-slate-500 mt-2 font-mono">Source: {issue.law_name}</p>
+                                </div>
                               </div>
                               <div className="p-3 bg-black/40 rounded-lg font-mono">
                                 <p className="text-[9px] text-slate-500 mb-1 uppercase">Target URL:</p>
                                 <a href={issue.url} target="_blank" className="text-[10px] text-emerald-400 hover:underline break-all">{issue.url}</a>
+                                {issue.evidence_html && issue.evidence_html.startsWith('data:') && (
+                                  <div className="mt-3">
+                                    <p className="text-[9px] text-slate-500 mb-2 uppercase">Screenshot Evidence:</p>
+                                    <img src={issue.evidence_html} className="rounded border border-white/10 w-full opacity-80 hover:opacity-100 transition-opacity cursor-zoom-in" alt="evidence" />
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>

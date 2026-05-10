@@ -46,7 +46,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
     const query = `
       INSERT INTO site_violations (
         domain, url, page_url, category, issue_type, severity, 
-        evidence_html, snippet, fine_amount, explanation, law_name, recommendation, 
+        evidence_html, snippet, description, explanation, law_name, recommendation, 
         scan_type, report_type, created_at, potential_fine
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), $15)
@@ -62,16 +62,16 @@ export async function saveAuditResults(domain: string, url: string, violations: 
         v.severity,
         sanitize(v.evidence_html),
         sanitize(v.snippet || v.evidence_html),
-        v.potential_fine, 
-        v.explanation,
-        v.law_name,
+        sanitize(v.description),
+        sanitize(v.explanation),
+        sanitize(v.law_name),
         sanitize(v.recommendation),
         scanType,
         v.report_type,
         v.potential_fine
       ]);
       
-      await saveBotEvent('SUCCESS', `[ИНЦИДЕНТ ${v.report_type}] ${domain} | ${v.issue_type} | Риск: ${v.potential_fine}`);
+      await saveBotEvent('SUCCESS', `[INCIDENT ${v.report_type}] ${domain} | ${v.issue_type} | Fine: ${v.potential_fine}`);
     }
     
     await client.query('COMMIT');
@@ -79,7 +79,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('[DB SAVE ERROR]', error.stack || error.message);
-    await saveBotEvent('ERROR', `Ошибка сохранения данных для ${domain}: ${error.message}`);
+    await saveBotEvent('ERROR', `Error saving data for ${domain}: ${error.message}`);
     return { success: false, error };
   } finally {
     client.release();
@@ -202,6 +202,7 @@ export async function getViolations(limit = 100) {
         issue_type as type, 
         severity as level, 
         created_at as date, 
+        description as summary,
         explanation as description,
         fine_amount,
         law_name,
