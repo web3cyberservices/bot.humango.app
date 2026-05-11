@@ -45,6 +45,28 @@ const MANDATORY_CLUSTERS = {
 };
 
 /**
+ * Determines if a site specifically requires an Impressum (Legal Notice) 
+ * based on regional laws (primarily DACH region: DE, AT, CH, LI).
+ */
+function requiresImpressum(url: string, html: string): boolean {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    
+    // DACH TLDs always require an Impressum
+    const dachTlds = ['.de', '.at', '.ch', '.li'];
+    if (dachTlds.some(tld => hostname.endsWith(tld))) return true;
+
+    // Check for German language markers in content (meta lang or common keywords)
+    const isGermanLanguage = /lang="de"/i.test(html) || /datenschutz|impressum|kontakt/i.test(html);
+    if (isGermanLanguage) return true;
+
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
  * Authoritative URL Normalizer
  * Standardizes URLs and removes trailing slashes/fragments/query params to prevent duplicates.
  */
@@ -79,7 +101,7 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
   // Analyze first 100KB for cluster matching to save RAM
   const auditText = html.substring(0, 102400).toLowerCase();
 
-  // NAV-SCOUT: УМНЫЙ ПОИСК (Убирает "Missing Document", если ссылка есть в тексте или href)
+  // NAV-SCOUT: SEARCH FOR LINKS (patterns + text)
   $('a').each((_, el) => {
     const text = $(el).text().trim().toLowerCase();
     const href = $(el).attr('href')?.toLowerCase() || '';
@@ -100,16 +122,19 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
     if (!links.cookies && isCookies) links.cookies = normalized;
   });
 
-  const mandatoryDocs = [
-    { key: 'impressum', name: 'Legal Notice (Impressum)', law: '§ 5 TMG / Art. 13 GDPR', category: 'IMPRESSUM' },
-    { key: 'privacy', name: 'Privacy Policy', law: 'Art. 13 GDPR', category: 'PRIVACY' },
-    { key: 'terms', name: 'Terms of Service (AGB)', law: 'BGB / TMG', category: 'TERMS' },
-    { key: 'cookies', name: 'Cookie Policy', law: 'ePrivacy Directive', category: 'COOKIES' }
+  const mandatoryDocsConfig = [
+    { key: 'privacy', name: 'Privacy Policy', law: 'Art. 13 GDPR', category: 'PRIVACY', required: true },
+    { key: 'cookies', name: 'Cookie Policy', law: 'ePrivacy Directive', category: 'COOKIES', required: true },
+    { key: 'terms', name: 'Terms of Service (AGB)', law: 'BGB / TMG', category: 'TERMS', required: true },
+    { key: 'impressum', name: 'Legal Notice (Impressum)', law: '§ 5 TMG / Art. 13 GDPR', category: 'IMPRESSUM', required: requiresImpressum(url, html) }
   ];
 
   const missingClusters: string[] = [];
 
-  mandatoryDocs.forEach(doc => {
+  mandatoryDocsConfig.forEach(doc => {
+    // Only process if the document is required for this region
+    if (!doc.required) return;
+
     const foundUrl = links[doc.key as keyof typeof links];
     
     if (!foundUrl) {
@@ -123,13 +148,14 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
         description: `The NAV-SCOUT engine scanned the domain structure but could not detect an accessible link to the mandatory ${doc.name}.`,
         law_name: doc.law,
         potential_fine: LIABILITY_DATABASE[doc.category] || LIABILITY_DATABASE.DEFAULT,
-        explanation: `Under ${doc.law}, website operators must provide a clearly visible and easily accessible ${doc.name}.`,
+        explanation: `Under ${doc.law}, website operators targeting this jurisdiction must provide a clearly visible and easily accessible ${doc.name}.`,
         recommendation: `Critical Corrective Action: Create a ${doc.name} and insert a visible link in the website footer.`,
         verification_method
       });
     } else {
       // Status: INCOMPLETE (If document exists but lacks clusters)
       Object.entries(MANDATORY_CLUSTERS).forEach(([clusterKey, cluster]) => {
+        // Only check specific documents for specific clusters
         if (doc.key === 'impressum' && clusterKey !== 'CONTROLLER') return;
         if (doc.key === 'cookies' || doc.key === 'terms') return;
 
@@ -164,7 +190,7 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
       verdict: violations.some(v => v.severity === 'critical') ? 'RISKY' : (violations.length > 0 ? 'RISKY' : 'COMPLIANT'),
       nav_scout: {
         found_links: Object.values(links).filter(Boolean) as string[],
-        missing_critical: mandatoryDocs.filter(d => !links[d.key as keyof typeof links]).map(d => d.name),
+        missing_critical: mandatoryDocsConfig.filter(d => d.required && !links[d.key as keyof typeof links]).map(d => d.name),
         discovery_score: Object.values(links).filter(Boolean).length * 25
       },
       lex_analyzer: {
