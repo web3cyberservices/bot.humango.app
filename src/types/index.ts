@@ -17,7 +17,6 @@ export interface Violation {
   recommendation?: string;
   scan_type?: ScanType;
   report_type: ReportType;
-  metadata?: any;
 }
 
 export interface CrawlResult {
@@ -27,12 +26,14 @@ export interface CrawlResult {
   issuesFound: number;
   violations?: Violation[];
   scanType: ScanType;
-  securityHeaders?: {
-    ssl: string;
-    hsts: boolean;
-    csp: boolean;
-  };
   error?: string;
   reason?: string;
   discoveredLinks?: string[];
+  meta?: {
+    duration_ms: number;
+    memory_usage_mb: number;
+    method: 'fetch' | 'puppeteer';
+    hasCMP: boolean;
+    legal_links: Record<string, string | null>;
+  };
 }

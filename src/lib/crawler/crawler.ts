@@ -6,90 +6,55 @@ import { parseHtmlContent } from '@/lib/parser';
 import { isUrlAllowed } from '@/config/robots-rules';
 import { saveAuditLog, saveBotEvent, saveAuditResults } from '@/lib/db';
 import { CrawlResult, Violation } from '@/types';
-import * as cheerio from 'cheerio';
 import { z } from 'zod';
 
-const urlSchema = z.string().url().refine((url) => {
-  const parsed = new URL(url);
-  const hostname = parsed.hostname.toLowerCase();
-  const blockedHostnames = ['localhost', '127.0.0.1', '0.0.0.0', '::1'];
-  return !blockedHostnames.includes(hostname);
-}, { message: "Internal/private addresses restricted." });
-
-const BLACKLIST_KEYWORDS = ['google.', 'facebook.', 'amazon.', 'wikipedia.', 'linkedin.', 'microsoft.', 'apple.', 'twitter.', 'youtube.'];
-const EU_LANGS = ['de', 'fr', 'it', 'es', 'pl', 'nl', 'da', 'fi', 'sv', 'pt', 'cs', 'hu', 'sk', 'sl', 'et', 'lv', 'lt', 'bg', 'ro', 'el'];
+const urlSchema = z.string().url();
 
 export async function runCrawlTask(seedUrl: string): Promise<CrawlResult> {
   const timestamp = new Date().toISOString();
   try {
     const validation = urlSchema.safeParse(seedUrl);
     if (!validation.success) {
-      return { url: seedUrl, timestamp, status: 'blocked', issuesFound: 0, scanType: 'basic', reason: validation.error.errors[0].message };
+      return { url: seedUrl, timestamp, status: 'blocked', issuesFound: 0, scanType: 'basic', reason: 'Invalid URL' };
     }
 
-    const url = new URL(seedUrl);
-    const domain = url.hostname.toLowerCase();
-
-    if (BLACKLIST_KEYWORDS.some(kw => domain.includes(kw))) {
-      return { url: seedUrl, timestamp, status: 'skipped', issuesFound: 0, scanType: 'basic', reason: 'Global giant domain blacklist.' };
-    }
-
-    // 1. Robots.txt Check (RFC 9309)
     const { allowed, reason, delay } = await isUrlAllowed(seedUrl);
     if (!allowed) {
-      await saveAuditLog(domain, 403, reason || 'Blocked by robots.txt');
       return { url: seedUrl, timestamp, status: 'blocked', issuesFound: 0, scanType: 'basic', reason };
     }
 
-    // 2. Polite Wait
-    const waitTime = delay || 5000;
-    await new Promise(resolve => setTimeout(resolve, waitTime));
-
-    // 3. Scrape with Retry/Backoff Handling
-    const { html, security, rawHeaders, scanType, dynamicCookies, screenshot } = await scrapeUrl(seedUrl);
-    
-    // Lang Check for non-EU TLDs
-    const isGlobalTld = ['.com', '.net', '.org'].some(tld => domain.endsWith(tld));
-    if (isGlobalTld) {
-      const $ = cheerio.load(html);
-      const lang = $('html').attr('lang')?.toLowerCase()?.split('-')[0] || '';
-      if (lang && !EU_LANGS.includes(lang)) {
-         return { url: seedUrl, timestamp, status: 'skipped', issuesFound: 0, scanType: 'basic', reason: `Non-EU language: ${lang}` };
-      }
+    // High-Performance Scrape (Fetch -> Puppeteer)
+    const scrape = await scrapeUrl(seedUrl);
+    if (scrape.status === 'fail') {
+      return { url: seedUrl, timestamp, status: 'failed', issuesFound: 0, scanType: 'basic', reason: 'Failed to retrieve content' };
     }
 
-    // Pass screenshot to parser for evidence
-    const { violations, discoveredLinks } = parseHtmlContent(html, seedUrl, rawHeaders, screenshot);
-    
-    // Dynamic Cookie Audit
-    if (scanType === 'deep' && dynamicCookies && dynamicCookies.length > 0) {
-      const trackers = ['fb', 'google', 'ads', 'analytics', 'pixel', 'intercom'];
-      const suspicious = dynamicCookies.filter((c: any) => 
-        trackers.some(key => c.name.toLowerCase().includes(key))
-      );
+    // Advanced Parse (NAV-SCOUT & LEX-ANALYZER)
+    const { violations, discoveredLinks, meta } = parseHtmlContent(scrape.html, seedUrl, scrape.rawHeaders, scrape.screenshot);
 
-      if (suspicious.length > 0) {
-        violations.push({
-          category: 'GDPR',
-          report_type: 'SaaS',
-          issue_type: 'Privacy Violation (Dynamic Trackers)',
-          severity: 'high',
-          evidence_html: screenshot ? `data:image/jpeg;base64,${screenshot}` : 'Detected cookies',
-          snippet: 'Detected via headless browser rendering.',
-          description: 'Detected tracking cookies set without consent.',
-          law_name: 'EU GDPR / ePrivacy Directive',
-          potential_fine: '€10,000 - €20,000,000',
-          explanation: 'Xevon engine detected dynamic trackers and cookies that are set automatically upon page load without obtaining valid user consent.',
-          recommendation: 'Configure your CMP to block scripts until explicit consent is provided.'
-        });
-      }
+    // SSL & Security Checks
+    if (!seedUrl.startsWith('https:')) {
+      violations.push({
+        category: 'Security',
+        report_type: 'Manual',
+        issue_type: 'Insecure Connection',
+        severity: 'critical',
+        evidence_html: seedUrl,
+        description: 'The website transmits data over unencrypted HTTP. This exposes all user data to sniffing.',
+        law_name: 'GDPR Art. 32',
+        potential_fine: '€2,500 - €20,000,000',
+        explanation: 'Security of processing is mandatory. Lack of SSL is a direct violation of Art. 32 GDPR.',
+        recommendation: 'Deploy an SSL certificate and force HTTPS redirection.'
+      });
     }
 
+    // Finalize results
+    const domain = new URL(seedUrl).hostname;
     await saveAuditLog(domain, 200, null);
     
     if (violations.length > 0) {
-      await saveAuditResults(domain, seedUrl, violations, scanType);
-      await saveBotEvent('SUCCESS', `Audit of ${domain} finished. ${violations.length} violations recorded.`);
+      await saveAuditResults(domain, seedUrl, violations, scrape.method === 'puppeteer' ? 'deep' : 'basic');
+      await saveBotEvent('SUCCESS', `Audit finished: ${domain} | Method: ${scrape.method} | Issues: ${violations.length}`);
     }
 
     return {
@@ -98,20 +63,17 @@ export async function runCrawlTask(seedUrl: string): Promise<CrawlResult> {
       status: 'success',
       issuesFound: violations.length,
       violations,
-      scanType,
-      securityHeaders: security,
-      discoveredLinks
+      scanType: scrape.method === 'puppeteer' ? 'deep' : 'basic',
+      discoveredLinks,
+      meta: {
+        duration_ms: scrape.duration_ms,
+        memory_usage_mb: scrape.memory_usage_mb,
+        method: scrape.method,
+        hasCMP: meta.hasCMP,
+        legal_links: meta.legal_links
+      }
     };
   } catch (error: any) {
-    let d = 'unknown';
-    try { d = new URL(seedUrl).hostname; } catch(e) {}
-    
-    if (error.message.includes('RATE_LIMITED')) {
-       await saveBotEvent('ERROR', `Rate Limit (429/503) for ${d}. Backoff applied.`);
-       return { url: seedUrl, timestamp, status: 'blocked', issuesFound: 0, scanType: 'basic', reason: 'Target server is rate limiting our crawler.' };
-    }
-
-    await saveAuditLog(d, 500, error.message);
     return { url: seedUrl, timestamp, status: 'failed', issuesFound: 0, scanType: 'basic', error: error.message };
   }
 }

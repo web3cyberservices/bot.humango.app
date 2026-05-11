@@ -1,97 +1,36 @@
 
 import * as cheerio from 'cheerio';
-import { Violation, ReportType, Category } from '@/types';
+import { Violation, Category } from '@/types';
 
-const LEGAL_KEYWORDS: Record<string, string[]> = {
-  privacy: ['privacy', 'datenschutz', 'confidentialite', 'privacidad', 'confidenzialita', 'politika privatnosti', 'privacy policy'],
-  cookies: ['cookie', 'cookies', 'galletas', 'biscotti', 'cookie policy'],
-  terms: ['terms', 'tos', 'conditions', 'bedingungen', 'condiciones', 'termini', 'terms of service', 'agb', 'allgemeine geschäftsbedingungen'],
-  impressum: ['impressum', 'legal notice', 'mentions legales', 'aviso legal', 'note legali'],
+const LEGAL_PATTERNS = {
+  impressum: [/impressum/i, /legal notice/i, /mentions l[eé]gales/i, /aviso legal/i, /note legali/i],
+  privacy: [/privacy/i, /datenschutz/i, /confidentialit[eé]/i, /privacidad/i, /politika privatnosti/i],
+  terms: [/terms/i, /tos/i, /conditions/i, /bedingungen/i, /condiciones/i, /agb/i],
+  cookies: [/cookie/i, /galletas/i, /biscotti/i]
 };
 
-const CONTENT_MARKERS = {
-  data_categories: ['ip address', 'cookies', 'email', 'name', 'phone', 'address', 'location', 'personbezogene daten'],
-  retention: ['retention', 'storage', 'duration', 'deletion', 'period', 'aufbewahrung'],
-  rights: ['right to access', 'erasure', 'portability', 'rectification', 'objection', 'withdraw consent', 'betroffenenrechte'],
-  contacts: ['contact', 'email', 'address', 'controller', 'dpo', 'datenschutzbeachter'],
-};
+const CMP_MARKERS = [
+  'onetrust', 'cookiebot', 'cookie-consent', 'cookiebot', 'quantcast', 'didomi', 'trustarc', 'civicuk'
+];
 
-const LANG_MARKERS: Record<string, string[]> = {
-  de: ['der', 'die', 'das', 'und', 'ist'],
-  fr: ['le', 'la', 'les', 'et', 'est'],
-  es: ['el', 'la', 'los', 'y', 'es'],
-  it: ['il', 'la', 'le', 'e', 'è'],
-  en: ['the', 'and', 'is', 'for', 'that']
-};
-
-function detectLanguage(text: string): string {
-  const lowerText = text.toLowerCase();
-  let bestLang = 'en';
-  let maxCount = 0;
-
-  for (const [lang, markers] of Object.entries(LANG_MARKERS)) {
-    const count = markers.reduce((acc, m) => acc + (lowerText.split(` ${m} `).length - 1), 0);
-    if (count > maxCount) {
-      maxCount = count;
-      bestLang = lang;
-    }
-  }
-  return bestLang;
-}
-
-function getLegalDetail(docType: string, domain: string) {
-  const isDE = domain.endsWith('.de') || domain.endsWith('.at');
-  const details: Record<string, any> = {
-    privacy: {
-      law: 'GDPR Art. 13 / 14',
-      risk: 'Risk: Failure to provide transparent data processing information violates Art. 12 GDPR. Supervisory authorities can impose significant administrative fines.',
-      fine: '€10,000 - €20,000,000 (Up to 4% turnover)',
-      recommendation: 'Create a dedicated Privacy Policy page and link it clearly in the footer.'
-    },
-    terms: {
-      law: isDE ? '§ 305 BGB (Germany)' : 'Consumer Rights Directive',
-      risk: isDE 
-        ? 'Risk: Under § 305 BGB, customers must have a reasonable opportunity to view Terms (AGB) before a contract is formed. Missing AGB leads to legal warnings and invalid contract terms.'
-        : 'Risk: Missing Terms of Service leaves the business unprotected regarding liability and usage rights, violating transparency requirements for e-commerce.',
-      fine: isDE ? '€1,500 - €50,000 (Legal warnings + court costs)' : '€5,000 - €10,000,000',
-      recommendation: 'Link your Terms & Conditions (AGB) in the global footer or during the checkout flow.'
-    },
-    impressum: {
-      law: isDE ? '§ 5 TMG (Telemediengesetz)' : 'e-Commerce Directive Art. 5',
-      risk: isDE
-        ? 'Risk: § 5 TMG requires every commercial website to provide an "easily recognizable, directly accessible, and permanently available" imprint. Missing it is a high-risk violation targeted by competitors.'
-        : 'Risk: Professional entities must provide clear identification and contact details to ensure legal transparency in the EU.',
-      fine: isDE ? '€500 - €50,000 (Per violation + legal warning costs)' : '€1,000 - €25,000',
-      recommendation: 'Create an Imprint/Impressum page with your full legal name, physical address, and official contact email.'
-    },
-    cookies: {
-      law: 'ePrivacy Directive / GDPR Art. 7',
-      risk: 'Risk: Storing trackers without a clear Cookie Policy violates the consent requirements of the ePrivacy Directive. This is a primary target for DPA audits.',
-      fine: '€5,000 - €20,000,000 (Varies by user reach)',
-      recommendation: 'Deploy a Cookie Policy explaining each tracker and its specific purpose.'
-    }
-  };
-
-  return details[docType] || details['privacy'];
-}
-
-export function shouldRunDeepScan(html: string): boolean {
-  const lowerHtml = html.toLowerCase();
-  const dynamicMarkers = ['fbq(', 'gtag(', 'analytics.js', 'googletagmanager', 'cookiebot', 'onetrust', 'cookie-consent'];
-  return dynamicMarkers.some(m => lowerHtml.includes(m));
-}
-
-export function parseHtmlContent(html: string, url: string, headers: any = {}, screenshot?: string): { violations: Violation[], discoveredLinks: string[] } {
+/**
+ * Advanced Compliance Parser: NAV-SCOUT & LEX-ANALYZER Engines
+ */
+export function parseHtmlContent(html: string, url: string, headers: any = {}, screenshot?: string): { 
+  violations: Violation[], 
+  discoveredLinks: string[],
+  meta: { hasCMP: boolean, legal_links: Record<string, string | null> }
+} {
   const $ = cheerio.load(html);
   const violations: Violation[] = [];
   const discoveredLinks: string[] = [];
-  const currentUrl = new URL(url);
-  const domain = currentUrl.hostname.toLowerCase();
+  const targetUrl = new URL(url);
+  const domain = targetUrl.hostname.toLowerCase();
   
   const bodyText = $('body').text().toLowerCase();
-  const siteLang = $('html').attr('lang')?.toLowerCase()?.split('-')[0] || detectLanguage(bodyText);
+  const hasCMP = CMP_MARKERS.some(m => html.toLowerCase().includes(m));
 
-  // 1. Link Discovery for Crawling
+  // 1. Link Discovery
   $('a[href]').each((_, el) => {
     try {
       const href = $(el).attr('href');
@@ -101,96 +40,81 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
     } catch (e) {}
   });
 
-  // 2. Technical Checks (Manual Module)
-  if (!url.startsWith('https:')) {
-    violations.push({
-      category: 'Security',
-      report_type: 'Manual',
-      issue_type: 'Missing HTTPS Encryption',
-      severity: 'critical',
-      evidence_html: url,
-      description: 'The website is running over unencrypted HTTP protocol.',
-      law_name: 'GDPR Art. 32 (Security of Processing)',
-      potential_fine: '€2,500 - €20,000,000',
-      explanation: 'Risk: Lack of encryption endangers user data and is a direct violation of Art. 32 GDPR, which mandates technical measures to protect personal data.',
-      recommendation: 'Install an SSL certificate and force redirect all traffic to HTTPS.'
-    });
-  }
-
-  // 3. Document Discovery (NAV-SCOUT Engine)
-  const docsFound: Record<string, string | null> = {};
-  for (const key of Object.keys(LEGAL_KEYWORDS)) docsFound[key] = null;
-
+  // 2. NAV-SCOUT Engine: Link Analysis
+  const legal_links: Record<string, string | null> = { impressum: null, privacy: null, terms: null, cookies: null };
+  
   $('a').each((_, el) => {
-    const text = $(el).text().toLowerCase();
+    const text = $(el).text().trim().toLowerCase();
     const href = $(el).attr('href')?.toLowerCase() || '';
-    for (const [key, keywords] of Object.entries(LEGAL_KEYWORDS)) {
-      if (keywords.some(k => text.includes(k) || href.includes(k))) {
-        docsFound[key] = new URL(href, url).href;
+    
+    for (const [key, patterns] of Object.entries(LEGAL_PATTERNS)) {
+      if (patterns.some(p => p.test(text) || p.test(href))) {
+        legal_links[key] = new URL(href, url).href;
       }
     }
   });
 
-  const mandatory = ['privacy', 'terms', 'cookies'];
-  if (domain.endsWith('.de') || domain.endsWith('.at')) mandatory.push('impressum');
+  // Generate NAV-SCOUT Violations
+  const isDACH = domain.endsWith('.de') || domain.endsWith('.at') || domain.endsWith('.ch');
+  if (isDACH && !legal_links.impressum) {
+    violations.push({
+      category: 'Legal_Content',
+      report_type: 'SaaS',
+      issue_type: 'Missing Impressum',
+      severity: 'critical',
+      evidence_html: url,
+      description: 'NAV-SCOUT engine scanned the footer and did not detect a link to Impressum. This is a high-risk transparency violation under §5 TMG.',
+      law_name: '§5 TMG (Germany)',
+      potential_fine: '€500 - €50,000',
+      explanation: 'In German-speaking jurisdictions, the Impressum must be "easily recognizable, directly accessible, and permanently available".',
+      recommendation: 'Add a clearly labeled "Impressum" link to your website footer.'
+    });
+  }
 
-  mandatory.forEach(doc => {
-    if (!docsFound[doc]) {
-      const detail = getLegalDetail(doc, domain);
+  if (!legal_links.privacy) {
+    violations.push({
+      category: 'Privacy',
+      report_type: 'SaaS',
+      issue_type: 'Missing Privacy Policy',
+      severity: 'critical',
+      evidence_html: url,
+      description: 'NAV-SCOUT engine failed to identify a Privacy Policy link. This is a fundamental violation of GDPR Art. 13/14.',
+      law_name: 'GDPR Art. 13/14',
+      potential_fine: '€10,000 - €20,000,000',
+      explanation: 'Failure to provide transparent information about data processing is a primary audit target for Data Protection Authorities.',
+      recommendation: 'Ensure a Privacy Policy link is visible on every page, typically in the footer.'
+    });
+  }
+
+  // 3. LEX-ANALYZER Engine: Content Analysis
+  if (legal_links.privacy && bodyText.length > 500) {
+    const mandatorySections = ['retention', 'rights', 'contact', 'cookies'];
+    const missing = mandatorySections.filter(s => !bodyText.includes(s));
+    
+    if (missing.length > 0) {
       violations.push({
         category: 'Legal_Content',
         report_type: 'SaaS',
-        issue_type: `Missing Document: ${doc.toUpperCase()}`,
-        severity: 'critical',
-        evidence_html: url,
-        description: `NAV-SCOUT engine proscanned the footer and did not detect a link to ${doc.toUpperCase()}. This is a transparency violation under ${detail.law}.`,
-        law_name: detail.law,
-        potential_fine: detail.fine,
-        explanation: detail.risk,
-        recommendation: detail.recommendation
-      });
-    }
-  });
-
-  // 4. Content Audit (LEX-ANALYZER Engine)
-  if (bodyText.length > 500) {
-    const docLang = detectLanguage(bodyText);
-    if (docLang !== siteLang) {
-      violations.push({
-        category: 'Legal_Content',
-        report_type: 'SaaS',
-        issue_type: 'Language Mismatch',
-        severity: 'medium',
-        evidence_html: url,
-        description: `LEX-ANALYZER engine analyzed the text. Link found, but the document is in ${docLang.toUpperCase()} while the site interface is in ${siteLang.toUpperCase()}.`,
-        law_name: 'GDPR Art. 12 (Transparency)',
-        potential_fine: '€2,500 - €250,000',
-        explanation: 'Risk: Art. 12 GDPR requires information to be provided in an intelligible and easily accessible form for the target audience.',
-        recommendation: 'Translate your legal documents into all languages supported by your website interface.'
-      });
-    }
-
-    const missingBlocks = [];
-    if (!CONTENT_MARKERS.data_categories.some(m => bodyText.includes(m))) missingBlocks.push('Data Categories');
-    if (!CONTENT_MARKERS.retention.some(m => bodyText.includes(m))) missingBlocks.push('Retention Periods');
-    if (!CONTENT_MARKERS.rights.some(m => bodyText.includes(m))) missingBlocks.push('User Rights');
-
-    if (missingBlocks.length > 0) {
-      violations.push({
-        category: 'Legal_Content',
-        report_type: 'SaaS',
-        issue_type: 'Incomplete Legal Clauses',
+        issue_type: 'Incomplete Privacy Content',
         severity: 'high',
         evidence_html: screenshot ? `data:image/jpeg;base64,${screenshot}` : url,
-        snippet: `Missing sections: ${missingBlocks.join(', ')}`,
-        description: `LEX-ANALYZER engine analyzed the text. Document found, but mandatory sections (${missingBlocks.join(', ')}) are missing from the content.`,
-        law_name: 'GDPR Art. 13/14',
-        potential_fine: '€5,000 - €20,000,000',
-        explanation: 'Risk: Omitting required information like retention periods or data subject rights is a primary cause for regulatory fines.',
-        recommendation: 'Update the legal document to include specific sections for data categories and user rights.'
+        description: `LEX-ANALYZER engine analyzed the text. Link found, but mandatory sections (${missing.join(', ')}) are missing from the content.`,
+        law_name: 'GDPR Art. 13',
+        potential_fine: '€5,000 - €1,000,000',
+        explanation: 'A Privacy Policy that omits data subject rights or retention periods is legally insufficient.',
+        recommendation: 'Update your privacy documentation to include missing mandatory clauses.'
       });
     }
   }
 
-  return { violations, discoveredLinks: Array.from(new Set(discoveredLinks)).slice(0, 50) };
+  return { 
+    violations, 
+    discoveredLinks: Array.from(new Set(discoveredLinks)).slice(0, 50),
+    meta: { hasCMP, legal_links }
+  };
+}
+
+export function shouldRunDeepScan(html: string): boolean {
+  const $ = cheerio.load(html);
+  return $('#app').length > 0 || $('#root').length > 0 || CMP_MARKERS.some(m => html.toLowerCase().includes(m));
 }

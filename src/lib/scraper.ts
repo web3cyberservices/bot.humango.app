@@ -1,159 +1,162 @@
+
 import settings from '@/config/crawler-settings.json';
-import { shouldRunDeepScan } from './parser';
 import puppeteer from 'puppeteer';
+import * as cheerio from 'cheerio';
 import { ScanType } from '@/types';
 import { logger } from './logger';
 
-const MAX_REDIRECTS = 5;
-const REQUEST_TIMEOUT = 15000;
+const REQUEST_TIMEOUT = 10000; // 10s Speed Phase
 const CHROME_PATH = '/root/.cache/puppeteer/chrome/linux-148.0.7778.97/chrome-linux64/chrome';
 
-/**
- * Глубокое сканирование для обнаружения динамических нарушений и создания скриншотов.
- * Использует изолированные инкогнито-контексты для соблюдения Stateless политики.
- */
-async function deepScrapeUrl(url: string) {
-  logger.info(`Deep Scan (Headless Chrome) initiating for: ${url}`);
-  
-  let browser: any = null;
-  let context: any = null;
+export interface ScrapeResult {
+  html: string;
+  status: 'success' | 'fail';
+  method: 'fetch' | 'puppeteer';
+  rawHeaders: any;
+  screenshot?: string;
+  cookies?: any[];
+  duration_ms: number;
+  memory_usage_mb: number;
+}
 
+/**
+ * Phase "BRUTEFORCE": Headless Chrome for complex SPAs or blocked sites.
+ */
+async function bruteForceScrape(url: string): Promise<Partial<ScrapeResult>> {
+  logger.info(`Phase BRUTEFORCE: Launching Puppeteer for ${url}`);
+  let browser: any = null;
   try {
     browser = await puppeteer.launch({
       executablePath: CHROME_PATH,
       headless: 'new',
       args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox', 
-        '--disable-dev-shm-usage', 
-        '--disable-gpu'
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--disable-gpu',
+        '--proxy-server="direct://"',
+        '--proxy-bypass-list=*'
       ]
     });
 
-    if (!browser) {
-      throw new Error('FAILED_TO_LAUNCH_CHROME');
-    }
-
-    // Создаем изолированный контекст (Incognito), чтобы не сохранять куки и сессии
-    context = await browser.createBrowserContext();
-    const page = await context.newPage();
+    const page = await browser.newPage();
     
-    // Предотвращение ошибок Protocol error (Target.createTarget)
-    page.on('error', err => logger.error(`Puppeteer page error: ${err.message}`));
-    
-    await page.setUserAgent(settings.userAgent);
-    
-    // Поддержка Privacy-стандартов: DNT: 1 и GPC: 1
-    await page.setExtraHTTPHeaders({
-      'From': settings.abuseEmail,
-      'X-Compliance-Portal': 'https://bot.humango.app',
-      'DNT': '1',
-      'Sec-GPC': '1'
-    });
-    
-    await page.setDefaultNavigationTimeout(25000);
-    
-    // Блокируем лишние ресурсы для экономии трафика и ускорения
+    // Resource Optimization: Block non-essential assets
     await page.setRequestInterception(true);
     page.on('request', (req) => {
       const type = req.resourceType();
-      if (['media', 'font', 'image'].includes(type) && !url.includes(req.url())) {
+      if (['image', 'media', 'font', 'stylesheet'].includes(type)) {
         req.abort();
       } else {
         req.continue();
       }
     });
 
-    await page.goto(url, { 
-      waitUntil: 'networkidle2', 
-      timeout: 25000 
+    await page.setUserAgent(settings.userAgent);
+    await page.setExtraHTTPHeaders({
+      'DNT': '1',
+      'Sec-GPC': '1',
+      'X-Compliance-Portal': 'https://bot.humango.app'
     });
 
-    const screenshot = await page.screenshot({ 
-      encoding: 'base64', 
-      type: 'jpeg', 
-      quality: 40,
-      fullPage: false 
-    });
-
+    await page.goto(url, { waitUntil: 'networkidle0', timeout: 25000 });
+    
     const html = await page.content();
     const cookies = await page.cookies();
-    
-    return { html, cookies, screenshot };
-  } catch (error: any) {
-    logger.error(`Puppeteer deep scan failed for ${url}: ${error.message}`);
-    throw error;
+    const screenshot = await page.screenshot({ encoding: 'base64', type: 'jpeg', quality: 40 });
+
+    return { html, cookies, screenshot: screenshot as string, method: 'puppeteer' };
   } finally {
-    // Безопасное закрытие ресурсов
-    try {
-      if (context) await context.close().catch(() => {});
-      if (browser) await browser.close().catch(() => {});
-    } catch (closeError: any) {
-      logger.warn(`Error during browser cleanup: ${closeError.message}`);
-    }
+    if (browser) await browser.close();
   }
 }
 
 /**
- * Гибридный скрейпинг: Fetch -> Heuristic -> Puppeteer.
- * С поддержкой Retry-After и Privacy Headers.
+ * Main Scraper Coordinator: Speed -> Surgery -> Bruteforce
  */
-export async function scrapeUrl(url: string, redirectCount = 0): Promise<{html: string, security: any, rawHeaders: any, scanType: ScanType, dynamicCookies?: any[], screenshot?: string}> {
-  if (redirectCount > MAX_REDIRECTS) throw new Error('REDIRECT_LOOP');
+export async function scrapeUrl(url: string): Promise<ScrapeResult> {
+  const startTime = Date.now();
+  const startMemory = process.memoryUsage().heapUsed;
+  
+  let method: 'fetch' | 'puppeteer' = 'fetch';
+  let html = '';
+  let status: 'success' | 'fail' = 'success';
+  let headers: any = {};
+  let screenshot: string | undefined;
+  let cookies: any[] = [];
 
   try {
+    // PHASE "SPEED": Native Fetch
     const response = await fetch(url, {
-      method: 'GET',
       headers: {
         'User-Agent': settings.userAgent,
-        'From': settings.abuseEmail,
-        'X-Crawler-Contact': settings.abuseEmail,
-        'X-Compliance-Portal': 'https://bot.humango.app',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'DNT': '1',
-        'Sec-GPC': '1'
+        'Sec-GPC': '1',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
       },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT)
     });
 
-    if (response.status === 429 || response.status === 503) {
-      const retryAfter = response.headers.get('retry-after');
-      const retryReason = retryAfter ? `_RETRY_${retryAfter}` : '';
-      throw new Error(`RATE_LIMITED_${response.status}${retryReason}`);
-    }
-
-    if (!response.ok) throw new Error(`HTTP_ERROR_${response.status}`);
-
-    let html = await response.text();
-    const headers: Record<string, string> = {};
     response.headers.forEach((v, k) => { headers[k.toLowerCase()] = v; });
 
-    const security = {
-      ssl: url.startsWith('https') ? 'TLS 1.3' : 'None',
-      hsts: !!headers['strict-transport-security'],
-      csp: !!headers['content-security-policy'] || html.includes('Content-Security-Policy')
-    };
+    // PHASE "SURGERY": Cheerio Heuristics
+    if (response.ok) {
+      html = await response.text();
+      const $ = cheerio.load(html);
+      
+      const isSPA = $('#app').length > 0 || $('#root').length > 0 || bodyIsEmpty($);
+      const hasLegalLinks = $('a').toArray().some(a => {
+        const text = $(a).text().toLowerCase();
+        return ['impressum', 'privacy', 'datenschutz', 'legal'].some(kw => text.includes(kw));
+      });
 
-    let scanType: ScanType = 'basic';
-    let dynamicCookies: any[] = [];
-    let screenshot: string | undefined = undefined;
-
-    if (shouldRunDeepScan(html)) {
-      try {
-        const deepResult = await deepScrapeUrl(url);
-        html = deepResult.html;
-        dynamicCookies = deepResult.cookies;
-        screenshot = deepResult.screenshot;
-        scanType = 'deep';
-      } catch (e: any) {
-        logger.warn(`Deep scan fallback for ${url}: ${e.message}`);
+      // Trigger Bruteforce if SPA or missing critical context
+      if (isSPA || !hasLegalLinks) {
+        const brute = await bruteForceScrape(url);
+        html = brute.html!;
+        screenshot = brute.screenshot;
+        cookies = brute.cookies || [];
+        method = 'puppeteer';
       }
+    } else if ([403, 429].includes(response.status)) {
+      // Access Denied or Rate Limited -> Use Headless
+      const brute = await bruteForceScrape(url);
+      html = brute.html!;
+      screenshot = brute.screenshot;
+      cookies = brute.cookies || [];
+      method = 'puppeteer';
+    } else {
+      status = 'fail';
     }
-
-    return { html, rawHeaders: headers, security, scanType, dynamicCookies, screenshot };
-  } catch (error: any) {
-    if (error.message.includes('RATE_LIMITED')) throw error;
-    logger.error(`Fetch failed for ${url}: ${error.message}`);
-    throw error;
+  } catch (err: any) {
+    logger.warn(`Speed Phase failed: ${err.message}. Retrying with Bruteforce.`);
+    try {
+      const brute = await bruteForceScrape(url);
+      html = brute.html!;
+      screenshot = brute.screenshot;
+      cookies = brute.cookies || [];
+      method = 'puppeteer';
+    } catch (bruteErr: any) {
+      status = 'fail';
+      logger.error(`Bruteforce failed: ${bruteErr.message}`);
+    }
   }
+
+  return {
+    html,
+    status,
+    method,
+    rawHeaders: headers,
+    screenshot,
+    cookies,
+    duration_ms: Date.now() - startTime,
+    memory_usage_mb: Math.round((process.memoryUsage().heapUsed - startMemory) / 1024 / 1024)
+  };
+}
+
+function bodyIsEmpty($: cheerio.CheerioAPI): boolean {
+  const bodyText = $('body').text().trim();
+  return bodyText.length < 200 && $('script').length > 0;
 }
