@@ -23,7 +23,10 @@ function sanitize(text: string | null | undefined): string {
   return DOMPurify.sanitize(text);
 }
 
-// 3. ДЕДУПЛИКАЦИЯ URL (Убирает повторы costera.tech)
+/**
+ * Robust URL Normalizer
+ * Standardizes URLs to prevent duplicates (e.g., site.com/ vs site.com)
+ */
 export function normalizeUrl(url: string): string {
   try {
     const u = new URL(url);

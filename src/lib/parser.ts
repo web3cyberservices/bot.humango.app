@@ -2,7 +2,10 @@
 import * as cheerio from 'cheerio';
 import { Violation, ComplianceReport, Category, VerificationMethod } from '@/types';
 
-// 1. КОНСТАНТЫ (Убивают null и Calculating...)
+/**
+ * Authoritative Liability Knowledge Base
+ * This mapping eliminates "null" or "calculating" values in reports.
+ */
 const LIABILITY_DATABASE: Record<string, string> = {
     'PRIVACY': 'Administrative fines up to €20,000,000 or 4% of global turnover (Art. 83 GDPR).',
     'COOKIES': 'Fines up to €10,000,000 or 2% of global turnover (ePrivacy Directive).',
@@ -38,7 +41,10 @@ const MANDATORY_CLUSTERS = {
   }
 };
 
-// 2. ДЕДУПЛИКАЦИЯ URL (Убирает повторы)
+/**
+ * Robust URL Normalizer & Deduplicator
+ * Strips trailing slashes, query params, and fragments to prevent "costera.tech" parasitic duplicates.
+ */
 export function normalizeUrl(url: string, base: string): string | null {
   try {
     const absolute = new URL(url, base);
@@ -49,9 +55,9 @@ export function normalizeUrl(url: string, base: string): string | null {
       pathname = pathname.slice(0, -1);
     }
     absolute.pathname = pathname;
-    return absolute.href;
+    return absolute.href.toLowerCase();
   } catch (e) {
-    return null;
+    return url.toLowerCase().replace(/\/$/, "");
   }
 }
 
@@ -68,7 +74,7 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
   const violations: Violation[] = [];
   const lowerHtml = html.substring(0, 100000).toLowerCase();
 
-  // 3. УМНЫЙ ПОИСК ССЫЛОК (Убирает "Missing Document", если ссылка есть в href или тексте)
+  // Smart Discovery: Search by text AND URL patterns
   $('a').each((_, el) => {
     const text = $(el).text().trim().toLowerCase();
     const href = $(el).attr('href')?.toLowerCase() || '';
@@ -77,7 +83,6 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
     const normalized = normalizeUrl(href, url);
     if (!normalized) return;
 
-    // Smart Regex Matching for navigation discovery (Text + Href patterns)
     const isPrivacy = /privacy|datenschutz|privacy-policy/i.test(text) || /privacy|datenschutz/i.test(href);
     const isImpressum = /impressum|legal-notice|legal-disclosure/i.test(text) || /impressum|legal-notice/i.test(href);
     const isTerms = /terms|agb|tos|conditions/i.test(text) || /agb|tos|terms-of-service/i.test(href);
@@ -100,24 +105,23 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
     const foundUrl = links[doc.key as keyof typeof links];
     
     if (!foundUrl) {
-      // MISSING Status: Document absolutely not found
+      // Status: MISSING
       violations.push({
         category: doc.category as Category,
         report_type: 'SaaS',
         issue_type: `Missing ${doc.name}`,
         severity: 'critical',
         evidence_html: url,
-        description: `NAV-SCOUT engine scanned the domain but could not detect an accessible link to the ${doc.name}. This is a mandatory transparency requirement.`,
+        description: `NAV-SCOUT engine scanned the domain but could not detect an accessible link to the ${doc.name}.`,
         law_name: doc.law,
         potential_fine: LIABILITY_DATABASE[doc.category] || LIABILITY_DATABASE.DEFAULT,
-        explanation: `Under ${doc.law}, website operators must provide a clearly visible and easily accessible ${doc.name}.`,
-        recommendation: `Action Required: Create a ${doc.name} and add a direct link to it in your website footer.`,
+        explanation: `Under ${doc.law}, website operators must provide a clearly visible ${doc.name}.`,
+        recommendation: `Action Required: Create a ${doc.name} and add a link to it in your website footer.`,
         verification_method
       });
     } else {
-      // INCOMPLETE Status: Document found but missing mandatory clauses
+      // Status: INCOMPLETE (Content Validation)
       Object.entries(MANDATORY_CLUSTERS).forEach(([clusterKey, cluster]) => {
-        // Business logic: Impressum only needs Controller, Cookies handled separately
         if (doc.key === 'impressum' && clusterKey !== 'CONTROLLER') return;
         if (doc.key === 'cookies') return;
 
@@ -128,11 +132,11 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
             issue_type: `Incomplete ${doc.name}`,
             severity: 'high',
             evidence_html: foundUrl,
-            description: `LEX-ANALYZER identified the document, but the mandatory section [${cluster.name}] is missing from the text content.`,
+            description: `Document found at ${foundUrl}, but mandatory section [${cluster.name}] is missing from the text content.`,
             law_name: cluster.law,
             potential_fine: LIABILITY_DATABASE[doc.category] || LIABILITY_DATABASE.DEFAULT,
-            explanation: `${cluster.law} mandates the disclosure of ${cluster.name} within your ${doc.name}.`,
-            recommendation: `Corrective Action Required: You must add the following specific text to your document: ${cluster.remediation}`,
+            explanation: `${cluster.law} mandates the disclosure of ${cluster.name}.`,
+            recommendation: `Corrective Action Required: You must add the following section: ${cluster.remediation}`,
             verification_method
           });
         }

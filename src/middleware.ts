@@ -3,16 +3,16 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 /**
- * Middleware для управления путями и защиты API.
+ * Middleware for path management and API protection.
+ * Updated to allow public access to PDF reports generated for users.
  */
 export function middleware(request: NextRequest) {
   const url = request.nextUrl;
   
-  // В Cloud Workstations поддомены через заголовки host могут работать нестабильно в dev-режиме.
-  // Мы оставляем логику защиты API, но упрощаем логику поддоменов для предпросмотра.
-
-  // 1. Защита API админки
-  if (url.pathname.startsWith('/api/admin')) {
+  // 1. Admin API Protection
+  // We exclude /api/admin/report-pdf from authentication because users 
+  // need to download their reports after a public scan.
+  if (url.pathname.startsWith('/api/admin') && !url.pathname.includes('/report-pdf')) {
     const isAdmin = request.cookies.get('admin_authenticated')?.value === 'true';
     
     if (!isAdmin) {
