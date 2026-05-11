@@ -19,11 +19,33 @@ export async function GET(request: Request) {
 
   let browser: any = null;
   try {
-    // Fetch unique violations for the domain
-    // Using COALESCE to prevent crash if verification_method is missing in the database row
+    // Check for column existence to prevent 500 error if migration hasn't finished
+    const colCheck = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'site_violations'
+    `);
+    const existingCols = colCheck.rows.map(r => r.column_name);
+    
+    const hasVerificationMethod = existingCols.includes('verification_method');
+    const hasFineAmount = existingCols.includes('fine_amount');
+    const hasRecommendation = existingCols.includes('recommendation');
+    const hasSnippet = existingCols.includes('snippet');
+    const hasLawName = existingCols.includes('law_name');
+
+    // Build resilient query
     const res = await pool.query(`
       SELECT DISTINCT ON (issue_type, page_url) 
-        page_url, issue_type, severity, explanation, fine_amount, law_name, created_at, recommendation, snippet, COALESCE(verification_method, 'Static Analysis') as verification_method
+        page_url, 
+        issue_type, 
+        severity, 
+        explanation, 
+        ${hasFineAmount ? 'fine_amount' : "'' as fine_amount"}, 
+        ${hasLawName ? 'law_name' : "'GDPR / ePrivacy' as law_name"}, 
+        created_at, 
+        ${hasRecommendation ? 'recommendation' : "'Remediation required' as recommendation"}, 
+        ${hasSnippet ? 'snippet' : "'' as snippet"}, 
+        ${hasVerificationMethod ? 'verification_method' : "'Static Analysis' as verification_method"}
       FROM site_violations WHERE domain = $1 ORDER BY issue_type, page_url, created_at DESC
     `, [domain]);
 
@@ -59,7 +81,6 @@ export async function GET(request: Request) {
           .high { background: #fffbeb; color: #d97706; border: 1px solid #fef3c7; }
           .label { font-size: 10px; font-weight: bold; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; display: block; }
           .fine { font-size: 12px; font-weight: bold; color: #ef4444; background: #fef2f2; padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #ef4444; }
-          .evidence-box { background: #f1f5f9; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 10px; color: #475569; margin-bottom: 15px; overflow-wrap: break-word; }
           .footer { margin-top: 50px; border-top: 1px solid #e2e8f0; padding-top: 20px; display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #64748b; }
           .contact-link { color: #3b82f6; font-weight: bold; text-decoration: none; font-size: 12px; background: #eff6ff; padding: 4px 12px; border-radius: 6px; border: 1px solid #3b82f6; }
           .footer-logo { width: 32px; height: 32px; object-fit: contain; }
@@ -90,7 +111,7 @@ export async function GET(request: Request) {
               <span class="severity-badge ${item.severity}">${item.severity} Risk</span>
               
               <span class="label">Diagnostic Explanation</span>
-              <div style="font-size:12px; margin-bottom:15px">${item.explanation}</div>
+              <div style="font-size:12px; margin-bottom:15px">${item.explanation || item.description || ''}</div>
               
               <span class="label">Legal Foundation</span>
               <div style="font-size:11px; font-weight:bold; margin-bottom:15px">${item.law_name}</div>

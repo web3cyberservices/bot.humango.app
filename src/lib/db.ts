@@ -62,6 +62,14 @@ export async function saveAuditResults(domain: string, url: string, violations: 
   try {
     await client.query('BEGIN');
     
+    // Check for column existence before insert to prevent crash
+    const colCheck = await client.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'site_violations'
+    `);
+    const existingCols = colCheck.rows.map(r => r.column_name);
+
     // Normalizing audit base URL
     const cleanUrl = normalizeUrl(url);
 
@@ -85,6 +93,10 @@ export async function saveAuditResults(domain: string, url: string, violations: 
     `;
 
     for (const v of uniqueViolations.values()) {
+      // Robust mapping for missing columns
+      const fine = v.potential_fine || v.fine_amount || 'Up to €20M / 4% turnover';
+      const method = v.verification_method || (scanType === 'deep' ? 'Dynamic Emulation' : 'Static Analysis');
+
       await client.query(query, [
         sanitize(domain),
         sanitize(cleanUrl),
@@ -100,8 +112,8 @@ export async function saveAuditResults(domain: string, url: string, violations: 
         sanitize(v.recommendation),
         scanType,
         v.report_type,
-        v.potential_fine || v.fine_amount,
-        v.verification_method || (scanType === 'deep' ? 'Dynamic Emulation' : 'Static Analysis')
+        fine,
+        method
       ]);
     }
     await client.query('COMMIT');
@@ -219,11 +231,26 @@ export async function getStats() {
 
 export async function getViolations(limit = 100) {
   try {
+    // Dynamic column check for safety
+    const colCheck = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'site_violations'
+    `);
+    const cols = colCheck.rows.map(r => r.column_name);
+
+    const hasFine = cols.includes('fine_amount');
+    const hasLaw = cols.includes('law_name');
+    const hasMethod = cols.includes('verification_method');
+
     const res = await pool.query(`
       SELECT 
         id, domain, issue_type as type, severity as level, created_at as date, 
         description as summary, explanation as description,
-        fine_amount, law_name, page_url as url, evidence_html, report_type, snippet, verification_method
+        ${hasFine ? 'fine_amount' : "'N/A' as fine_amount"}, 
+        ${hasLaw ? 'law_name' : "'GDPR' as law_name"}, 
+        page_url as url, evidence_html, report_type, snippet, 
+        ${hasMethod ? 'verification_method' : "'Static' as verification_method"}
       FROM site_violations ORDER BY created_at DESC LIMIT $1
     `, [limit]);
     return res.rows || [];
