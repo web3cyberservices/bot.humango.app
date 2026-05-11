@@ -11,35 +11,35 @@ const LEGAL_PATTERNS = {
 
 const MANDATORY_CLUSTERS = {
   CONTROLLER: {
-    keywords: [/data controller/i, /verantwortlicher/i, /responsable du traitement/i, /titular del tratamiento/i],
+    keywords: [/data controller/i, /verantwortlicher/i, /responsable du traitement/i, /titular del tratamiento/i, /identity of the controller/i],
     law: "GDPR Article 13(1)(a)",
     desc: "Identity and contact details of the controller.",
-    remediation: "Ensure your legal text explicitly names the legal entity responsible for data processing, including a physical address and contact email."
+    remediation: "Include the full legal name of your entity, registered physical address, and a direct contact email in the first section of your policy."
   },
   RIGHTS: {
-    keywords: [/right to access/i, /right to erasure/i, /right to object/i, /auskunftsrecht/i, /l[öo]schungsrecht/i, /widerrufsrecht/i],
+    keywords: [/right to access/i, /right to erasure/i, /right to object/i, /auskunftsrecht/i, /l[öo]schungsrecht/i, /widerrufsrecht/i, /data subject rights/i],
     law: "GDPR Article 13(2)(b)",
     desc: "Information on data subject rights (access, rectification, erasure).",
-    remediation: "Add a section titled 'Your Rights' listing the right to access, rectification, erasure, and restriction of processing."
+    remediation: "Add a dedicated section explaining that users have the right to request access, correction, or deletion of their personal data."
   },
   RETENTION: {
-    keywords: [/retention period/i, /speicherdauer/i, /dur[eé]e de conservation/i, /plazo de conservaci[oó]n/i],
+    keywords: [/retention period/i, /speicherdauer/i, /dur[eé]e de conservation/i, /plazo de conservaci[oó]n/i, /storage period/i],
     law: "GDPR Article 13(2)(a)",
     desc: "The period for which the personal data will be stored.",
-    remediation: "Clearly state how long each category of data is stored (e.g., 'Marketing data is kept for 2 years or until consent is withdrawn')."
+    remediation: "Specify clear criteria or exact timeframes for how long user data is stored (e.g., 'Marketing data is kept for 24 months')."
   },
   DPO: {
-    keywords: [/data protection officer/i, /datenschutzbeauftragter/i, /délégué à la protection des données/i],
+    keywords: [/data protection officer/i, /datenschutzbeauftragter/i, /délégué à la protection des données/i, /DPO contact/i],
     law: "GDPR Article 13(1)(b)",
     desc: "Contact details of the Data Protection Officer (if applicable).",
-    remediation: "If your company is required to have a DPO, their contact details must be reachable directly from this document."
+    remediation: "If your organization is required to appoint a DPO, provide their professional contact details for privacy inquiries."
   }
 };
 
 const FINE_LOOKUP: Record<string, string> = {
-  Legal_Content: "Up to €20,000,000 or 4% of annual global turnover (GDPR Art. 83).",
-  Security: "Up to €10,000,000 or 2% of annual global turnover (GDPR Art. 83).",
-  Privacy: "Up to €20,000,000 or 4% of annual global turnover (GDPR Art. 83)."
+  Legal_Content: "€10,000 - €20,000,000 or 4% of annual global turnover (GDPR Art. 83).",
+  Security: "€5,000 - €10,000,000 or 2% of annual global turnover (GDPR Art. 83).",
+  Privacy: "€10,000 - €20,000,000 or 4% of annual global turnover (GDPR Art. 83)."
 };
 
 function normalizeUrl(url: string, base: string): string | null {
@@ -124,66 +124,52 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
   compliance_report: ComplianceReport
 } {
   const $ = cheerio.load(html);
-  const targetUrl = new URL(url);
-  const domain = targetUrl.hostname.toLowerCase();
   const verification_method = isPuppeteer ? 'Dynamic Emulation' : 'Static Analysis';
   
   const nav = navScout($, url);
   const lex = lexAnalyzer(html);
   const violations: Violation[] = [];
 
-  // 1. Structural Violations (NAV-SCOUT)
-  if (nav.missing_critical.length > 0) {
-    nav.missing_critical.forEach(missing => {
-      const isImpressum = missing.includes('Impressum');
-      violations.push({
-        category: (isImpressum ? 'Legal_Content' : 'Privacy') as Category,
-        report_type: 'SaaS',
-        issue_type: `Missing ${missing}`,
-        severity: 'critical',
-        evidence_html: url,
-        description: `NAV-SCOUT engine scanned the footer and root navigation but failed to find a dedicated link to ${missing}.`,
-        law_name: isImpressum ? '§5 TMG (Germany) / Art. 13 GDPR' : 'GDPR Article 13',
-        potential_fine: FINE_LOOKUP[isImpressum ? 'Legal_Content' : 'Privacy'],
-        explanation: 'Mandatory legal disclosures must be "easily recognizable, directly accessible, and permanently available" at all times.',
-        recommendation: `Implement a footer link explicitly labeled "${missing}" pointing to a dedicated compliance page.`,
-        verification_method
-      });
-    });
-  }
-
-  // 2. Content-Specific Violations (LEX-ANALYZER)
-  lex.missing_clusters.forEach(clusterKey => {
-    const cluster = MANDATORY_CLUSTERS[clusterKey as keyof typeof MANDATORY_CLUSTERS];
+  // 1. Missing Documents (NAV-SCOUT)
+  nav.missing_critical.forEach(missing => {
+    const isImpressum = missing.includes('Impressum');
     violations.push({
-      category: 'Privacy',
+      category: (isImpressum ? 'Legal_Content' : 'Privacy') as Category,
       report_type: 'SaaS',
-      issue_type: `Incomplete Document: Missing ${clusterKey}`,
-      severity: 'high',
-      evidence_html: nav.links.privacy || url,
-      snippet: html.substring(0, 500) + '...', // First 500 chars as context
-      description: `LEX-ANALYZER detected the legal document but identified a critical omission of the ${cluster.desc}`,
-      law_name: cluster.law,
-      potential_fine: FINE_LOOKUP.Privacy,
-      explanation: `Transparency is a core pillar of GDPR. Failure to disclose ${clusterKey} prevents users from understanding how their data is processed.`,
-      recommendation: cluster.remediation,
+      issue_type: `Missing ${missing}`,
+      severity: 'critical',
+      evidence_html: url,
+      description: `NAV-SCOUT engine scanned the navigation and footer but failed to detect a dedicated link to ${missing}.`,
+      law_name: isImpressum ? '§ 5 TMG / Art. 13 GDPR' : 'Art. 13 GDPR',
+      potential_fine: FINE_LOOKUP[isImpressum ? 'Legal_Content' : 'Privacy'],
+      explanation: 'Mandatory legal information must be easily recognizable, directly accessible, and permanently available.',
+      recommendation: `Implement a footer link explicitly labeled "${missing}" pointing to a compliant document.`,
       verification_method
     });
   });
 
-  if (nav.links.impressum && !lex.has_vat_id && domain.endsWith('.de')) {
-    violations.push({
-      category: 'Legal_Content',
-      report_type: 'SaaS',
-      issue_type: 'Missing VAT Identification',
-      severity: 'medium',
-      evidence_html: nav.links.impressum,
-      description: 'LEX-ANALYZER failed to find a valid VAT ID (USt-IdNr) in the Impressum.',
-      law_name: '§5 Abs. 1 Nr. 6 TMG',
-      potential_fine: "Up to €50,000 administrative penalty.",
-      explanation: 'Companies operating in Germany must disclose their VAT ID if assigned.',
-      recommendation: 'Ensure your USt-IdNr is clearly listed in the Impressum.',
-      verification_method
+  // 2. Incomplete Documents (LEX-ANALYZER)
+  // We only run this if the link WAS found, otherwise it's just 'Missing'
+  if (nav.links.privacy || nav.links.impressum) {
+    lex.missing_clusters.forEach(clusterKey => {
+      const cluster = MANDATORY_CLUSTERS[clusterKey as keyof typeof MANDATORY_CLUSTERS];
+      const targetDoc = clusterKey === 'CONTROLLER' && nav.links.impressum ? 'Legal Notice' : 'Privacy Policy';
+      const targetUrl = (clusterKey === 'CONTROLLER' ? nav.links.impressum : nav.links.privacy) || url;
+
+      violations.push({
+        category: 'Privacy',
+        report_type: 'SaaS',
+        issue_type: `Incomplete Document: Missing ${clusterKey}`,
+        severity: 'high',
+        evidence_html: targetUrl,
+        snippet: html.substring(0, 500) + '...', 
+        description: `LEX-ANALYZER identified the ${targetDoc} but detected a critical omission of the ${cluster.desc}`,
+        law_name: cluster.law,
+        potential_fine: FINE_LOOKUP.Privacy,
+        explanation: `Transparency according to Art. 13 GDPR requires specific disclosures. Your document is missing the ${clusterKey} section.`,
+        recommendation: cluster.remediation,
+        verification_method
+      });
     });
   }
 
