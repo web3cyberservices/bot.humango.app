@@ -1,8 +1,9 @@
 
+'use server';
+
 import settings from '@/config/crawler-settings.json';
 import puppeteer from 'puppeteer';
 import * as cheerio from 'cheerio';
-import { ScanType } from '@/types';
 import { logger } from './logger';
 
 const REQUEST_TIMEOUT = 10000; // 10s Speed Phase
@@ -36,14 +37,13 @@ async function bruteForceScrape(url: string): Promise<Partial<ScrapeResult>> {
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
         '--disable-gpu',
-        '--proxy-server="direct://"',
-        '--proxy-bypass-list=*'
+        '--js-flags="--max-old-space-size=1024"'
       ]
     });
 
     const page = await browser.newPage();
     
-    // Resource Optimization: Block non-essential assets
+    // Resource Optimization: Block non-essential assets to save bandwidth/RAM
     await page.setRequestInterception(true);
     page.on('request', (req) => {
       const type = req.resourceType();
@@ -61,20 +61,31 @@ async function bruteForceScrape(url: string): Promise<Partial<ScrapeResult>> {
       'X-Compliance-Portal': 'https://bot.humango.app'
     });
 
-    await page.goto(url, { waitUntil: 'networkidle0', timeout: 25000 });
+    // Ahmad Requirement: Strict 30s timeout
+    const response = await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
     
+    // Detect WAF / Block
+    if (response && [403, 429].includes(response.status())) {
+      return { status: 'fail', method: 'puppeteer', rawHeaders: { 'x-waf-block': 'true' } };
+    }
+
     const html = await page.content();
     const cookies = await page.cookies();
     const screenshot = await page.screenshot({ encoding: 'base64', type: 'jpeg', quality: 40 });
 
-    return { html, cookies, screenshot: screenshot as string, method: 'puppeteer' };
+    return { html, cookies, screenshot: screenshot as string, method: 'puppeteer', status: 'success' };
+  } catch (err: any) {
+    logger.error(`Bruteforce Phase failed: ${err.message}`);
+    return { status: 'fail', method: 'puppeteer' };
   } finally {
-    if (browser) await browser.close();
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
   }
 }
 
 /**
- * Main Scraper Coordinator: Speed -> Surgery -> Bruteforce
+ * Master Scraper Coordinator: Speed -> Surgery -> Bruteforce
  */
 export async function scrapeUrl(url: string): Promise<ScrapeResult> {
   const startTime = Date.now();
@@ -88,59 +99,67 @@ export async function scrapeUrl(url: string): Promise<ScrapeResult> {
   let cookies: any[] = [];
 
   try {
-    // PHASE "SPEED": Native Fetch
+    // PHASE 1: SPEED (Fetch)
     const response = await fetch(url, {
       headers: {
         'User-Agent': settings.userAgent,
         'DNT': '1',
         'Sec-GPC': '1',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
       },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT)
     });
 
     response.headers.forEach((v, k) => { headers[k.toLowerCase()] = v; });
 
-    // PHASE "SURGERY": Cheerio Heuristics
     if (response.ok) {
       html = await response.text();
       const $ = cheerio.load(html);
       
+      // PHASE 2: SURGERY (Cheerio Heuristics)
       const isSPA = $('#app').length > 0 || $('#root').length > 0 || bodyIsEmpty($);
       const hasLegalLinks = $('a').toArray().some(a => {
         const text = $(a).text().toLowerCase();
         return ['impressum', 'privacy', 'datenschutz', 'legal'].some(kw => text.includes(kw));
       });
 
-      // Trigger Bruteforce if SPA or missing critical context
+      // Escalation Trigger
       if (isSPA || !hasLegalLinks) {
         const brute = await bruteForceScrape(url);
+        if (brute.status === 'success') {
+          html = brute.html!;
+          screenshot = brute.screenshot;
+          cookies = brute.cookies || [];
+          method = 'puppeteer';
+        } else {
+          status = 'fail';
+        }
+      }
+    } else if ([403, 429].includes(response.status)) {
+      // Escalation Trigger: WAF or Rate Limit
+      const brute = await bruteForceScrape(url);
+      if (brute.status === 'success') {
         html = brute.html!;
         screenshot = brute.screenshot;
         cookies = brute.cookies || [];
         method = 'puppeteer';
+      } else {
+        status = 'fail';
+        headers['x-waf-block'] = 'true';
       }
-    } else if ([403, 429].includes(response.status)) {
-      // Access Denied or Rate Limited -> Use Headless
-      const brute = await bruteForceScrape(url);
+    } else {
+      status = 'fail';
+    }
+  } catch (err: any) {
+    logger.warn(`Speed Phase failed: ${err.message}. Escalating to Bruteforce.`);
+    const brute = await bruteForceScrape(url);
+    if (brute.status === 'success') {
       html = brute.html!;
       screenshot = brute.screenshot;
       cookies = brute.cookies || [];
       method = 'puppeteer';
     } else {
       status = 'fail';
-    }
-  } catch (err: any) {
-    logger.warn(`Speed Phase failed: ${err.message}. Retrying with Bruteforce.`);
-    try {
-      const brute = await bruteForceScrape(url);
-      html = brute.html!;
-      screenshot = brute.screenshot;
-      cookies = brute.cookies || [];
-      method = 'puppeteer';
-    } catch (bruteErr: any) {
-      status = 'fail';
-      logger.error(`Bruteforce failed: ${bruteErr.message}`);
     }
   }
 
