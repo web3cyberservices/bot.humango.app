@@ -23,6 +23,11 @@ function sanitize(text: string | null | undefined): string {
   return DOMPurify.sanitize(text);
 }
 
+// Helper to normalize and deduplicate
+function normalizeAndDeduplicateUrls(urls: string[]): string[] {
+  return [...new Set(urls.map(u => u.toLowerCase().trim().replace(/\/$/, "")))];
+}
+
 export async function testConnection() {
   try {
     const res = await pool.query('SELECT NOW()');
@@ -50,18 +55,23 @@ export async function saveAuditResults(domain: string, url: string, violations: 
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), $15)
     `;
 
+    // Normalizing audit base URL
+    const cleanUrl = url.toLowerCase().replace(/\/$/, "");
+
     for (const v of violations) {
-      const fine = v.potential_fine || v.fine_amount || "Calculated by legal department.";
-      const affectedUrls = v.affected_urls?.join(', ') || v.evidence_html;
+      const fine = v.potential_fine || v.fine_amount || "Administrative fines under GDPR Art. 83.";
+      
+      // Normalize affected URL
+      let affectedUrl = v.evidence_html.toLowerCase().trim().replace(/\/$/, "");
       
       await client.query(query, [
         sanitize(domain),
-        sanitize(url),
-        sanitize(affectedUrls),
+        sanitize(cleanUrl),
+        sanitize(affectedUrl),
         v.category,
         v.issue_type,
         v.severity,
-        sanitize(v.evidence_html),
+        sanitize(affectedUrl),
         sanitize(v.snippet || ''),
         sanitize(v.description), 
         sanitize(v.explanation), 
@@ -156,9 +166,10 @@ export async function getQueueSize(): Promise<number> {
 
 export async function addToQueue(url: string, depth: number = 0, priority: number = 0) {
   try {
+    const normalized = url.toLowerCase().trim().replace(/\/$/, "");
     await pool.query(
       "INSERT INTO scan_queue (url, status, depth, priority) VALUES ($1, 'pending', $2, $3) ON CONFLICT (url) DO NOTHING", 
-      [url, depth, priority]
+      [normalized, depth, priority]
     );
   } catch (error) {}
 }

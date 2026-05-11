@@ -2,12 +2,14 @@
 import * as cheerio from 'cheerio';
 import { Violation, ComplianceReport, Category, VerificationMethod } from '@/types';
 
-const LIABILITY_MAP: Record<string, string> = {
-  'Legal_Content': 'Up to €50,000 (German TMG §5)',
-  'Privacy': 'Up to €20M or 4% of annual global turnover (GDPR Art. 83)',
-  'Cookies': 'Up to €10M or 2% of annual global turnover (ePrivacy Directive)',
-  'Security': 'Up to €20M or 4% of annual global turnover (GDPR Art. 83)',
-  'DEFAULT': 'Administrative fines under GDPR Art. 83'
+// 1. ЖЕСТКИЙ МАППИНГ ШТРАФОВ (Убирает null и Calculating...)
+const LIABILITY_RULES: Record<string, string> = {
+  'PRIVACY': 'Administrative fines up to €20,000,000 or 4% of global turnover (Art. 83 GDPR).',
+  'COOKIES': 'Fines up to €10,000,000 or 2% of global turnover (ePrivacy Directive).',
+  'IMPRESSUM': 'Fines up to €50,000 (§ 5 TMG).',
+  'TERMS': 'Loss of liability protection and fines up to €10,000.',
+  'SECURITY': 'Administrative fines up to €20,000,000 or 4% of global turnover (Art. 83 GDPR).',
+  'DEFAULT': 'Administrative fines under GDPR Art. 83.'
 };
 
 const MANDATORY_CLUSTERS = {
@@ -44,6 +46,7 @@ const LEGAL_PATTERNS = {
   cookies: [/cookie/i, /galletas/i, /biscotti/i, /cookie policy/i, /cookie-richtlinie/i]
 };
 
+// 3. ДЕДУПЛИКАЦИЯ URL (Убирает повторы)
 export function normalizeUrl(url: string, base: string): string | null {
   try {
     const absolute = new URL(url, base);
@@ -67,14 +70,14 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
   meta: { hasCMP: boolean, legal_links: Record<string, string | null> },
   compliance_report: ComplianceReport
 } {
-  const $ = cheerio. Cheerio = cheerio.load(html);
+  const $ = cheerio.load(html);
   const verification_method: VerificationMethod = isPuppeteer ? 'Dynamic Emulation' : 'Static Analysis';
   
   const links: Record<string, string | null> = { impressum: null, privacy: null, terms: null, cookies: null };
   const violations: Violation[] = [];
-  const lowerHtml = html.substring(0, 150000).toLowerCase(); // Increased limit for complex docs
+  const lowerHtml = html.substring(0, 100000).toLowerCase(); // LEX-ANALYZER limit: 100KB
 
-  // 1. NAV-SCOUT Phase: Identify Links by text AND URL pattern
+  // 2. УМНЫЙ ПОИСК ССЫЛОК (Убирает "Missing Document", если ссылка есть)
   $('a').each((_, el) => {
     const text = $(el).text().trim().toLowerCase();
     const href = $(el).attr('href')?.toLowerCase() || '';
@@ -83,45 +86,48 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
     const normalized = normalizeUrl(href, url);
     if (!normalized) return;
 
-    const hrefCheck = (patterns: RegExp[]) => patterns.some(p => p.test(text) || p.test(href));
+    const check = (patterns: RegExp[]) => patterns.some(p => p.test(text) || p.test(href));
 
-    if (!links.impressum && hrefCheck(LEGAL_PATTERNS.impressum)) links.impressum = normalized;
-    if (!links.privacy && hrefCheck(LEGAL_PATTERNS.privacy)) links.privacy = normalized;
-    if (!links.terms && hrefCheck(LEGAL_PATTERNS.terms)) links.terms = normalized;
-    if (!links.cookies && hrefCheck(LEGAL_PATTERNS.cookies)) links.cookies = normalized;
+    if (!links.impressum && check(LEGAL_PATTERNS.impressum)) links.impressum = normalized;
+    if (!links.privacy && check(LEGAL_PATTERNS.privacy)) links.privacy = normalized;
+    if (!links.terms && check(LEGAL_PATTERNS.terms)) links.terms = normalized;
+    if (!links.cookies && check(LEGAL_PATTERNS.cookies)) links.cookies = normalized;
   });
 
-  // 2. Report Phase: Missing vs Incomplete
   const mandatoryDocs = [
-    { key: 'impressum', name: 'Legal Notice (Impressum)', law: '§ 5 TMG / Art. 13 GDPR', category: 'Legal_Content' as Category },
-    { key: 'privacy', name: 'Privacy Policy', law: 'Art. 13 GDPR', category: 'Privacy' as Category }
+    { key: 'impressum', name: 'Legal Notice (Impressum)', law: '§ 5 TMG / Art. 13 GDPR', category: 'IMPRESSUM' },
+    { key: 'privacy', name: 'Privacy Policy', law: 'Art. 13 GDPR', category: 'PRIVACY' },
+    { key: 'terms', name: 'Terms of Service (AGB)', law: 'BGB / TMG', category: 'TERMS' },
+    { key: 'cookies', name: 'Cookie Policy', law: 'ePrivacy Directive', category: 'COOKIES' }
   ];
 
   mandatoryDocs.forEach(doc => {
     const foundUrl = links[doc.key as keyof typeof links];
+    
+    // 4. ЛОГИКА СТАТУСА: "MISSING" ставится ТОЛЬКО если ссылка вообще не найдена.
     if (!foundUrl) {
       violations.push({
-        category: doc.category,
+        category: doc.category as Category,
         report_type: 'SaaS',
         issue_type: `Missing ${doc.name}`,
         severity: 'critical',
         evidence_html: url,
-        description: `NAV-SCOUT engine scanned the navigation and footer but detected no compliant link for the ${doc.name}.`,
+        description: `NAV-SCOUT engine scanned the footer and did not detect a compliant link to the ${doc.name}. This is a transparency violation.`,
         law_name: doc.law,
-        potential_fine: LIABILITY_MAP[doc.category] || LIABILITY_MAP.DEFAULT,
+        potential_fine: LIABILITY_RULES[doc.category] || LIABILITY_RULES.DEFAULT,
         explanation: 'Mandatory legal information must be easily recognizable and directly accessible.',
-        recommendation: `Implement a footer link labeled "${doc.name}" pointing to a compliant document.`,
+        recommendation: `Implement a high-visibility footer link labeled "${doc.name}" pointing to a compliant document.`,
         verification_method
       });
     } else {
-      // LEX-ANALYZER Phase: Check content of the found document
+      // "INCOMPLETE" ставится если Lex-Analyzer находит отсутствие секций
       Object.entries(MANDATORY_CLUSTERS).forEach(([clusterKey, cluster]) => {
-        // Only check Controller for Impressum, check all for Privacy
         if (doc.key === 'impressum' && clusterKey !== 'CONTROLLER') return;
+        if (doc.key === 'cookies') return; // Cookies usually checked via CMP detect
 
         if (!cluster.keywords.some(k => k.test(lowerHtml))) {
           violations.push({
-            category: doc.category,
+            category: doc.category as Category,
             report_type: 'SaaS',
             issue_type: `Incomplete ${doc.name}`,
             severity: 'high',
@@ -129,9 +135,9 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
             snippet: html.substring(0, 500) + '...',
             description: `LEX-ANALYZER identified the ${doc.name} at ${foundUrl}, but mandatory section [${cluster.name}] is missing.`,
             law_name: cluster.law,
-            potential_fine: LIABILITY_MAP[doc.category] || LIABILITY_MAP.DEFAULT,
+            potential_fine: LIABILITY_RULES[doc.category] || LIABILITY_RULES.DEFAULT,
             explanation: `Transparency requirements under Art. 13 GDPR mandate the disclosure of [${cluster.name}].`,
-            recommendation: cluster.remediation,
+            recommendation: `Corrective Action Required: You must add the following to satisfy Art. 13 GDPR: ${cluster.remediation}`,
             verification_method
           });
         }
@@ -158,7 +164,7 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
         has_vat_id: /de[0-9]{9}/i.test(lowerHtml),
         has_contact_info: /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(lowerHtml),
         has_mandatory_terms: true,
-        content_truncated: html.length > 150000,
+        content_truncated: html.length > 100000,
         missing_clusters: [] 
       },
       cmp_detect: {

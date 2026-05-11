@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 
     const htmlContent = `
       <!DOCTYPE html>
-      <html>
+      <html lang="en">
       <head>
         <meta charset="utf-8">
         <style>
@@ -54,8 +54,9 @@ export async function GET(request: Request) {
           .label { font-size: 10px; font-weight: bold; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; display: block; }
           .fine { font-size: 12px; font-weight: bold; color: #ef4444; background: #fef2f2; padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #ef4444; }
           .evidence-box { background: #f1f5f9; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 10px; color: #475569; margin-bottom: 15px; }
-          .footer { margin-top: 50px; border-top: 1px solid #e2e8f0; padding-top: 20px; display: flex; justify-content: space-between; align-items: center; font-size: 9px; }
-          .contact-link { color: #3b82f6; font-weight: bold; text-decoration: none; font-size: 13px; }
+          .footer { margin-top: 50px; border-top: 1px solid #e2e8f0; padding-top: 20px; display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #64748b; }
+          .contact-link { color: #3b82f6; font-weight: bold; text-decoration: none; font-size: 12px; background: #eff6ff; padding: 4px 8px; border-radius: 4px; }
+          .footer-logo { width: 32px; height: 32px; object-fit: contain; }
         </style>
       </head>
       <body>
@@ -77,7 +78,7 @@ export async function GET(request: Request) {
           <div class="violation-item">
             <div class="violation-header">
               <span class="violation-type">${item.issue_type}</span>
-              <span style="font-size:9px; color:#64748b">Verification: ${item.verification_method || 'SaaS Module'}</span>
+              <span style="font-size:9px; color:#64748b">Verification: ${item.verification_method || 'Static Analysis'}</span>
             </div>
             <div class="violation-body">
               <span class="severity-badge ${item.severity}">${item.severity} Risk</span>
@@ -85,14 +86,14 @@ export async function GET(request: Request) {
               <span class="label">Diagnostic Explanation</span>
               <div style="font-size:12px; margin-bottom:15px">${item.explanation}</div>
               
-              <span class="label">Legal Ground</span>
+              <span class="label">Legal Foundation</span>
               <div style="font-size:11px; font-weight:bold; margin-bottom:15px">${item.law_name}</div>
               
-              <span class="label">Administrative Liability Range</span>
+              <span class="label">Administrative Liability Range (Art. 83 GDPR / National Law)</span>
               <div class="fine">${item.fine_amount}</div>
               
               <span class="label">Affected Resource</span>
-              <div style="font-size:11px; color:#64748b; margin-bottom:15px">${item.page_url}</div>
+              <div style="font-size:11px; color:#64748b; margin-bottom:15px; word-break: break-all;">${item.page_url}</div>
 
               <span class="label">Corrective Action Required</span>
               <div style="background:#ecfdf5; border:1px solid #d1fae5; padding:15px; border-radius:8px; color:#065f46; font-size:11px">
@@ -107,23 +108,24 @@ export async function GET(request: Request) {
             &copy; ${new Date().getFullYear()} Humango Limited • London • E6 2JA<br>
             Verification Support: <a href="mailto:abuse@humango.app" class="contact-link">abuse@humango.app</a>
           </div>
-          ${logoBase64 ? `<img src="${logoBase64}" style="width:32px; height:32px">` : ''}
+          ${logoBase64 ? `<img src="${logoBase64}" class="footer-logo">` : ''}
         </div>
       </body>
       </html>
     `;
 
-    browser = await puppeteer.launch({ executablePath: CHROME_PATH, headless: 'new', args: ['--no-sandbox'] });
+    browser = await puppeteer.launch({ executablePath: CHROME_PATH, headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
     const page = await browser.newPage();
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-    const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
+    const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '20px', bottom: '20px', left: '20px', right: '20px' } });
     return new NextResponse(pdfBuffer, { 
       headers: { 
         'Content-Type': 'application/pdf', 
-        'Content-Disposition': `attachment; filename=Humango_Audit_${domain}.pdf` 
+        'Content-Disposition': `attachment; filename=Humango_Audit_${domain.replace(/\./g, '_')}.pdf` 
       } 
     });
   } catch (error) {
+    console.error('[PDF API Error]', error);
     return NextResponse.json({ error: 'Failed to generate report' }, { status: 500 });
   } finally {
     if (browser) await browser.close();
