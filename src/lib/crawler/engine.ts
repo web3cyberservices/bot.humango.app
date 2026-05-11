@@ -37,7 +37,6 @@ async function runWorker(workerId: number) {
 
       const task = await getNextQueueItem();
       if (!task) {
-        // No tasks in queue, wait before checking again
         await sleep(IDLE_WAIT); 
         continue;
       }
@@ -55,7 +54,7 @@ async function runWorker(workerId: number) {
       
       const robotsCheck = await isUrlAllowed(urlStr);
       if (!robotsCheck.allowed) {
-        logger.info(`[Worker ${workerId}] [Polite] Skipping ${urlStr}: ${robotsCheck.reason}`);
+        logger.info(`[Worker ${workerId}] Skipping ${urlStr}: ${robotsCheck.reason}`);
         await updateQueueStatus(task.id, 'failed');
         continue;
       }
@@ -68,7 +67,7 @@ async function runWorker(workerId: number) {
       
       if (timeSinceLastScan < dynamicDelay) {
         const wait = dynamicDelay - timeSinceLastScan;
-        logger.info(`[Worker ${workerId}] [Polite] Respecting Crawl-delay for ${domain}: Waiting ${wait}ms`);
+        logger.info(`[Worker ${workerId}] [Polite] Respecting Crawl-delay for ${domain}: Waiting ${Math.round(wait)}ms`);
         await sleep(wait);
       }
 
@@ -80,13 +79,12 @@ async function runWorker(workerId: number) {
       try {
         const result = await runCrawlTask(task.url);
         
-        // Update shared domain timestamp after successful or failed attempt
+        // Update shared domain timestamp
         lastScanByDomain.set(domain, Date.now()); 
         
         if (result.status === 'failed' || result.status === 'blocked') {
           taskStatus = 'failed';
         } else if (result.status === 'success') {
-          // If the scan found more links and we aren't over the limit, add them to queue
           if (result.discoveredLinks && result.discoveredLinks.length > 0) {
             const currentQueueSize = await getQueueSize();
             if (currentQueueSize < MAX_QUEUE_LIMIT) {
@@ -111,7 +109,6 @@ async function runWorker(workerId: number) {
         await updateQueueStatus(task.id, taskStatus);
       }
 
-      // Brief pause between tasks for this worker
       await sleep(1000);
     } catch (error: any) {
       logger.error(`[Worker ${workerId}] Engine Loop Error: ${error.message}`);
@@ -129,7 +126,7 @@ export async function startEngine() {
   
   try {
     await testConnection();
-    await saveBotEvent('SUCCESS', `Движок запущен с параллельностью ${settings.maxConcurrency}.`);
+    await saveBotEvent('SUCCESS', `Engine started with ${settings.maxConcurrency} workers.`);
   } catch (err) {
     logger.error('FATAL: Database unreachable.');
     return;
@@ -142,6 +139,5 @@ export async function startEngine() {
     workers.push(runWorker(i + 1));
   }
 
-  // Workers run forever
   await Promise.all(workers);
 }

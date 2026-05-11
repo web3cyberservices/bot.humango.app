@@ -26,6 +26,7 @@ function sanitize(text: string | null | undefined): string {
 /**
  * Robust URL Normalizer (Hardened for Deduplication)
  * Standardizes URLs to prevent duplicates like site.com/ and site.com.
+ * Strips fragments, query parameters, and normalizes trailing slashes.
  */
 export function normalizeUrl(url: string): string {
   try {
@@ -33,13 +34,17 @@ export function normalizeUrl(url: string): string {
     u.hash = '';
     u.search = '';
     let pathname = u.pathname.toLowerCase();
+    // Ensure root is just /
+    if (pathname === '') pathname = '/';
+    // Remove trailing slash if not root
     if (pathname.length > 1 && pathname.endsWith('/')) {
       pathname = pathname.slice(0, -1);
     }
     u.pathname = pathname;
     return u.href.toLowerCase();
   } catch (e) {
-    return url.toLowerCase().replace(/\/$/, "").split('?')[0];
+    // Fallback for non-standard formats
+    return url.toLowerCase().replace(/\/$/, "").split('?')[0].split('#')[0];
   }
 }
 
@@ -77,7 +82,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
     const uniqueViolations = new Map();
     violations.forEach(v => {
       const affectedUrl = normalizeUrl(v.evidence_html || url);
-      const key = `${v.issue_type}_${affectedUrl}`;
+      const key = `${v.issue_type.toUpperCase()}_${affectedUrl}`;
       if (!uniqueViolations.has(key)) {
         uniqueViolations.set(key, { ...v, evidence_html: affectedUrl });
       }

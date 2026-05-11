@@ -24,7 +24,6 @@ export async function GET(request: Request) {
     const hasMethod = cols.includes('verification_method');
     const hasExp = cols.includes('explanation');
 
-    // Fetch all violations for grouping to prevent report spam
     const res = await pool.query(`
       SELECT 
         issue_type, page_url, severity, 
@@ -40,10 +39,12 @@ export async function GET(request: Request) {
 
     if (res.rows.length === 0) return NextResponse.json({ error: 'Audit history not found for this target.' }, { status: 404 });
 
-    // IRIS FIX: Deduplicate and Group by issue_type to prevent multi-page reports
+    // IRIS FIX: Absolute Deduplication by Issue Type
+    // This ensures that "Missing Controller" only appears ONCE, with all URLs listed below it.
     const groupedViolations: Record<string, any> = {};
     res.rows.forEach(row => {
-      const key = row.issue_type;
+      // Normalize key to prevent slight string variations from creating new blocks
+      const key = (row.issue_type || '').trim().toUpperCase();
       if (!groupedViolations[key]) {
         groupedViolations[key] = {
           ...row,
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
       }
     });
 
-    // LIMIT TO TOP 5 GROUPED VIOLATIONS TO PREVENT 500 ERROR / TIMEOUT
+    // LIMIT TO TOP 5 GROUPED VIOLATIONS TO PREVENT TIMEOUTS
     const finalViolations = Object.values(groupedViolations).slice(0, 5);
 
     let logoBase64 = '';

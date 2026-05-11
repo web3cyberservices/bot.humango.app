@@ -1,6 +1,4 @@
 
-'use server';
-
 import { scrapeUrl } from '@/lib/scraper';
 import { parseHtmlContent, normalizeUrl } from '@/lib/parser';
 import { isUrlAllowed } from '@/config/robots-rules';
