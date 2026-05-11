@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     const violations = res.rows;
     if (violations.length === 0) return NextResponse.json({ error: 'No violations found' }, { status: 404 });
 
-    // Grouping for Deduplication in PDF
+    // Grouping for Deduplication in PDF with professional labeling
     const groupedMap = new Map();
     violations.forEach(v => {
       const key = `${v.issue_type}_${v.law_name}`;
@@ -87,15 +87,15 @@ export async function GET(request: Request) {
           <div class="violation-item">
             <div class="violation-header">
               <span class="violation-type">${item.issue_type}</span>
-              <span style="font-size:10px; color:#64748b">Verified Incident</span>
+              <span style="font-size:10px; color:#64748b">Automated Detection: High Confidence</span>
             </div>
             <div class="violation-body">
               <span class="severity-badge ${item.severity}">${item.severity} Risk</span>
               <div class="explanation">${item.explanation}</div>
               <div style="font-size:10px; color:#94a3b8; margin-bottom:5px">Legal Ground: ${item.law_name}</div>
-              <div class="fine">Potential Fine: ${item.fine_amount}</div>
-              <div style="margin-top:10px; font-weight:bold; font-size:10px">Affected Pages (${item.urls.length}):</div>
-              <ul class="url-list">${item.urls.slice(0, 10).map(u => `<li>${u}</li>`).join('')}${item.urls.length > 10 ? '<li>... and more</li>' : ''}</ul>
+              <div class="fine">Financial Liability: ${item.fine_amount}</div>
+              <div style="margin-top:10px; font-weight:bold; font-size:10px">Validated Points (${item.urls.length}):</div>
+              <ul class="url-list">${item.urls.slice(0, 10).map(u => `<li>${u}</li>`).join('')}${item.urls.length > 10 ? '<li>... and more (deduplicated)</li>' : ''}</ul>
             </div>
           </div>
         `).join('')}

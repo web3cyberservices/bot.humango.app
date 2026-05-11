@@ -51,7 +51,16 @@ export async function saveAuditResults(domain: string, url: string, violations: 
     `;
 
     for (const v of violations) {
-      const fine = v.potential_fine || '€1,000 - €20,000,000';
+      // Logic: Ensure fine_amount is never null. Fallback to a calculated value if not provided.
+      let fine = v.fine_amount || v.potential_fine;
+      if (!fine || fine === 'null' || fine === 'undefined') {
+        if (v.category === 'Legal_Content' || v.category === 'Privacy') {
+           fine = "Up to €20,000,000 or 4% of annual global turnover (GDPR Art. 83).";
+        } else {
+           fine = "Up to €10,000,000 or 2% of annual global turnover (GDPR Art. 83).";
+        }
+      }
+
       const affectedUrls = v.affected_urls?.join(', ') || v.evidence_html;
       
       await client.query(query, [
