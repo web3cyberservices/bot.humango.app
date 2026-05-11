@@ -33,19 +33,28 @@ async function migrate() {
         law_name text,
         potential_fine text,
         scan_type character varying(255),
-        report_type character varying(20) DEFAULT 'SaaS'
+        report_type character varying(20) DEFAULT 'SaaS',
+        verification_method character varying(50) DEFAULT 'Static Analysis'
       );
     `);
 
-    // Ensure report_type column exists
-    await client.query(`
-      DO $$ 
-      BEGIN 
-        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='site_violations' AND COLUMN_NAME='report_type') THEN
-          ALTER TABLE public.site_violations ADD COLUMN report_type character varying(20) DEFAULT 'SaaS';
-        END IF;
-      END $$;
-    `);
+    // Ensure columns exist (Idempotent updates)
+    const columnsToEnsure = [
+      { name: 'report_type', type: 'character varying(20)', default: "'SaaS'" },
+      { name: 'verification_method', type: 'character varying(50)', default: "'Static Analysis'" },
+      { name: 'fine_amount', type: 'character varying(100)', default: 'NULL' }
+    ];
+
+    for (const col of columnsToEnsure) {
+      await client.query(`
+        DO $$ 
+        BEGIN 
+          IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='site_violations' AND COLUMN_NAME='${col.name}') THEN
+            ALTER TABLE public.site_violations ADD COLUMN ${col.name} ${col.type} DEFAULT ${col.default};
+          END IF;
+        END $$;
+      `);
+    }
 
     // audit_logs, bot_events, bot_settings, scan_queue (ensure they exist)
     await client.query(`

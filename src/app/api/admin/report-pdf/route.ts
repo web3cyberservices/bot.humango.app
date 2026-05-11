@@ -20,9 +20,10 @@ export async function GET(request: Request) {
   let browser: any = null;
   try {
     // Fetch unique violations for the domain
+    // Using COALESCE to prevent crash if verification_method is missing in the database row
     const res = await pool.query(`
       SELECT DISTINCT ON (issue_type, page_url) 
-        page_url, issue_type, severity, explanation, fine_amount, law_name, created_at, recommendation, snippet, verification_method
+        page_url, issue_type, severity, explanation, fine_amount, law_name, created_at, recommendation, snippet, COALESCE(verification_method, 'Static Analysis') as verification_method
       FROM site_violations WHERE domain = $1 ORDER BY issue_type, page_url, created_at DESC
     `, [domain]);
 
@@ -83,7 +84,7 @@ export async function GET(request: Request) {
           <div class="violation-item">
             <div class="violation-header">
               <span class="violation-type">${item.issue_type}</span>
-              <span style="font-size:9px; color:#64748b">Verification: ${item.verification_method || 'Static Analysis'}</span>
+              <span style="font-size:9px; color:#64748b">Verification: ${item.verification_method}</span>
             </div>
             <div class="violation-body">
               <span class="severity-badge ${item.severity}">${item.severity} Risk</span>
@@ -119,7 +120,7 @@ export async function GET(request: Request) {
       </html>
     `;
 
-    // Robust Puppeteer Launch for Production Node Environment
+    // Robust Puppeteer Launch
     browser = await puppeteer.launch({ 
       executablePath: CHROME_PATH, 
       headless: 'new', 

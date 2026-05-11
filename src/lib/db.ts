@@ -65,8 +65,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
     // Normalizing audit base URL
     const cleanUrl = normalizeUrl(url);
 
-    // Group and deduplicate findings by type and page_url
-    // ДЕДУПЛИКАЦИЯ (Убирает повторы costera.tech)
+    // Deduplication by issue_type and page_url
     const uniqueViolations = new Map();
     violations.forEach(v => {
       const affectedUrl = normalizeUrl(v.evidence_html || url);
@@ -80,9 +79,9 @@ export async function saveAuditResults(domain: string, url: string, violations: 
       INSERT INTO site_violations (
         domain, url, page_url, category, issue_type, severity, 
         evidence_html, snippet, description, explanation, law_name, recommendation, 
-        scan_type, report_type, created_at, fine_amount
+        scan_type, report_type, created_at, fine_amount, verification_method
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), $15)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), $15, $16)
     `;
 
     for (const v of uniqueViolations.values()) {
@@ -101,7 +100,8 @@ export async function saveAuditResults(domain: string, url: string, violations: 
         sanitize(v.recommendation),
         scanType,
         v.report_type,
-        v.potential_fine || v.fine_amount
+        v.potential_fine || v.fine_amount,
+        v.verification_method || (scanType === 'deep' ? 'Dynamic Emulation' : 'Static Analysis')
       ]);
     }
     await client.query('COMMIT');
@@ -223,7 +223,7 @@ export async function getViolations(limit = 100) {
       SELECT 
         id, domain, issue_type as type, severity as level, created_at as date, 
         description as summary, explanation as description,
-        fine_amount, law_name, page_url as url, evidence_html, report_type, snippet
+        fine_amount, law_name, page_url as url, evidence_html, report_type, snippet, verification_method
       FROM site_violations ORDER BY created_at DESC LIMIT $1
     `, [limit]);
     return res.rows || [];
