@@ -4,10 +4,10 @@ import { Violation, ComplianceReport, Category, VerificationMethod } from '@/typ
 
 // 1. КОНСТАНТЫ (Убивают null и Calculating...)
 const LIABILITY_DATABASE: Record<string, string> = {
-    'PRIVACY': 'Up to €20,000,000 or 4% of annual global turnover (Art. 83 GDPR).',
-    'COOKIES': 'Up to €10,000,000 or 2% of annual global turnover (ePrivacy Directive).',
-    'IMPRESSUM': 'Up to €50,000 (German TMG §5).',
-    'TERMS': 'Loss of liability protection and potential consumer law fines.',
+    'PRIVACY': 'Administrative fines up to €20,000,000 or 4% of global turnover (Art. 83 GDPR).',
+    'COOKIES': 'Fines up to €10,000,000 or 2% of global turnover (ePrivacy Directive).',
+    'IMPRESSUM': 'Fines up to €50,000 (§ 5 TMG).',
+    'TERMS': 'Loss of liability protection and fines up to €10,000.',
     'DEFAULT': 'Administrative fines under GDPR Art. 83.'
 };
 
@@ -38,7 +38,7 @@ const MANDATORY_CLUSTERS = {
   }
 };
 
-// 3. ДЕДУПЛИКАЦИЯ URL (Убирает повторы)
+// 2. ДЕДУПЛИКАЦИЯ URL (Убирает повторы)
 export function normalizeUrl(url: string, base: string): string | null {
   try {
     const absolute = new URL(url, base);
@@ -68,7 +68,7 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
   const violations: Violation[] = [];
   const lowerHtml = html.substring(0, 100000).toLowerCase();
 
-  // 2. УМНЫЙ ПОИСК ССЫЛОК (Убирает "Missing Document", если ссылка есть в href или тексте)
+  // 3. УМНЫЙ ПОИСК ССЫЛОК (Убирает "Missing Document", если ссылка есть в href или тексте)
   $('a').each((_, el) => {
     const text = $(el).text().trim().toLowerCase();
     const href = $(el).attr('href')?.toLowerCase() || '';
@@ -77,7 +77,7 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
     const normalized = normalizeUrl(href, url);
     if (!normalized) return;
 
-    // Smart Regex Matching for navigation discovery
+    // Smart Regex Matching for navigation discovery (Text + Href patterns)
     const isPrivacy = /privacy|datenschutz|privacy-policy/i.test(text) || /privacy|datenschutz/i.test(href);
     const isImpressum = /impressum|legal-notice|legal-disclosure/i.test(text) || /impressum|legal-notice/i.test(href);
     const isTerms = /terms|agb|tos|conditions/i.test(text) || /agb|tos|terms-of-service/i.test(href);
@@ -99,8 +99,8 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
   mandatoryDocs.forEach(doc => {
     const foundUrl = links[doc.key as keyof typeof links];
     
-    // 4. ЛОГИКА СТАТУСА
     if (!foundUrl) {
+      // MISSING Status: Document absolutely not found
       violations.push({
         category: doc.category as Category,
         report_type: 'SaaS',
@@ -115,8 +115,9 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
         verification_method
       });
     } else {
-      // Check for mandatory sections inside the document
+      // INCOMPLETE Status: Document found but missing mandatory clauses
       Object.entries(MANDATORY_CLUSTERS).forEach(([clusterKey, cluster]) => {
+        // Business logic: Impressum only needs Controller, Cookies handled separately
         if (doc.key === 'impressum' && clusterKey !== 'CONTROLLER') return;
         if (doc.key === 'cookies') return;
 

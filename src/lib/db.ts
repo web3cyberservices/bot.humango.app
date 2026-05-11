@@ -34,7 +34,7 @@ export function normalizeUrl(url: string): string {
       pathname = pathname.slice(0, -1);
     }
     u.pathname = pathname;
-    return u.href;
+    return u.href.toLowerCase();
   } catch (e) {
     return url.toLowerCase().replace(/\/$/, "");
   }
