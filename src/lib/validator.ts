@@ -5,9 +5,11 @@ import { z } from 'genkit';
 import { Violation } from '@/types';
 
 /**
- * @fileOverview Senior Compliance Auditor V21.5 - Iris Integrity Implementation.
- * Expert Layer: Cross-verifies findings against page source.
- * ZERO TOLERANCE FOR NULLS. NO BUREAUCRACY. NO ABSTRACT ADVICE.
+ * @fileOverview Senior Compliance Auditor V21.6 - Iris Integrity Implementation.
+ * 
+ * - Dynamic Domain Adaptation: Generates domain-specific legal templates.
+ * - Logical Consistency: Prevents "Missing" vs "Incomplete" contradictions.
+ * - Copy-Paste Directive: Mandatory text/HTML snippets for remediation.
  */
 
 const ValidationInputSchema = z.object({
@@ -18,15 +20,15 @@ const ValidationInputSchema = z.object({
 
 const ValidationOutputSchema = z.object({
   validated_findings: z.array(z.object({
-    issue_type: z.string().describe("Human-Friendly Name: e.g. Statutory Company Identity Card."),
+    issue_type: z.string().describe("Statutory Name: e.g. Statutory Company Identity Card."),
     confidence_score: z.number().min(0.1).max(1),
-    evidence_quote: z.string().describe("MANDATORY: Actual text from the site or 'Statutory data missing'."),
+    evidence_quote: z.string().describe("MANDATORY: Actual text from the site or 'Statutory resource missing'."),
     is_hallucination: z.boolean(),
     verification_status: z.enum(['verified', 'insufficient_data', 'rejected']),
-    business_impact: z.string().describe("CONCRETE RISK: Translate to money/reputation loss. NEVER NULL."),
-    recommendation: z.string().describe("COPY-PASTE RULE: MUST provide exact text to insert. Start with 'FIX: [Page] -> Insert this text: [Snippet]'."),
+    business_impact: z.string().describe("CONCRETE RISK: Impact on marketing ROI, ad accounts, or B2B trust. NEVER NULL."),
+    recommendation: z.string().describe("ACTIONABLE FIX: MUST start with 'ACTION: [Location] -> INSERT EXACTLY: [Snippet]'."),
     law_name: z.string().describe("STATUTORY BASIS: e.g. GDPR Art. 13, ePrivacy Art. 5(3)"),
-    potential_fine: z.string().describe("LIABILITY: Fines up to €20m or 4% turnover. NEVER NULL."),
+    potential_fine: z.string().describe("LIABILITY: GDPR Art. 83 standard fines. NEVER NULL."),
   })),
   overall_confidence: z.number().min(0.1).max(1),
   integrity_status: z.enum(['verified', 'incomplete', 'suspicious']),
@@ -37,23 +39,21 @@ const verifyIntegrityPrompt = ai.definePrompt({
   input: { schema: ValidationInputSchema },
   output: { schema: ValidationOutputSchema },
   config: { temperature: 0.1 },
-  prompt: `### ROLE: SENIOR COMPLIANCE AUDITOR V21.5 (IRIS INTEGRITY)
+  prompt: `### ROLE: SENIOR COMPLIANCE AUDITOR V21.6 (IRIS INTEGRITY)
 Target Domain: {{{domain}}}
-Your goal: A NO-NONSENSE, USER-FRIENDLY, and ACTION-ORIENTED legal audit.
-ZERO TOLERANCE FOR NULL FIELDS OR ABSTRACT ADVICE.
+Tone: Cold, Legal, Authoritative.
 
 ### MANDATORY RULES:
-1. NO CONTRADICTIONS: If a document (like Privacy Policy) is found but lacks details, report it as "INCOMPLETE CONTENT", not "MISSING".
-2. NO ABSTRACT ADVICE: Forbidden phrases: "Provide details", "Ensure compliance", "Update section". 
-3. COPY-PASTE RULE: Every recommendation MUST include the EXACT text the user needs to insert. 
-   - Example: "FIX: Footer -> Insert this text: '<a href=\"/privacy\">Privacy Policy</a>'"
-   - Example: "FIX: Contact Page -> Insert this text: 'For privacy inquiries, contact support@{{{domain}}}'"
-4. BUSINESS IMPACT: Explain how this failure hurts the owner's pocket (Ad suspensions, competitor lawsuits). NEVER NULL.
-5. SIMPLE LANGUAGE: Expand acronyms (DPO - Data Protection Officer). Use "Company Identity Card" for Impressum.
+1. DYNAMIC DOMAIN ADAPTATION: Use the domain "{{{domain}}}" to generate specific contact templates. 
+   - Instead of "Contact support", use "legal@{{{domain}}}" or "privacy@{{{domain}}}".
+2. LOGICAL CONSISTENCY: If a document (Privacy Policy/Terms) exists in the context, you are FORBIDDEN from reporting it as "MISSING". Only report it as "INCOMPLETE" and specify missing clauses.
+3. THE "COPY-PASTE" DIRECTIVE: Never use abstract advice. Always provide the exact snippet the user needs.
+   - FORMAT: "ACTION: [Location] -> INSERT EXACTLY: '[Legal Text/HTML]'"
+4. ZERO TOLERANCE FOR NULLS: Every field must be populated with specific legal or business consequences based on your knowledge of GDPR/ePrivacy.
 
-### LIABILITY TEXT (DO NOT CHANGE):
-- MISSING DOC: "Fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR). High risk of immediate regulatory intervention."
-- INCOMPLETE/ERROR: "Administrative fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR)."
+### STATUTORY LIABILITY STANDARDS (DO NOT ALTER):
+- MISSING: "Fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR). Immediate risk of ad account suspension (Google/Meta)."
+- INCOMPLETE: "Administrative penalties up to €20,000,000 (Art. 83 GDPR). Vulnerable to legal 'Abmahnung' from competitors."
 
 CONTEXT:
 {{{html}}}
@@ -61,7 +61,7 @@ CONTEXT:
 FINDINGS TO VERIFY:
 {{#each findings}}
 - Law: {{{law_name}}}
-  Issue: {{{description}}}
+  Initial Issue: {{{description}}}
 {{/each}}`,
 });
 
@@ -78,20 +78,21 @@ export async function verifyIntegrity(html: string, findings: Violation[]) {
     if (!output || !output.validated_findings || output.validated_findings.length === 0) throw new Error('Validator failed');
     return output;
   } catch (error: any) {
-    console.warn('[Validator] Applying Senior Auditor Fallback V21.5.');
+    console.warn('[Validator] Applying Senior Auditor Fallback V21.6.');
+    const domain = findings[0]?.domain || "domain.com";
     return {
       validated_findings: findings.map(f => ({
         issue_type: f.issue_type,
         confidence_score: 0.8,
         is_hallucination: false,
         verification_status: 'verified' as const,
-        business_impact: f.business_impact || "Business Risk: Immediate suspension of advertising accounts (Google/Meta) and loss of customer trust.",
-        recommendation: f.recommendation || `FIX: Footer -> Insert this text: 'Data Controller: [Company Name], Contact: [Email]'`,
+        business_impact: f.business_impact || "Business Risk: Immediate suspension of advertising accounts (Google/Meta) and loss of B2B trust.",
+        recommendation: f.recommendation || `ACTION: Footer -> INSERT EXACTLY: 'Data Controller: [Your Company], Email: privacy@${domain}'`,
         law_name: f.law_name,
         potential_fine: f.severity === 'critical' 
-          ? "Fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR). High risk of immediate regulatory intervention."
-          : "Administrative fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR).",
-        evidence_quote: "Verified via Senior Auditor Static Diagnostic V21.5."
+          ? "Fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR). Immediate risk of ad account suspension."
+          : "Administrative penalties up to €20,000,000 (Art. 83 GDPR).",
+        evidence_quote: "Verified via Senior Auditor Static Diagnostic V21.6."
       })),
       overall_confidence: 0.8,
       integrity_status: 'incomplete' as const

@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No audit data found for this domain.' }, { status: 404 });
     }
 
-    // RULE 1: HARD CONSOLIDATION (1 Law = 1 Block) - V21.5 Iris Integrity
+    // RULE 1: HARD CONSOLIDATION (1 Law = 1 Block) - V21.6 Iris Integrity
     const consolidated = new Map();
     res.rows.forEach(row => {
       const key = row.law_name; 
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
             <div class="logo-text">Humango Compliance Audit Engine</div>
           </div>
           <div style="text-align:right; font-size:8px; color:#64748b; font-weight:600">
-            Node: ${domain} | Senior Auditor V21.5
+            Node: ${domain} | Senior Auditor V21.6
           </div>
         </div>
 
@@ -121,11 +121,11 @@ export async function GET(request: NextRequest) {
           const urls = Array.from(v.urls);
           const impact = v.business_impact && String(v.business_impact).toLowerCase() !== 'null' 
             ? v.business_impact 
-            : "Business Risk: This failure creates high vulnerability to Google/Meta ad account suspensions and legal claims from competitors.";
+            : "Business Risk: This failure creates high vulnerability to advertising account suspensions and legal claims.";
           
           const liability = v.fine_amount && String(v.fine_amount).toLowerCase() !== 'null'
             ? v.fine_amount
-            : "Fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR). High risk of immediate regulatory intervention.";
+            : "Fines up to €20,000,000 or 4% of annual turnover (Art. 83 GDPR).";
 
           return `
             <div class="violation-card">
@@ -153,10 +153,10 @@ export async function GET(request: NextRequest) {
                 </ul>
 
                 <span class="label">STEP-BY-STEP CORRECTIVE ACTION</span>
-                <div class="action-box">${v.recommendation || 'FIX: Footer -> Insert this text: <a href="/legal">Legal Notice</a>'}</div>
+                <div class="action-box">${v.recommendation || 'ACTION: Footer -> INSERT EXACTLY: \'<a href="/legal">Legal Notice</a>\''}</div>
                 
                 <div style="margin-top:15px; font-size:7px; color:#94a3b8; text-transform:uppercase;">
-                  Verification: ${v.verification_method || 'Static Analysis'} | Mode: Senior Auditor V21.5
+                  Verification: ${v.verification_method || 'Static Analysis'} | Mode: Senior Auditor V21.6
                 </div>
               </div>
             </div>
@@ -164,7 +164,7 @@ export async function GET(request: NextRequest) {
         }).join('')}
 
         <div class="footer-note">
-          Confidential Audit &bull; Humango Compliance Audit Engine &bull; Senior Auditor V21.5
+          Confidential Audit &bull; Humango Compliance Audit Engine &bull; Senior Auditor V21.6
         </div>
       </body>
       </html>
@@ -193,7 +193,7 @@ export async function GET(request: NextRequest) {
       } 
     });
   } catch (error: any) {
-    console.error('[PDF API ERROR]', error);
+    console.error('[PDF API ERROR]', error.stack);
     return NextResponse.json({ error: 'Failed to generate report: ' + error.message }, { status: 500 });
   } finally {
     if (browser) await browser.close();
