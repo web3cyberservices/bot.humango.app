@@ -12,9 +12,8 @@ const pool = new Pool({
 async function migrate() {
   const client = await pool.connect();
   try {
-    console.log('[Migration] Starting robust schema update...');
+    console.log('[Migration] Starting Senior Auditor V21.0 schema update...');
     
-    // Ensure core tables exist
     await client.query(`
       CREATE TABLE IF NOT EXISTS public.bot_settings (
         id int DEFAULT 1 PRIMARY KEY, 
@@ -50,6 +49,16 @@ async function migrate() {
         created_at timestamp DEFAULT NOW()
       );
 
+      CREATE TABLE IF NOT EXISTS public.validation_logs (
+        id SERIAL PRIMARY KEY,
+        domain character varying(255),
+        url text,
+        attempt int,
+        status varchar(50),
+        findings jsonb,
+        timestamp timestamp DEFAULT NOW()
+      );
+
       CREATE TABLE IF NOT EXISTS public.site_violations (
         id SERIAL PRIMARY KEY,
         domain character varying(255),
@@ -59,6 +68,8 @@ async function migrate() {
         issue_type character varying(100),
         severity character varying(20),
         evidence_html text,
+        evidence_quote text,
+        confidence_score float DEFAULT 1.0,
         snippet text,
         description text,
         explanation text,
@@ -68,20 +79,16 @@ async function migrate() {
         scan_type character varying(255),
         report_type character varying(20) DEFAULT 'SaaS',
         verification_method character varying(50) DEFAULT 'Static Analysis',
+        business_impact text,
         created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
-    // Ensure specific columns exist for older installations
+    // Add new columns to existing tables if they don't exist
     const columnsToEnsure = [
-      { name: 'report_type', type: 'character varying(20)', default: "'SaaS'" },
-      { name: 'verification_method', type: 'character varying(50)', default: "'Static Analysis'" },
-      { name: 'fine_amount', type: 'character varying(100)', default: 'NULL' },
-      { name: 'law_name', type: 'text', default: 'NULL' },
-      { name: 'explanation', type: 'text', default: 'NULL' },
-      { name: 'recommendation', type: 'text', default: 'NULL' },
-      { name: 'snippet', type: 'text', default: 'NULL' },
-      { name: 'page_url', type: 'text', default: 'NULL' }
+      { table: 'site_violations', name: 'evidence_quote', type: 'text', default: 'NULL' },
+      { table: 'site_violations', name: 'confidence_score', type: 'float', default: '1.0' },
+      { table: 'site_violations', name: 'business_impact', type: 'text', default: 'NULL' }
     ];
 
     for (const col of columnsToEnsure) {
@@ -90,16 +97,15 @@ async function migrate() {
         BEGIN 
           IF NOT EXISTS (
             SELECT 1 FROM information_schema.columns 
-            WHERE table_name='site_violations' AND column_name='${col.name}'
+            WHERE table_name='${col.table}' AND column_name='${col.name}'
           ) THEN
-            ALTER TABLE public.site_violations ADD COLUMN ${col.name} ${col.type} DEFAULT ${col.default};
-            RAISE NOTICE 'Added column % to site_violations', '${col.name}';
+            ALTER TABLE public.${col.table} ADD COLUMN ${col.name} ${col.type} DEFAULT ${col.default};
           END IF;
         END $$;
       `);
     }
     
-    console.log('[Migration] Database schema is robust and up to date.');
+    console.log('[Migration] Database schema is Senior Auditor V21.0 compliant.');
   } catch (err) {
     console.error('[Migration] Critical Error:', err);
     process.exit(1);

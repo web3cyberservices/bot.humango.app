@@ -6,10 +6,13 @@ export type ReportType = 'SaaS' | 'Manual';
 export type VerificationMethod = 'Static Analysis' | 'Dynamic Emulation';
 
 export interface Violation {
+  id?: number;
   category: Category;
   issue_type: string;
   severity: Severity;
   evidence_html: string; 
+  evidence_quote?: string;
+  confidence_score: number;
   snippet?: string;
   description: string;
   business_impact: string;
@@ -29,6 +32,7 @@ export interface ComplianceReport {
   verdict: 'COMPLIANT' | 'RISKY';
   jurisdiction?: string;
   top_risks: string[];
+  validation_status: 'verified' | 'incomplete' | 'suspicious';
   nav_scout: {
     found_links: string[];
     missing_critical: string[];
@@ -65,5 +69,6 @@ export interface CrawlResult {
     verification_method: VerificationMethod;
     hasCMP: boolean;
     legal_links: Record<string, string | null>;
+    attempts: number;
   };
 }

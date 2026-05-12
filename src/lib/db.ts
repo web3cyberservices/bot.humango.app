@@ -40,16 +40,6 @@ export function normalizeUrl(url: string, base?: string): string {
   }
 }
 
-export async function testConnection() {
-  try {
-    await pool.query('SELECT NOW()');
-    return true;
-  } catch (err: any) {
-    console.error('[DB] Connection test FAILED:', err.message);
-    throw err;
-  }
-}
-
 export async function saveAuditResults(domain: string, url: string, violations: Violation[], scanType: ScanType = 'basic') {
   if (!violations || violations.length === 0) return { success: true };
 
@@ -57,24 +47,22 @@ export async function saveAuditResults(domain: string, url: string, violations: 
   try {
     await client.query('BEGIN');
     
-    // Expert Hard Merge by Statutory Type and Category to prevent repetition
     const uniqueViolations = new Map();
     violations.forEach(v => {
-      const affectedUrl = normalizeUrl(v.evidence_html || url);
-      // Deduplicate by category, issue type and law for clean history
       const key = `${v.category}_${v.issue_type.toUpperCase()}_${v.law_name}`;
       if (!uniqueViolations.has(key)) {
-        uniqueViolations.set(key, { ...v, evidence_html: affectedUrl });
+        uniqueViolations.set(key, v);
       }
     });
 
     const query = `
       INSERT INTO site_violations (
         domain, url, page_url, category, issue_type, severity, 
-        evidence_html, description, explanation, law_name, recommendation, 
-        scan_type, report_type, created_at, fine_amount, verification_method, business_impact
+        evidence_html, evidence_quote, confidence_score, description, 
+        explanation, law_name, recommendation, scan_type, report_type, 
+        created_at, fine_amount, verification_method, business_impact
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), $14, $15, $16)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), $16, $17, $18)
     `;
 
     const standardFine = 'Potential Administrative Liability: Up to €20,000,000 or 4% of annual global turnover (Art. 83 GDPR)';
@@ -88,6 +76,8 @@ export async function saveAuditResults(domain: string, url: string, violations: 
         v.issue_type,
         v.severity,
         sanitize(v.evidence_html),
+        sanitize(v.evidence_quote),
+        v.confidence_score,
         sanitize(v.description), 
         sanitize(v.explanation), 
         sanitize(v.law_name),
@@ -108,6 +98,16 @@ export async function saveAuditResults(domain: string, url: string, violations: 
   } finally {
     client.release();
   }
+}
+
+export async function saveValidationLog(url: string, attempt: number, status: string, findings: any[]) {
+  try {
+    const domain = new URL(url).hostname;
+    await pool.query(
+      'INSERT INTO validation_logs (domain, url, attempt, status, findings, timestamp) VALUES ($1, $2, $3, $4, $5, NOW())',
+      [sanitize(domain), sanitize(url), attempt, status, JSON.stringify(findings)]
+    );
+  } catch (e) {}
 }
 
 export async function saveBotEvent(type: 'START' | 'STOP' | 'ERROR' | 'SUCCESS', message: string) {
@@ -218,8 +218,8 @@ export async function getViolations(limit = 100) {
       SELECT 
         id, domain, issue_type as type, severity as level, created_at as date, 
         description as summary, explanation as description,
-        fine_amount, law_name, page_url as url, evidence_html, report_type,
-        verification_method, business_impact
+        fine_amount, law_name, page_url as url, evidence_html, evidence_quote, 
+        confidence_score, report_type, verification_method, business_impact
       FROM site_violations ORDER BY created_at DESC LIMIT $1
     `, [limit]);
     return res.rows || [];
