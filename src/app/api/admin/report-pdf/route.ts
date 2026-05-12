@@ -39,11 +39,13 @@ export async function GET(request: Request) {
 
     if (res.rows.length === 0) return NextResponse.json({ error: 'Audit history not found for this target.' }, { status: 404 });
 
-    // DE-DUPLICATION LAYER: Group by Issue Type and Law Name
+    // MANDATORY DE-DUPLICATION LAYER
     const groupedViolations: Record<string, any> = {};
     res.rows.forEach(row => {
-      // Group by Issue Type and Law to ensure absolute de-duplication
-      const key = `${(row.issue_type || '').trim().toUpperCase()}_${(row.law_name || '').trim().toUpperCase()}`;
+      // Group by Issue Type and Law Name to ensure absolute de-duplication
+      const law = (row.law_name || 'GDPR').trim().toUpperCase();
+      const type = (row.issue_type || 'VIOLATION').trim().toUpperCase();
+      const key = `${type}_${law}`;
       
       if (!groupedViolations[key]) {
         groupedViolations[key] = {
@@ -52,14 +54,14 @@ export async function GET(request: Request) {
         };
       } else {
         groupedViolations[key].affected_urls.add(row.page_url);
-        // If found by both methods, mark as Hybrid
+        // Hybrid Detection: If found by different methods, upgrade to Hybrid
         if (groupedViolations[key].verification_method !== row.verification_method) {
-            groupedViolations[key].verification_method = 'Hybrid (Dynamic + Static)';
+            groupedViolations[key].verification_method = 'Hybrid Analysis';
         }
       }
     });
 
-    // Safety Limit: Limit to top 5 most critical violation groups to prevent resource overloads
+    // Limit to top 5 most critical violation groups for performance
     const finalViolations = Object.values(groupedViolations).slice(0, 5);
     const coreViolations = finalViolations.filter(v => v.category !== 'LEGAL_GROUNDS');
     const legalGroundsIssues = finalViolations.filter(v => v.category === 'LEGAL_GROUNDS');
@@ -131,16 +133,16 @@ export async function GET(request: Request) {
               <div style="font-size:11px; font-weight:bold; margin-bottom:15px; color:#0f172a">${item.law_name}</div>
               
               <span class="label">Administrative Liability (Art. 83 GDPR)</span>
-              <div class="fine">${item.fine_amount || 'Up to €20,000,000 or 4% of annual global turnover.'}</div>
+              <div class="fine">${item.fine_amount || '€20,000,000 or 4% of global turnover'}</div>
               
               <span class="label">Targeted Resource(s)</span>
               <div class="resource-list">
                 ${Array.from(item.affected_urls).join('<br>')}
               </div>
 
-              <span class="label">Remediation Blueprint</span>
+              <span class="label">REMEDIATION BLUEPRINT</span>
               <div style="background:#ecfdf5; border:1px solid #d1fae5; padding:15px; border-radius:8px; color:#065f46; font-size:11px">
-                <strong>Remediation Strategy:</strong> ${item.recommendation}
+                ${item.recommendation.replace('REMEDIATION BLUEPRINT: ', '')}
               </div>
             </div>
           </div>
@@ -160,20 +162,20 @@ export async function GET(request: Request) {
                 <span class="label">Purpose-to-Basis Mapping Diagnostic</span>
                 <div style="font-size:12px; margin-bottom:15px">${item.explanation}</div>
                 
-                <span class="label">Statutory Accountability (Art. 13(1)(c))</span>
+                <span class="label">Statutory Accountability</span>
                 <div style="font-size:11px; font-weight:bold; margin-bottom:15px; color:#0f172a">${item.law_name}</div>
                 
-                <span class="label">Liability Mapping</span>
-                <div class="fine">${item.fine_amount}</div>
+                <span class="label">Administrative Liability</span>
+                <div class="fine">€20,000,000 or 4% of global turnover</div>
 
                 <span class="label">Targeted Resource(s)</span>
                 <div class="resource-list">
                     ${Array.from(item.affected_urls).join('<br>')}
                 </div>
 
-                <span class="label">Remediation Blueprint</span>
+                <span class="label">REMEDIATION BLUEPRINT</span>
                 <div style="background:#fff7ed; border:1px solid #ffedd5; padding:15px; border-radius:8px; color:#9a3412; font-size:11px">
-                  <strong>Legal Alignment:</strong> ${item.recommendation}
+                  ${item.recommendation.replace('REMEDIATION BLUEPRINT: ', '')}
                 </div>
               </div>
             </div>
@@ -182,7 +184,7 @@ export async function GET(request: Request) {
 
         <div class="footer">
           <div>
-            &copy; ${new Date().getFullYear()} Humango Limited • London • Policy v1.8<br>
+            &copy; ${new Date().getFullYear()} Humango Limited • London • Policy v2.1<br>
             Verification & Legal Inquiries: <a href="mailto:abuse@humango.app" class="contact-link">abuse@humango.app</a>
           </div>
           ${logoBase64 ? `<img src="${logoBase64}" style="width:30px; opacity:0.3">` : ''}
