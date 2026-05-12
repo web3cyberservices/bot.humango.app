@@ -15,8 +15,28 @@ export const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  connectionTimeoutMillis: 10000, // Increased for server stability
 });
+
+/**
+ * Verifies the database connection with detailed error logging.
+ */
+export async function testConnection() {
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query('SELECT 1');
+    return true;
+  } catch (error: any) {
+    console.error('[Database Connection Test Error]', error.message);
+    if (error.message.includes('ECONNREFUSED')) {
+      console.error('Check if the database server is running at the specified host/port.');
+    }
+    throw error;
+  } finally {
+    if (client) client.release();
+  }
+}
 
 function sanitize(text: string | null | undefined): string {
   if (!text) return '';

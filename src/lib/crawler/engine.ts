@@ -127,8 +127,15 @@ export async function startEngine() {
   try {
     await testConnection();
     await saveBotEvent('SUCCESS', `Engine started with ${settings.maxConcurrency} workers.`);
-  } catch (err) {
-    logger.error('FATAL: Database unreachable.');
+  } catch (err: any) {
+    logger.error(`FATAL: Database unreachable. Reason: ${err.message}`);
+    // Provide additional context for debugging
+    if (err.message.includes('ECONNREFUSED')) {
+      logger.error('Check if the database server is running and accessible.');
+    }
+    if (err.message.includes('authentication failed')) {
+      logger.error('Check your DATABASE_URL credentials.');
+    }
     return;
   }
 
