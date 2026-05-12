@@ -41,27 +41,30 @@ export async function GET(request: NextRequest) {
 
     if (res.rows.length === 0) return NextResponse.json({ error: 'No audit data found' }, { status: 404 });
 
-    // V26.0 HARD CONSOLIDATION & LOGIC BRIDGE
+    // V27.0 HARD CONSOLIDATION & LOGIC BRIDGE
     const consolidated = new Map();
+    const docExistsOnSite = res.rows.some(row => 
+      !row.issue_type.toLowerCase().includes('missing') && 
+      row.report_type === 'SaaS'
+    );
+
     res.rows.forEach(row => {
-      // RULE: V26.0 - Final logic check to ensure "Missing" is only used for total absence
       let finalIssueType = row.issue_type;
       let finalDescription = row.description;
       
-      const pageUrl = row.page_url || '';
-      const isLegalPath = pageUrl.includes('/privacy') || pageUrl.includes('/legal') || pageUrl.includes('/impressum');
-      if (finalIssueType.toLowerCase().includes('missing') && isLegalPath) {
+      const isMissing = finalIssueType.toLowerCase().includes('missing');
+      if (isMissing && docExistsOnSite) {
         finalIssueType = "CRITICAL INCOMPLETENESS";
         finalDescription = "The document was discovered via direct scan but is legally invalid due to lack of accessibility in the footer.";
       }
 
       const key = row.law_name || finalIssueType; 
       if (!consolidated.has(key)) {
-        const urls = pageUrl.split(',').map((u: string) => u.trim());
+        const urls = (row.page_url || '').split(',').map((u: string) => u.trim());
         consolidated.set(key, { ...row, issue_type: finalIssueType, description: finalDescription, urls: new Set(urls) });
       } else {
         const item = consolidated.get(key);
-        pageUrl.split(',').forEach((u: string) => item.urls.add(u.trim()));
+        (row.page_url || '').split(',').forEach((u: string) => item.urls.add(u.trim()));
       }
     });
 
@@ -103,7 +106,7 @@ export async function GET(request: NextRequest) {
             <div class="logo-text">Humango Compliance Engine</div>
           </div>
           <div style="text-align:right; font-size:8px; color:#64748b; font-weight:600">
-            Node: ${domain} | SENIOR ARCHITECT V26.0
+            Node: ${domain} | SENIOR ARCHITECT V27.0
           </div>
         </div>
 
@@ -112,9 +115,9 @@ export async function GET(request: NextRequest) {
           <p style="color:#64748b; margin:0; font-size:10px">Executive Diagnostic Report for ${domain}.</p>
           <div class="term-box">
             <strong>Glossary of Statutory Terms:</strong><br>
-            • <strong>Official Company Ownership:</strong> The mandatory business identity card (Impressum).<br>
-            • <strong>Data Protection Officer (DPO):</strong> The certified individual responsible for privacy security.<br>
-            • <strong>Static Analysis:</strong> Technical scan of site text and structure for legal gaps.
+            • <strong>Official Company Ownership:</strong> Mandatory business identity (Impressum).<br>
+            • <strong>Data Protection Officer (DPO):</strong> Individual responsible for privacy security.<br>
+            • <strong>Static Analysis:</strong> Technical scan of site code for legal gaps.
           </div>
         </div>
 
@@ -122,7 +125,7 @@ export async function GET(request: NextRequest) {
 
         ${findings.map(v => {
           const urls = Array.from(v.urls);
-          const impact = v.business_impact && v.business_impact !== 'null' ? v.business_impact : "Business Risk: Immediate loss of marketing ROI as Google/Meta advertising platforms require valid compliance signals.";
+          const impact = v.business_impact && v.business_impact !== 'null' ? v.business_impact : "Business Risk: Immediate loss of marketing ROI as Google/Meta require valid compliance signals.";
           const liability = v.fine_amount && v.fine_amount !== 'null' ? v.fine_amount : "Fines up to €20,000,000 or 4% of annual global turnover (Art. 83 GDPR).";
           
           let remediation = v.recommendation || '';
@@ -156,10 +159,10 @@ export async function GET(request: NextRequest) {
                 </ul>
 
                 <span class="label">STEP-BY-STEP CORRECTIVE ACTION</span>
-                <div class="action-box">${remediation || 'ACTION: INSERT THIS TEXT -> Add link to footer: <a href="/privacy">Privacy Policy</a>'}</div>
+                <div class="action-box">${remediation}</div>
                 
                 <div style="margin-top:15px; font-size:7px; color:#94a3b8; text-transform:uppercase;">
-                  VERIFICATION: STATIC+DYNAMIC | SENIOR ARCHITECT V26.0
+                  VERIFICATION: STATIC+DYNAMIC | SENIOR ARCHITECT V27.0
                 </div>
               </div>
             </div>
@@ -167,7 +170,7 @@ export async function GET(request: NextRequest) {
         }).join('')}
 
         <div class="footer-note">
-          Confidential Audit &bull; Humango Compliance Engine &bull; VERIFICATION: STATIC+DYNAMIC | SENIOR ARCHITECT V26.0
+          Confidential Audit &bull; Humango Compliance Engine &bull; VERIFICATION: STATIC+DYNAMIC | SENIOR ARCHITECT V27.0
         </div>
       </body>
       </html>

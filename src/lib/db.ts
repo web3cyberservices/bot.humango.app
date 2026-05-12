@@ -4,7 +4,7 @@ import DOMPurify from 'isomorphic-dompurify';
 import { Violation, ScanType } from '@/types';
 
 /**
- * @fileOverview Automated Legal Fixer V26.0 - The Statutory Logic Bridge.
+ * @fileOverview Automated Legal Fixer V27.0 - The Statutory Truth Bridge.
  * 
  * - TRUTH-MAPPING: Programmatically prevents "Missing vs Incomplete" contradictions.
  * - CONSOLIDATION: Merging findings by Law Name to eliminate report bloat.
@@ -32,14 +32,14 @@ export async function testConnection() {
     await client.query('SELECT 1');
     return true;
   } catch (error: any) {
-    console.error('[Database V26.0 Handshake Failure]', error.message);
+    console.error('[Database V27.0 Handshake Failure]', error.message);
     throw error;
   } finally {
     if (client) client.release();
   }
 }
 
-function sanitize(text: string | null | undefined, fallback: string = 'Information verified via Senior Auditor V26.0 Diagnostic.'): string {
+function sanitize(text: string | null | undefined, fallback: string = 'Information verified via Senior Auditor V27.0 Diagnostic.'): string {
   if (text === null || text === undefined || text === 'null' || String(text).trim() === '') return fallback;
   return DOMPurify.sanitize(text);
 }
@@ -66,12 +66,11 @@ export async function saveAuditResults(domain: string, url: string, violations: 
   try {
     await client.query('BEGIN');
     
-    // V26.0: HARD CONSOLIDATION by Statutory Law to prevent duplicates
+    // V27.0: HARD CONSOLIDATION by Statutory Law
     const consolidated = new Map();
     violations.forEach(v => {
       const lowerType = v.issue_type.toLowerCase();
-      // Purge redundant summary blocks or meta-analysis
-      if (lowerType.includes('transparency framework') || lowerType.includes('analyzer summary') || lowerType.includes('discovery report')) return;
+      if (lowerType.includes('transparency framework') || lowerType.includes('analyzer summary')) return;
 
       const key = v.law_name || v.issue_type; 
       if (!consolidated.has(key)) {
@@ -81,6 +80,12 @@ export async function saveAuditResults(domain: string, url: string, violations: 
         if (!existing.page_urls.includes(url)) existing.page_urls.push(url);
       }
     });
+
+    // RULE: V27.0 - Global Search for existing docs
+    const docDetectedOnSite = violations.some(v => 
+      v.verification_status === 'verified' && 
+      !v.issue_type.toLowerCase().includes('missing')
+    );
 
     const query = `
       INSERT INTO site_violations (
@@ -93,22 +98,21 @@ export async function saveAuditResults(domain: string, url: string, violations: 
     `;
 
     for (const v of consolidated.values()) {
-      // RULE: V26.0 - HARD LOGIC BRIDGE (TRUTH-MAPPING)
-      // If a document was actually found via any URL, we FORBID the "Missing" status.
       let finalIssueType = v.issue_type;
       let finalDescription = v.description;
+      let finalSeverity = v.severity;
       
-      const isDocDetected = consolidated.has('Art. 13-Retention') || consolidated.has('Art. 13(1)(a)') || violations.some(v => v.verification_status === 'verified' && !v.issue_type.toLowerCase().includes('missing'));
       const isMissingStatus = finalIssueType.toLowerCase().includes('missing');
 
-      if (isMissingStatus && isDocDetected) {
+      // V27.0 LOGIC GATE: If any doc exists, we FORBID the "Missing" status
+      if (isMissingStatus && docDetectedOnSite) {
         finalIssueType = "CRITICAL INCOMPLETENESS";
-        finalDescription = `The document was successfully discovered via direct scan, but it is legally invalid because it is hidden from your website footer. Statutory law requires clear, persistent access to these disclosures.`;
+        finalDescription = `A valid Privacy Policy was detected via direct crawl, but it is invisible from your site footer. This violates the 'Easy Access' transparency principle (Art. 12 GDPR).`;
+        finalSeverity = 'high';
       }
 
-      // V26.0 Mandatory Liability & Impact Fallbacks
-      const standardLiability = "Fines up to €20,000,000 or 4% of annual global turnover (Art. 83 GDPR). High risk of immediate ad account suspension (Meta/Google).";
-      const standardImpact = "Business Risk: Immediate loss of marketing ROI as Meta, Google, and LinkedIn require valid statutory compliance signals to run active campaigns.";
+      const standardLiability = "Fines up to €20,000,000 or 4% of annual global turnover (Art. 83 GDPR). High risk of immediate ad account suspension.";
+      const standardImpact = "Business Risk: Immediate loss of marketing ROI as Meta and Google require valid compliance signals to run active campaigns.";
       
       let liability = v.potential_fine;
       if (!liability || liability === 'null' || String(liability).toLowerCase() === 'null') {
@@ -118,7 +122,6 @@ export async function saveAuditResults(domain: string, url: string, violations: 
       let impact = sanitize(v.business_impact, standardImpact);
       if (impact === 'null' || impact.length < 5) impact = standardImpact;
 
-      // Fix remediation format to "ACTION: INSERT THIS TEXT ->"
       let remediation = v.recommendation || '';
       if (remediation && !remediation.startsWith('ACTION:')) {
         remediation = `ACTION: INSERT THIS TEXT -> ${remediation}`;
@@ -130,9 +133,9 @@ export async function saveAuditResults(domain: string, url: string, violations: 
         sanitize(v.page_urls.join(', ')), 
         v.category,
         sanitize(finalIssueType),
-        v.severity,
+        finalSeverity,
         sanitize(v.evidence_html || url),
-        sanitize(v.evidence_quote, "Verified via Senior Auditor V26.0 Diagnostic."),
+        sanitize(v.evidence_quote, "Verified via Senior Auditor V27.0 Diagnostic."),
         v.confidence_score || 0.8,
         v.verification_status || 'verified',
         sanitize(finalDescription), 
@@ -150,7 +153,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
     return { success: true };
   } catch (error: any) {
     await client.query('ROLLBACK');
-    console.error('[DB V26.0 SAVE ERROR]', error.stack);
+    console.error('[DB V27.0 SAVE ERROR]', error.stack);
     return { success: false, error };
   } finally {
     client.release();
