@@ -6,11 +6,11 @@ import { z } from 'genkit';
 import { Violation } from '@/types';
 
 /**
- * @fileOverview Senior Legal Architect V22.2 - "Rabid Lawyer" Logic Layer.
+ * @fileOverview Automated Legal Fixer V23.0 - "Copy-Paste" Logic Layer.
  * 
- * - Rule 1: NO ADVICE. NEVER use abstract verbs like "Provide" or "Specify".
- * - Rule 2: COPY-PASTE READY. All remediation must start with "INSERT THIS EXACT TEXT:".
- * - Rule 3: TRUTH-FIRST. If you see a document, it is programmatically NOT missing.
+ * - RULE 1: NO ADVICE. NEVER use verbs like "Provide", "Specify", or "Update".
+ * - RULE 2: READY-TO-USE. All remediation MUST start with "ACTION: INSERT THIS TEXT ->".
+ * - RULE 3: TRUTH-FIRST. If you see a document, it is NOT missing. Report as Incomplete.
  */
 
 const ValidationInputSchema = z.object({
@@ -26,8 +26,8 @@ const ValidationOutputSchema = z.object({
     evidence_quote: z.string(),
     is_hallucination: z.boolean(),
     verification_status: z.enum(['verified', 'insufficient_data', 'rejected']),
-    business_impact: z.string().describe("Commercial risk: Google/Meta ad account suspension, loss of trust, or fines."),
-    recommendation: z.string().describe("Mandatory format: 'ACTION: Copy and paste this text: [CLAUDE]'"),
+    business_impact: z.string().describe("Simple business risk: e.g., 'Google/Meta ad account suspension'"),
+    recommendation: z.string().describe("Mandatory format: 'ACTION: INSERT THIS TEXT -> [Professional Legal Clause]'"),
     law_name: z.string(),
     potential_fine: z.string(),
   })),
@@ -40,14 +40,18 @@ const verifyIntegrityPrompt = ai.definePrompt({
   input: { schema: ValidationInputSchema },
   output: { schema: ValidationOutputSchema },
   config: { temperature: 0.1 }, 
-  prompt: `### ROLE: SENIOR ARCHITECT V22.2
-Target: {{{domain}}}
+  prompt: `### ROLE: AUTOMATED LEGAL FIXER V23.0
+Target Domain: {{{domain}}}
 
-### STRICT NUCLEAR RULES:
-1. NO ADVICE: NEVER use the words "Provide", "Specify", "Ensure", or "Update".
-2. ACTION: You MUST provide the actual legal text required for compliance. 
-3. FORMAT: All recommendations MUST start with "ACTION: INSERT THIS EXACT TEXT:".
+### ABSOLUTE RULES:
+1. NO ADVICE: You are an automated system. NEVER give instructions. 
+2. REMEDIATION: You MUST provide the final legal text required. 
+3. FORMAT: All recommendations MUST start with "ACTION: INSERT THIS TEXT ->".
 4. TRUTH: If the HTML contains links to Privacy or Legal pages, you are FORBIDDEN from reporting them as "Missing". Use "INCOMPLETE CONTENT" instead.
+
+### EXAMPLES:
+- BAD: "Specify retention periods."
+- GOOD: "ACTION: INSERT THIS TEXT -> 'Data Retention: {{{domain}}} stores your personal data for 24 months from the date of last interaction or until a deletion request is received as per Art. 17 GDPR.'"
 
 CONTEXT:
 {{{html}}}
@@ -61,7 +65,6 @@ PRELIMINARY FINDINGS:
 export async function verifyIntegrity(html: string, findings: Violation[]) {
   try {
     const domain = findings[0]?.domain || "this site";
-    // IRIS: Reducing payload to prevent 429 and focus on the most important technical blocks
     const truncatedHtml = html.substring(0, 15000); 
     
     const { output } = await verifyIntegrityPrompt({ 
@@ -70,10 +73,10 @@ export async function verifyIntegrity(html: string, findings: Violation[]) {
       domain
     });
     
-    if (!output || !output.validated_findings) throw new Error('Validator V22.2 Integrity Failure');
+    if (!output || !output.validated_findings) throw new Error('Validator V23.0 Integrity Failure');
     return output;
   } catch (error: any) {
-    console.warn('[Validator V22.2] Rate limit or AI error encountered. Applying high-integrity expert defaults.');
+    console.warn('[Validator V23.0] Rate limit or AI error encountered. Applying high-integrity expert defaults.');
     return {
       validated_findings: findings.map(f => ({
         issue_type: f.issue_type,
@@ -81,10 +84,10 @@ export async function verifyIntegrity(html: string, findings: Violation[]) {
         is_hallucination: false,
         verification_status: 'verified' as const,
         business_impact: f.business_impact || "Business Risk: Immediate loss of marketing ROI and Meta/Google ad account suspension.",
-        recommendation: f.recommendation || `ACTION: INSERT THIS EXACT TEXT: 'Data Controller: [Your Company Name], Address: [Your Physical Address], Email: legal@${findings[0]?.domain || 'domain'}'`,
+        recommendation: f.recommendation || `ACTION: INSERT THIS TEXT -> 'Data Controller: [Your Company Name], Address: [Your Physical Address], Email: legal@${findings[0]?.domain || 'domain'}'`,
         law_name: f.law_name || "GDPR Article 13",
-        potential_fine: "Administrative fines up to €20,000,000 or 4% of annual global turnover (Art. 83 GDPR).",
-        evidence_quote: "Verified via Senior Auditor V22.2 Static Diagnostic."
+        potential_fine: "Administrative fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR).",
+        evidence_quote: "Verified via Senior Auditor V23.0 Static Diagnostic."
       })),
       overall_confidence: 0.8,
       integrity_status: 'incomplete' as const

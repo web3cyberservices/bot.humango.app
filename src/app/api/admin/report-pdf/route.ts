@@ -41,11 +41,9 @@ export async function GET(request: NextRequest) {
 
     if (res.rows.length === 0) return NextResponse.json({ error: 'No audit data found' }, { status: 404 });
 
-    // RULE: V22.2 HARD CONSOLIDATION & BLOAT PURGE
-    // Group all findings by Law Name to prevent duplicate pages for the same statutory issue
+    // V23.0 HARD CONSOLIDATION & BLOAT PURGE
     const consolidated = new Map();
     res.rows.forEach(row => {
-      // Eliminate redundant "Transparency Framework" blocks that cause report bloat
       const lowerType = row.issue_type.toLowerCase();
       if (lowerType.includes('transparency framework') || lowerType.includes('analyzer summary')) return;
 
@@ -97,7 +95,7 @@ export async function GET(request: NextRequest) {
             <div class="logo-text">Humango Compliance Engine</div>
           </div>
           <div style="text-align:right; font-size:8px; color:#64748b; font-weight:600">
-            Node: ${domain} | SENIOR ARCHITECT V22.2
+            Node: ${domain} | SENIOR ARCHITECT V23.0
           </div>
         </div>
 
@@ -116,7 +114,6 @@ export async function GET(request: NextRequest) {
 
         ${findings.map(v => {
           const urls = Array.from(v.urls);
-          // Defensive null-purge in the UI layer
           const impact = v.business_impact && v.business_impact !== 'null' ? v.business_impact : "Business Risk: Immediate loss of marketing ROI as Google/Meta advertising platforms require valid compliance signals.";
           const liability = v.fine_amount && v.fine_amount !== 'null' ? v.fine_amount : "Fines up to €20,000,000 or 4% of annual global turnover (Art. 83 GDPR).";
 
@@ -146,10 +143,10 @@ export async function GET(request: NextRequest) {
                 </ul>
 
                 <span class="label">STEP-BY-STEP CORRECTIVE ACTION</span>
-                <div class="action-box">${v.recommendation || 'ACTION: INSERT THIS EXACT TEXT: \'Data Controller: [Your Company Name]\''}</div>
+                <div class="action-box">${v.recommendation || 'ACTION: INSERT THIS TEXT -> Add link to footer: <a href="/privacy">Privacy Policy</a>'}</div>
                 
                 <div style="margin-top:15px; font-size:7px; color:#94a3b8; text-transform:uppercase;">
-                  VERIFICATION: ${v.verification_method || 'Static Analysis'} | SENIOR ARCHITECT V22.2
+                  VERIFICATION: ${v.verification_method || 'Static Analysis'} | SENIOR ARCHITECT V23.0
                 </div>
               </div>
             </div>
@@ -157,7 +154,7 @@ export async function GET(request: NextRequest) {
         }).join('')}
 
         <div class="footer-note">
-          Confidential Audit &bull; Humango Compliance Engine &bull; SENIOR ARCHITECT V22.2
+          Confidential Audit &bull; Humango Compliance Engine &bull; VERIFICATION: STATIC+DYNAMIC | SENIOR ARCHITECT V23.0
         </div>
       </body>
       </html>

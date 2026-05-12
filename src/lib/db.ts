@@ -4,7 +4,7 @@ import DOMPurify from 'isomorphic-dompurify';
 import { Violation, ScanType } from '@/types';
 
 /**
- * @fileOverview Senior Legal Architect V22.2 - Data Integrity Layer.
+ * @fileOverview Automated Legal Fixer V23.0 - Data Integrity Layer.
  * 
  * - TRUTH-MAPPING: Hard-coded logic to prevent "Missing vs Incomplete" contradictions.
  * - CONSOLIDATION: Merging findings by Law Name to eliminate report bloat.
@@ -32,14 +32,14 @@ export async function testConnection() {
     await client.query('SELECT 1');
     return true;
   } catch (error: any) {
-    console.error('[Database V22.2 Handshake Failure]', error.message);
+    console.error('[Database V23.0 Handshake Failure]', error.message);
     throw error;
   } finally {
     if (client) client.release();
   }
 }
 
-function sanitize(text: string | null | undefined, fallback: string = 'Information verified via Senior Auditor V22.2 Diagnostic.'): string {
+function sanitize(text: string | null | undefined, fallback: string = 'Information verified via Senior Auditor V23.0 Diagnostic.'): string {
   if (text === null || text === undefined || text === 'null' || String(text).trim() === '') return fallback;
   return DOMPurify.sanitize(text);
 }
@@ -66,10 +66,10 @@ export async function saveAuditResults(domain: string, url: string, violations: 
   try {
     await client.query('BEGIN');
     
-    // V22.2: HARD CONSOLIDATION by Statutory Law to prevent duplicates
+    // V23.0: HARD CONSOLIDATION by Statutory Law to prevent duplicates
     const consolidated = new Map();
     violations.forEach(v => {
-      // RULE: V22.2 - Remove redundant "Transparency Framework" bloat
+      // RULE: V23.0 - Remove redundant "Transparency Framework" bloat
       const lowerType = v.issue_type.toLowerCase();
       if (lowerType.includes('transparency framework') || lowerType.includes('analyzer summary')) return;
 
@@ -93,8 +93,8 @@ export async function saveAuditResults(domain: string, url: string, violations: 
     `;
 
     for (const v of consolidated.values()) {
-      // RULE: V22.2 - HARD TRUTH MAPPING
-      // Programmatically prevent "Missing" status if a URL was actually detected.
+      // RULE: V23.0 - HARD TRUTH MAPPING
+      // Programmatically prevent "Missing" status if the document was actually found.
       let finalIssueType = v.issue_type;
       let finalDescription = v.description;
       
@@ -103,10 +103,10 @@ export async function saveAuditResults(domain: string, url: string, violations: 
 
       if (isMissingStatus && isLegalPath) {
         finalIssueType = "CRITICAL INCOMPLETENESS";
-        finalDescription = `The document was discovered at ${url} but is not accessible via a standard statutory link in the website footer.`;
+        finalDescription = `The document was discovered at ${url} but is legally invalid due to being hidden from the site's footer navigation.`;
       }
 
-      // Mandatory Liability & Impact Fallbacks
+      // V23.0 Mandatory Liability & Impact Fallbacks
       const standardLiability = "Fines up to €20,000,000 or 4% of annual global turnover (Art. 83 GDPR). High risk of immediate ad account termination.";
       const standardImpact = "Business Risk: Immediate loss of marketing ROI as ad platforms (Google/Meta) require valid statutory compliance signals.";
       
@@ -126,7 +126,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
         sanitize(finalIssueType),
         v.severity,
         sanitize(v.evidence_html || url),
-        sanitize(v.evidence_quote, "Verified via Senior Auditor V22.2 Diagnostic."),
+        sanitize(v.evidence_quote, "Verified via Senior Auditor V23.0 Diagnostic."),
         v.confidence_score || 0.8,
         v.verification_status || 'verified',
         sanitize(finalDescription), 
@@ -144,7 +144,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
     return { success: true };
   } catch (error: any) {
     await client.query('ROLLBACK');
-    console.error('[DB V22.2 SAVE ERROR]', error.stack);
+    console.error('[DB V23.0 SAVE ERROR]', error.stack);
     return { success: false, error };
   } finally {
     client.release();

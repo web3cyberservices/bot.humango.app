@@ -3,7 +3,7 @@ import * as cheerio from 'cheerio';
 import { Violation, ComplianceReport, VerificationMethod } from '@/types';
 
 /**
- * @fileOverview Senior Legal Architect V22.2 - Statutory Diagnostic Engine.
+ * @fileOverview Automated Legal Fixer V23.0 - Statutory Diagnostic Engine.
  * 
  * - Rule: Human-Friendly definitions (DPO, Official Company Identity).
  * - Rule: Zero-Advice Fixes (Copy-paste ready HTML/Text snippets).
@@ -75,7 +75,6 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
   const violationMap = new Map<string, Violation>();
   const fullHtmlLower = html.toLowerCase();
 
-  // RULE: V22.2 - Identity Check (Human-Friendly)
   const identityFound = profile.entitySuffixes.some(s => s.test(fullHtmlLower));
   
   if (!links.privacy) {
@@ -85,16 +84,15 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
       issue_type: 'MISSING PRIVACY INFRASTRUCTURE',
       severity: 'critical',
       evidence_html: url,
-      description: `Statutory law requires you to display a Privacy Policy before any data collection begins. No document was detected in your site structure.`,
+      description: `The law requires you to display a Privacy Policy document clearly on your site. No such resource was detected.`,
       business_impact: 'Business Risk: Immediate loss of marketing ROI as Google and Meta advertising platforms require valid compliance signals to run campaigns.',
       law_name: profile.law,
       potential_fine: LIABILITY_CRITICAL,
       explanation: 'You must inform users of site ownership and data usage before collection starts.',
-      recommendation: `ACTION: INSERT THIS EXACT HTML INTO YOUR FOOTER: '<a href="/privacy">Privacy Policy</a>'. Then create a page at /privacy and insert your legal disclosures.`,
+      recommendation: `ACTION: INSERT THIS TEXT -> Add a link to your website footer: <a href="/privacy">Privacy Policy</a>. Then create a page at /privacy and insert your legal disclosures.`,
       verification_method
     });
   } else {
-    // Check for specific gaps in the policy
     const policyBody = $('body').text();
     if (!/retention|storage|storing/i.test(policyBody)) {
        violationMap.set('Art. 13-Retention', {
@@ -108,13 +106,12 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
         law_name: 'Art. 13(2)(a) GDPR',
         potential_fine: LIABILITY_HIGH,
         explanation: 'You must state how long you keep user data or the specific criteria used to decide that timeframe.',
-        recommendation: `ACTION: INSERT THIS EXACT TEXT INTO YOUR PRIVACY POLICY: 'Data Retention: We store user personal data for a period of 24 months from the date of your last interaction or until you request account deletion.'`,
+        recommendation: `ACTION: INSERT THIS TEXT -> 'Data Retention: We store user personal data for a period of 24 months from the date of your last interaction or until you request account deletion.'`,
         verification_method
       });
     }
   }
 
-  // Official Company Identity Check
   if (!identityFound && !violationMap.has('Art. 13-Missing')) {
     violationMap.set('Art. 13(1)(a)', {
       category: 'Privacy',
@@ -127,7 +124,7 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
       law_name: 'Art. 13(1)(a) GDPR',
       potential_fine: LIABILITY_HIGH,
       explanation: 'Statutory rules require a physical address and registered company name for all commercial entities operating in the EU.',
-      recommendation: `ACTION: INSERT THIS EXACT TEXT INTO YOUR WEBSITE FOOTER: 'Data Controller: [Your Registered Company Name], Address: [Your Legal Business Address], Email: support@${domain}'`,
+      recommendation: `ACTION: INSERT THIS TEXT -> Add this to your footer: 'Data Controller: [Your Registered Company Name], Address: [Your Legal Business Address], Email: support@${domain}'`,
       verification_method
     });
   }
