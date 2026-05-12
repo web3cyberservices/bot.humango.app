@@ -29,7 +29,10 @@ import {
   Info,
   ShieldAlert,
   FileSearch,
-  Check
+  Check,
+  MapPin,
+  Cpu,
+  Fingerprint
 } from "lucide-react";
 
 export default function Home() {
@@ -267,27 +270,58 @@ export default function Home() {
             <Card className="bg-white/[0.03] border-white/10 backdrop-blur-xl shadow-2xl overflow-hidden">
               <CardHeader className="bg-white/[0.02] border-b border-white/5">
                 <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                  <Terminal className="w-4 h-4 text-primary" /> Compliance Audit Network
+                  <Terminal className="w-4 h-4 text-primary" /> Audit Network Transparency
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6 pt-6">
-                <div className="space-y-3">
-                  <label className="text-[10px] uppercase tracking-[0.2em] text-primary font-bold">Audit Agent ID</label>
-                  <div className="p-4 bg-black/40 rounded-xl border border-white/5 font-mono text-[10px] text-slate-300 break-all">
-                    Humango Compliance Audit Engine / 21.0
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 gap-4">
-                  <div className="p-4 bg-white/5 rounded-xl border border-white/5 space-y-2">
-                    <label className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">Audit Node Status</label>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 font-mono text-xs text-slate-200">
-                        <Globe className="w-3.5 h-3.5 text-primary" />
-                        <span>Active Scan Engine</span>
-                      </div>
-                      <Badge className="bg-primary/10 text-primary border-primary/20 text-[8px] px-2 h-4">Online</Badge>
+                <div className="space-y-4">
+                  <div className="flex items-start gap-4">
+                    <div className="bg-primary/10 p-2.5 rounded-xl">
+                      <ShieldCheck className="w-4 h-4 text-primary" />
                     </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Operator Identity</p>
+                      <p className="text-sm font-bold text-white">Humango Limited</p>
+                      <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                        182-184 High Street North, London,<br />
+                        England, E6 2JA
+                      </p>
+                      <p className="text-[10px] font-mono text-primary mt-1">Co. No: 16750477</p>
+                    </div>
+                  </div>
+
+                  <div className="h-px bg-white/5" />
+
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Cpu className="w-4 h-4 text-slate-500" />
+                      <div className="flex-1">
+                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Verified User-Agent</p>
+                        <p className="text-[10px] font-mono text-slate-300 truncate">HumangoBot/1.0 (+https://bot.humango.app)</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Fingerprint className="w-4 h-4 text-slate-500" />
+                      <div className="flex-1">
+                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Static Network Node</p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] font-mono text-slate-300">IP: 116.203.3.75</p>
+                          <p className="text-[10px] font-mono text-emerald-500">bot.humango.app</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="h-px bg-white/5" />
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-3.5 h-3.5 text-primary" />
+                      <span className="text-[10px] font-bold text-slate-400">Statutory Inquiry</span>
+                    </div>
+                    <a href="mailto:abuse@humango.app" className="text-[10px] font-bold text-white hover:text-primary transition-colors underline underline-offset-4">
+                      abuse@humango.app
+                    </a>
                   </div>
                 </div>
 

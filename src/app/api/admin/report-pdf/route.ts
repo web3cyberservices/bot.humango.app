@@ -96,6 +96,11 @@ export async function GET(request: NextRequest) {
           .processing-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 9px; }
           .processing-table th { background: #0f172a; color: white; text-align: left; padding: 8px; }
           .processing-table td { border: 1px solid #e2e8f0; padding: 8px; }
+          .manifesto-box { border: 1px dashed #cbd5e1; padding: 15px; margin-top: 40px; background: #fdfdfd; border-radius: 8px; }
+          .manifesto-title { font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; display: block; }
+          .manifesto-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+          .manifesto-item { font-size: 8px; color: #334155; }
+          .manifesto-label { font-weight: 800; color: #94a3b8; text-transform: uppercase; font-size: 7px; margin-bottom: 2px; }
         </style>
       </head>
       <body>
@@ -152,6 +157,40 @@ export async function GET(request: NextRequest) {
           <div class="section-title">IV. Transparency Framework & Rights</div>
           ${otherRisks.map(renderViolation).join('')}
         ` : ''}
+
+        <div class="manifesto-box">
+          <span class="manifesto-title">Audit Network Verification Manifesto</span>
+          <div class="manifesto-grid">
+            <div>
+              <div class="manifesto-item">
+                <div class="manifesto-label">Audit Operator</div>
+                <strong>Humango Limited</strong>
+              </div>
+              <div class="manifesto-item" style="margin-top:8px">
+                <div class="manifesto-label">Registered Office</div>
+                182-184 High Street North, London, England, E6 2JA
+              </div>
+              <div class="manifesto-item" style="margin-top:8px">
+                <div class="manifesto-label">Corporate Identifier</div>
+                Company Registration No: 16750477 (UK)
+              </div>
+            </div>
+            <div>
+              <div class="manifesto-item">
+                <div class="manifesto-label">Verified User-Agent</div>
+                HumangoBot/1.0 (+https://bot.humango.app)
+              </div>
+              <div class="manifesto-item" style="margin-top:8px">
+                <div class="manifesto-label">Network Infrastructure</div>
+                IP: 116.203.3.75 | bot.humango.app
+              </div>
+              <div class="manifesto-item" style="margin-top:8px">
+                <div class="manifesto-label">Statutory DPO Contact</div>
+                abuse@humango.app
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div class="footer-note">
           Confidential Legal Audit &bull; Humango Compliance Audit Engine &bull; Senior Auditor V21.0
