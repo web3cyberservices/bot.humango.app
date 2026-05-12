@@ -25,7 +25,7 @@ const ValidationOutputSchema = z.object({
     business_impact: z.string().describe("CONCRETE RISK: e.g. 'Google Ads Account Suspension'. NEVER NULL."),
     recommendation: z.string().describe("IRIS RULE: MUST follow 'FIX: [Page] -> Insert this text: [Snippet]' format."),
     law_name: z.string().describe("STATUTORY BASIS: e.g. GDPR Art. 13, ePrivacy Art. 5(3)"),
-    potential_fine: z.string().describe("LIABILITY: Fines up to €20m or 4% turnover."),
+    potential_fine: z.string().describe("LIABILITY: Fines up to €20m or 4% turnover. NEVER NULL."),
   })),
   overall_confidence: z.number().min(0.1).max(1),
   integrity_status: z.enum(['verified', 'incomplete', 'suspicious']),
@@ -45,9 +45,9 @@ ZERO TOLERANCE FOR NULL FIELDS. If you don't find data, explain the RISK of miss
 2. BUSINESS IMPACT: Translate legal risk into commercial consequences (Ad suspensions, payment gateway closures, lawsuits).
 3. IRIS RULE (FIX): Recommendations MUST follow: "FIX: [Page Name] -> Insert this text: '[Actual Copy-Paste Snippet]'".
 4. SIMPLE LANGUAGE: Use "Company Identity Card" for Impressum. Expand all acronyms: "DPO (Data Protection Officer)".
-5. NO NULLS: If a field is null, replace it with: "High risk of immediate regulatory intervention."
+5. NO NULLS: If a field is null, replace it with high-value business or statutory risk text.
 
-### LIABILITY TEXT:
+### LIABILITY TEXT (DO NOT CHANGE):
 - MISSING DOC: "Fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR). High risk of immediate regulatory intervention."
 - INCOMPLETE: "Administrative fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR)."
 
@@ -79,10 +79,12 @@ export async function verifyIntegrity(html: string, findings: Violation[]) {
         confidence_score: 0.8,
         is_hallucination: false,
         verification_status: 'verified' as const,
-        business_impact: f.business_impact || "Business Risk: Immediate suspension of advertising accounts (Google/Meta) and loss of customer conversion.",
+        business_impact: f.business_impact || "Business Risk: Immediate suspension of advertising accounts (Google/Meta) and loss of customer conversion due to identity anonymity.",
         recommendation: f.recommendation || `FIX: Footer -> Insert this text: 'Data Controller: [Domain Owner], Contact: [Email]'`,
         law_name: f.law_name,
-        potential_fine: "Fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR).",
+        potential_fine: f.severity === 'critical' 
+          ? "Fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR). High risk of immediate regulatory intervention."
+          : "Administrative fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR).",
         evidence_quote: "Verified via Senior Auditor Static Diagnostic V21.4."
       })),
       overall_confidence: 0.8,
