@@ -96,11 +96,11 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
       severity: 'critical',
       evidence_html: url,
       description: `Complete absence of a mandatory Privacy Policy as required by Article 13 GDPR.`,
-      business_impact: 'Loss of Trust: Visitors are significantly less likely to share data if you do not show how you protect it. Platforms like Google/Meta may also ban your domain for non-compliance.',
+      business_impact: 'Business Risk: Loss of Customer Trust. Visitors are significantly less likely to share data if they don\'t know who is in charge of it, causing an immediate drop in conversions.',
       law_name: profile.law,
       potential_fine: LIABILITY_STANDARD,
       explanation: 'Every website collecting user data must inform them about processing activities via a clear, linked policy.',
-      recommendation: 'Step-by-Step Corrective Action:\n1. Create a page titled "Privacy Policy".\n2. Add this link to your global site footer.\n3. Include a section titled "Data Usage" explaining why you collect IP addresses or contact info.',
+      recommendation: `FIX: Add this text to your footer: 'Data Controller: ${hostname}, Registered Address: [Your Address], Contact: [Your Email]'.`,
       verification_method
     });
   }
@@ -115,11 +115,11 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
       severity: 'high',
       evidence_html: url,
       description: 'Failure to disclose the official registered name and address of the entity responsible for the website.',
-      business_impact: 'Legal Vulnerability: Anonymity triggers regulatory suspicion. Competitors or users can report you to authorities, leading to audits and potential fines.',
+      business_impact: 'Business Risk: Regulatory Anonymity. Failure to identify the owner makes your business a prime target for competitor complaints and audits by local Data Protection Authorities.',
       law_name: 'Art. 13(1)(a) GDPR',
       potential_fine: LIABILITY_STANDARD,
       explanation: 'You must show exactly who is in charge of the data. This means a full company name and a physical address.',
-      recommendation: 'Step-by-Step Corrective Action:\n1. Open your footer or "About" page.\n2. Add this specific text: "Data Controller: [Your Company Name], Registered Office: [Street, Postal Code, City, Country]".',
+      recommendation: "FIX: Add your full legal entity name and registered office address to your 'Contact' or 'Impressum' page.",
       verification_method
     });
   }
@@ -133,11 +133,11 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
       severity: 'critical',
       evidence_html: url,
       description: `Absence of a mandatory "Impressum" (Legal Notice) identifying the commercial owner of the website.`,
-      business_impact: 'High Financial Risk: In countries like Germany, missing an Impressum leads to immediate legal notices (Abmahnung) from competitors costing thousands of euros.',
+      business_impact: 'Business Risk: Legal Notice Failure. In countries like Germany, missing an Impressum often leads to immediate legal warnings (Abmahnung) from competitors costing thousands of euros.',
       law_name: profile.law.includes('TDDG') ? '§ 5 TDDG (Germany)' : 'Commercial Transparency Act',
       potential_fine: LIABILITY_STANDARD,
       explanation: 'This is a mandatory "Identity Card" for your business required in the EU for commercial transparency.',
-      recommendation: 'Step-by-Step Corrective Action:\n1. Create a page titled "Legal Notice".\n2. Include: Registered Company Name, Physical Address, VAT ID, and Name of Directors.',
+      recommendation: "FIX: Create a page titled 'Legal Notice' and link it globally. It must include your VAT ID, Director's names, and full business address.",
       verification_method
     });
   }
@@ -151,11 +151,11 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
       severity: 'medium',
       evidence_html: url,
       description: 'The site does not show a clear disclosure or consent mechanism for tracking technologies.',
-      business_impact: 'Advertising Block: Google Consent Mode v2 and Meta Pixel now require explicit proof of consent. Without this, your digital marketing campaigns will fail or be blocked.',
+      business_impact: 'Business Risk: Ad Account Suspension. Platforms like Google and Meta now require explicit proof of consent (Consent Mode v2). Without this, your advertising performance will drop.',
       law_name: 'ePrivacy Directive Art. 5(3)',
       potential_fine: LIABILITY_STANDARD,
       explanation: 'You must inform users about non-essential cookies and get their permission before setting them.',
-      recommendation: 'Step-by-Step Corrective Action:\n1. Implement a Cookie Consent Banner.\n2. Add this sentence: "We store technical cookies for exactly 12 months from the date of consent."',
+      recommendation: "FIX: Implement a Cookie Banner and add this text: 'We store technical cookies for 12 months from the date of consent.'",
       verification_method
     });
   }

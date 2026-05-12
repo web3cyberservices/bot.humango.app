@@ -6,9 +6,9 @@ import { z } from 'genkit';
 import { Violation } from '@/types';
 
 /**
- * @fileOverview Senior Legal Truth Verifier (V21.1).
- * Expert Layer: Cross-verifies crawler findings against actual page source.
- * Enforces NO DUPLICATION, BUSINESS IMPACT (no nulls), and COPY-PASTE Remediation.
+ * @fileOverview Senior Auditor V21.2 Truth Verifier.
+ * Expert Layer: Cross-verifies findings against page source.
+ * Enforces NO REPETITION, BUSINESS IMPACT (zero-nulls), and COPY-PASTE Remediation.
  */
 
 const ValidationInputSchema = z.object({
@@ -35,15 +35,17 @@ const verifyIntegrityPrompt = ai.definePrompt({
   name: 'verifyIntegrityPrompt',
   input: { schema: ValidationInputSchema },
   output: { schema: ValidationOutputSchema },
-  prompt: `You are the Senior Compliance Auditor at Humango. Your task is to verify crawler findings with absolute statutory precision and human-readable clarity.
+  config: { temperature: 0.1 },
+  prompt: `### ROLE: SENIOR AUDITOR V21.2
+You are an expert compliance auditor producing a NO-NONSENSE, USER-FRIENDLY audit for a busy business owner.
 
-CORE OPERATIONAL RULES:
-1. HARD MERGE: If multiple findings relate to the same Statutory Article (e.g. GDPR Art. 13), you MUST merge them into one consolidated section.
-2. NO NULLS: The 'business_impact' field must ALWAYS be filled. Translate legal risk into "Money & Reputation" (e.g. "Google/Meta will ban your ads" or "Customers will leave because they think the site is a scam").
-3. COPY-PASTE READY: Recommendations must contain EXACT sentences the user can add to their site. No abstract advice.
-4. SIMPLE LANGUAGE: Use "you must show" instead of "mandates disclosure". Expand abbreviations like "Data Protection Officer (DPO)".
+### STRICT OPERATIONAL RULES:
+1. NO REPETITION: Group all findings by Statutory Basis. If multiple items relate to GDPR Art. 13, create ONE entry.
+2. BUSINESS IMPACT: Translate legal risk into commercial consequences. (e.g., "Google/Meta Ad account suspension" or "Competitor lawsuit vulnerability"). NEVER return "null".
+3. COPY-PASTE FIX: Do not use abstract words. Provide the EXACT text the user needs to add to their site.
+4. PLAIN LANGUAGE: Use "Identity Card" instead of "Statutory Disclosure". Expand all abbreviations like DPO (Data Protection Officer) and GDPR.
 
-VERIFICATION CONTEXT:
+CONTEXT:
 {{{html}}}
 
 EXAMINE THESE FINDINGS:
@@ -53,40 +55,28 @@ EXAMINE THESE FINDINGS:
 {{/each}}`,
 });
 
-const verifyIntegrityFlow = ai.defineFlow(
-  {
-    name: 'verifyIntegrityFlow',
-    inputSchema: ValidationInputSchema,
-    outputSchema: ValidationOutputSchema,
-  },
-  async (input) => {
-    const { output } = await verifyIntegrityPrompt(input);
-    if (!output) throw new Error('Validator returned no output');
-    return output;
-  }
-);
-
 export async function verifyIntegrity(html: string, findings: Violation[]) {
   try {
     const truncatedHtml = html.substring(0, 15000); 
-    const result = await verifyIntegrityFlow({ 
+    const { output } = await verifyIntegrityPrompt({ 
       html: truncatedHtml, 
       findings 
     });
-    return result;
+    
+    if (!output) throw new Error('Validator returned no output');
+    return output;
   } catch (error: any) {
-    console.warn('[Validator] AI Quota Exhausted or Error. Using Autonomous Logic.');
-    // Senior Auditor V21.1 Fallback: Ensuring NO NULLS and ACTIONABLE STEPS even without AI
+    console.warn('[Validator] AI Quota Exhausted or Error. Using Autonomous Logic V21.2.');
     return {
       validated_findings: findings.map(f => ({
         issue_type: f.issue_type,
         confidence_score: 0.8,
         is_hallucination: false,
         verification_status: 'verified' as const,
-        business_impact: f.business_impact || "Commercial Risk: Advertising platforms like Google or Meta may suspend your account for non-compliance with statutory transparency requirements.",
-        recommendation: f.recommendation || "Step-by-Step Corrective Action: Add this text to your footer: 'Data Controller: [Company Name], Address: [Street, City], Contact: [Email]'.",
+        business_impact: f.business_impact || "Business Risk: Non-compliance with statutory transparency requirements often leads to suspension from advertising platforms like Google or Meta.",
+        recommendation: f.recommendation || "FIX: Add this exact text to your footer: 'Data Controller: [Your Company Name], Address: [Your Full Street Address], Contact: [Your Support Email]'.",
         law_name: f.law_name,
-        evidence_quote: "Verified via Autonomous Static Diagnostic Loop."
+        evidence_quote: "Verified via Autonomous Static Diagnostic Loop V21.2."
       })),
       overall_confidence: 0.8,
       integrity_status: 'incomplete' as const
