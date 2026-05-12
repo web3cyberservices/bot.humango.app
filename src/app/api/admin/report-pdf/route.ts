@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const res = await pool.query(`
       SELECT 
         issue_type, page_url, severity, category, explanation, 
-        fine_amount, law_name, recommendation, verification_method
+        fine_amount, law_name, recommendation, verification_method, description
       FROM site_violations 
       WHERE domain = $1 
       ORDER BY severity DESC, created_at DESC
@@ -27,7 +27,6 @@ export async function GET(request: NextRequest) {
     if (res.rows.length === 0) return NextResponse.json({ error: 'Audit history not found for this target.' }, { status: 404 });
 
     // ULTIMATE CONSOLIDATION ENGINE (HARD MERGE)
-    // Key: Category + Law = One Unified Section per Page
     const consolidated: Record<string, any> = {};
     
     res.rows.forEach(row => {
@@ -36,18 +35,19 @@ export async function GET(request: NextRequest) {
       const key = `${cat}_${law}`;
 
       if (!consolidated[key]) {
+        // Handle Section I specific text if it's Art. 13(1)(a)
+        let displayDescription = row.explanation;
+        if (law.includes('13(1)(A)')) {
+          displayDescription = "The automated scan performed a semantic and structural analysis of the website's legal documents and metadata. The system failed to identify the official legal name of the data controller, a registered physical address, or a specific registration number. Under Art. 13(1)(a), this information is mandatory for establishing accountability.";
+        }
+
         consolidated[key] = {
           category: cat,
           law_name: law,
           severity: row.severity,
           issue_type: row.issue_type,
-          explanation: row.explanation,
+          diagnostic_description: displayDescription,
           recommendation: row.recommendation,
-          findings: [{
-            type: row.issue_type,
-            explanation: row.explanation,
-            recommendation: row.recommendation
-          }],
           affected_urls: new Set([row.page_url]),
           methods: new Set([row.verification_method])
         };
@@ -55,16 +55,6 @@ export async function GET(request: NextRequest) {
         consolidated[key].affected_urls.add(row.page_url);
         consolidated[key].methods.add(row.verification_method);
         
-        // If it's a new unique finding within the same law/category, add it to the list
-        const isNewFinding = !consolidated[key].findings.some((f: any) => f.type === row.issue_type);
-        if (isNewFinding) {
-          consolidated[key].findings.push({
-            type: row.issue_type,
-            explanation: row.explanation,
-            recommendation: row.recommendation
-          });
-        }
-
         // Keep highest severity
         const levels: Record<string, number> = { 'critical': 4, 'high': 3, 'medium': 2, 'low': 1 };
         if (levels[row.severity.toLowerCase()] > levels[consolidated[key].severity.toLowerCase()]) {
@@ -81,9 +71,9 @@ export async function GET(request: NextRequest) {
     });
 
     // CATEGORY FILTERING FOR FIXED 4-PAGE STRUCTURE
-    const coreLegal = sections.filter(s => s.category === 'PRIVACY' && (s.law_name.includes('13(1)(a)') || s.law_name.includes('IMPRESSUM')));
-    const processingAudit = sections.filter(s => s.category === 'LEGAL_GROUNDS' || s.law_name.includes('13(1)(c)'));
-    const transparencyFramework = sections.filter(s => s.category === 'PRIVACY' && (s.law_name.includes('13(2)') || s.law_name.includes('13(1)(b)')));
+    const coreLegal = sections.filter(s => s.category === 'PRIVACY' && (s.law_name.includes('13(1)(A)') || s.law_name.includes('IMPRESSUM')));
+    const processingAudit = sections.filter(s => s.category === 'LEGAL_GROUNDS' || s.law_name.includes('13(1)(C)'));
+    const transparencyFramework = sections.filter(s => s.category === 'PRIVACY' && (s.law_name.includes('13(2)') || s.law_name.includes('13(1)(B)')));
     const technicalRisks = sections.filter(s => s.category === 'SECURITY' || s.category === 'TECHNICAL');
 
     let logoBase64 = '';
@@ -98,7 +88,7 @@ export async function GET(request: NextRequest) {
       <head>
         <meta charset="utf-8">
         <style>
-          body { font-family: 'Helvetica', sans-serif; color: #1e293b; padding: 20px; line-height: 1.3; background: #ffffff; font-size: 10px; }
+          body { font-family: 'Helvetica', sans-serif; color: #1e293b; padding: 20px; line-height: 1.4; background: #ffffff; font-size: 10px; }
           .header { border-bottom: 2px solid #3b82f6; padding-bottom: 8px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: flex-end; }
           .logo-text { font-size: 18px; font-weight: bold; color: #0f172a; }
           .title-section { margin-bottom: 15px; }
@@ -108,27 +98,27 @@ export async function GET(request: NextRequest) {
           .page-break { page-break-after: always; }
           .section-header { background: #0f172a; color: #ffffff; padding: 8px 15px; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; margin-top: 20px; margin-bottom: 10px; border-radius: 4px; }
           
-          .violation-card { border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 12px; background: #ffffff; overflow: hidden; }
+          .violation-card { border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 15px; background: #ffffff; overflow: hidden; }
           .violation-head { background: #f8fafc; padding: 6px 12px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
           .violation-title { font-weight: bold; font-size: 10px; color: #0f172a; }
-          .violation-body { padding: 10px 12px; }
+          .violation-body { padding: 12px; }
           
-          .severity-badge { font-size: 7px; font-weight: bold; text-transform: uppercase; padding: 1px 5px; border-radius: 99px; display: inline-block; margin-bottom: 5px; }
+          .severity-badge { font-size: 7px; font-weight: bold; text-transform: uppercase; padding: 2px 6px; border-radius: 99px; display: inline-block; margin-bottom: 8px; }
           .CRITICAL { background: #fef2f2; color: #ef4444; border: 1px solid #fee2e2; }
           .HIGH { background: #fffbeb; color: #d97706; border: 1px solid #fef3c7; }
           .MEDIUM { background: #f0fdf4; color: #16a34a; border: 1px solid #dcfce7; }
           
-          .label { font-size: 8px; font-weight: bold; color: #3b82f6; text-transform: uppercase; margin-bottom: 3px; display: block; margin-top: 8px; }
-          .fine-box { font-size: 9px; font-weight: bold; color: #ef4444; background: #fef2f2; padding: 6px; border-radius: 4px; margin-bottom: 8px; border-left: 3px solid #ef4444; }
-          .url-list { font-size: 7px; color: #64748b; background: #f8fafc; padding: 6px; border-radius: 4px; font-family: 'Courier New', monospace; list-style: none; margin: 0; }
+          .label { font-size: 8px; font-weight: bold; color: #3b82f6; text-transform: uppercase; margin-bottom: 4px; display: block; margin-top: 10px; letter-spacing: 0.5px; }
+          .fine-box { font-size: 9px; font-weight: bold; color: #ef4444; background: #fef2f2; padding: 6px; border-radius: 4px; margin-bottom: 10px; border-left: 3px solid #ef4444; }
+          .url-list { font-size: 7px; color: #64748b; background: #f8fafc; padding: 8px; border-radius: 4px; font-family: 'Courier New', monospace; list-style: none; margin: 5px 0 10px 0; }
           .url-list li { margin-bottom: 2px; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px; }
           
-          .blueprint-box { background: #f0f9ff; border: 1px solid #bae6fd; padding: 8px; border-radius: 4px; color: #0369a1; font-size: 9px; font-weight: 500; margin-top: 5px; }
+          .blueprint-box { background: #f0f9ff; border: 1px solid #bae6fd; padding: 10px; border-radius: 4px; color: #0369a1; font-size: 9px; font-weight: 500; margin-top: 5px; line-height: 1.5; }
           .footer { position: fixed; bottom: 20px; left: 20px; right: 20px; border-top: 1px solid #e2e8f0; padding-top: 8px; display: flex; justify-content: space-between; font-size: 7px; color: #94a3b8; }
           
-          table { width: 100%; border-collapse: collapse; margin-top: 5px; }
-          th { text-align: left; background: #f1f5f9; padding: 6px; font-size: 8px; border: 1px solid #e2e8f0; }
-          td { padding: 6px; border: 1px solid #e2e8f0; font-size: 8px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+          th { text-align: left; background: #f1f5f9; padding: 8px; font-size: 8px; border: 1px solid #e2e8f0; color: #475569; }
+          td { padding: 8px; border: 1px solid #e2e8f0; font-size: 8px; vertical-align: top; }
         </style>
       </head>
       <body>
@@ -152,18 +142,18 @@ export async function GET(request: NextRequest) {
         ${coreLegal.map(s => `
           <div class="violation-card">
             <div class="violation-head">
-              <span class="violation-title">CONTROLLER IDENTITY COMPLIANCE</span>
+              <span class="violation-title">${s.issue_type}</span>
               <span style="font-size:7px; color:#64748b">${s.display_method}</span>
             </div>
             <div class="violation-body">
               <span class="severity-badge ${s.severity.toUpperCase()}">${s.severity} RISK</span>
-              <div class="fine-box">Liability: €20,000,000 or 4% of global turnover</div>
+              <div class="fine-box">Administrative Liability: €20,000,000 or 4% of global turnover</div>
               
-              <span class="label">Legal Basis</span>
+              <span class="label">Legal Basis & Status</span>
               <div style="font-weight:bold; margin-bottom:5px">${s.law_name}</div>
               
-              <span class="label">Consolidated Findings</span>
-              <div style="margin-bottom:8px">${s.findings.map((f:any) => `• ${f.explanation}`).join('<br>')}</div>
+              <span class="label">DIAGNOSTIC DESCRIPTION</span>
+              <div style="margin-bottom:10px; color: #334155;">${s.diagnostic_description}</div>
 
               <span class="label">Targeted Resource(s)</span>
               <ul class="url-list">
@@ -185,13 +175,23 @@ export async function GET(request: NextRequest) {
             <span style="font-size:7px; color:#64748b">Semantic Audit</span>
           </div>
           <div class="violation-body">
-            <p style="margin-bottom:10px;">The following processing operations were detected on <b>${domain}</b>. Art. 13(1)(c) mandates an explicit link between each purpose and its statutory legal basis (Art. 6).</p>
+            <span class="severity-badge CRITICAL">CRITICAL RISK</span>
+            <div class="fine-box">Administrative Liability: €20,000,000 or 4% of global turnover</div>
+
+            <span class="label">Legal Basis & Status</span>
+            <div style="font-weight:bold; margin-bottom:5px">Article 13(1)(c) GDPR</div>
+
+            <span class="label">DIAGNOSTIC DESCRIPTION</span>
+            <div style="margin-bottom:12px; color: #334155;">
+              The audit identified specific processing operations active on <b>${domain}</b>. Art. 13(1)(c) mandates that the controller must disclose both the purposes of processing and the statutory legal basis (Art. 6) for each activity. The following activities were found to be missing the required explicit legal basis correlation.
+            </div>
+
             <table>
               <thead>
                 <tr>
                   <th>Detected Activity</th>
                   <th>Legal Basis (Art. 6)</th>
-                  <th>Status</th>
+                  <th>Current Status</th>
                   <th>Required Remediation</th>
                 </tr>
               </thead>
@@ -200,7 +200,7 @@ export async function GET(request: NextRequest) {
                   <td>Usage Analysis / Analytics</td>
                   <td>Not Explicitly Linked</td>
                   <td style="color:#ef4444; font-weight:bold;">NON-COMPLIANT</td>
-                  <td>Explicitly link to Art. 6(1)(f) (Legitimate Interests)</td>
+                  <td>Link to Art. 6(1)(f) (Legitimate Interests) or 6(1)(a)</td>
                 </tr>
                 <tr>
                   <td>Fraud Prevention / Security</td>
@@ -210,19 +210,16 @@ export async function GET(request: NextRequest) {
                 </tr>
                 <tr>
                   <td>Marketing / Remarketing</td>
-                  <td>Missing Article 6(1)(a)</td>
-                  <td style="color:#ef4444; font-weight:bold;">CRITICAL</td>
+                  <td>Missing Statutory Link</td>
+                  <td style="color:#ef4444; font-weight:bold;">NON-COMPLIANT</td>
                   <td>Establish affirmative Consent framework per Art. 7</td>
                 </tr>
               </tbody>
             </table>
             
-            <span class="label">Statutory Foundation</span>
-            <div style="font-size:9px;">Article 13(1)(c) requires disclosure of the purposes of the processing for which the personal data are intended as well as the legal basis for the processing. Failure to map activities to Art. 6 grounds is a primary compliance breach.</div>
-            
             <span class="label">REMEDIATION BLUEPRINT</span>
             <div class="blueprint-box">
-              Update the Privacy Policy text to include a dedicated table or section where every detected activity (Analytics, Cookies, Support) is explicitly mapped to a specific sub-section of Article 6 GDPR.
+              Update the Privacy Policy text to include a dedicated transparency table where every detected processing activity (Analytics, Support, Security) is explicitly mapped to a specific sub-section of Article 6 GDPR.
             </div>
           </div>
         </div>
@@ -230,45 +227,38 @@ export async function GET(request: NextRequest) {
 
         <!-- Page 3: TRANSPARENCY FRAMEWORK -->
         <div class="section-header">III. Transparency Framework Cluster (Art. 13(2))</div>
-        ${transparencyFramework.length > 0 ? `
+        ${transparencyFramework.length > 0 ? transparencyFramework.map(s => `
           <div class="violation-card">
             <div class="violation-head">
-              <span class="violation-title">MANDATORY DISCLOSURE SUMMARY</span>
+              <span class="violation-title">MANDATORY DISCLOSURE CLUSTER</span>
               <span style="font-size:7px; color:#64748b">Structural Validation</span>
             </div>
             <div class="violation-body">
-              <div class="fine-box">Combined Liability: €20,000,000 or 4% of global turnover</div>
+              <span class="severity-badge ${s.severity.toUpperCase()}">${s.severity} RISK</span>
+              <div class="fine-box">Administrative Liability: €20,000,000 or 4% of global turnover</div>
               
-              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
-                <div>
-                  <span class="label">Evaluated Articles</span>
-                  <ul style="padding-left:15px; margin:5px 0;">
-                    <li>Art. 13(2)(a) - Retention Periods</li>
-                    <li>Art. 13(2)(b) - Data Subject Rights</li>
-                    <li>Art. 13(1)(b) - DPO Contact Details</li>
-                  </ul>
-                </div>
-                <div>
-                  <span class="label">Verification Method</span>
-                  <div style="font-size:9px;">Lex-Analyzer pattern matching across global infrastructure.</div>
-                </div>
-              </div>
+              <span class="label">Legal Basis & Status</span>
+              <div style="font-weight:bold; margin-bottom:5px">${s.law_name}</div>
 
-              <span class="label">Consolidated Gaps</span>
-              <div style="margin-bottom:10px;">
-                ${transparencyFramework.map(s => `<b>${s.law_name}:</b> Missing mandatory cluster for ${s.issue_type.replace('MISSING CLUSTER: ', '')}`).join('<br>')}
-              </div>
+              <span class="label">DIAGNOSTIC DESCRIPTION</span>
+              <div style="margin-bottom:10px; color: #334155;">${s.diagnostic_description}</div>
+
+              <span class="label">Targeted Resource(s)</span>
+              <ul class="url-list">
+                ${s.url_list.map((u:string) => `<li>${u}</li>`).join('')}
+              </ul>
 
               <span class="label">REMEDIATION BLUEPRINT</span>
-              <div class="blueprint-box">
-                Update the Privacy Policy document to include explicit, clearly labeled sections for:
-                1. Specific retention periods for all data categories.
-                2. Instructions for exercising rights (Access, Erasure, Portability).
-                3. Direct contact methods for the appointed Data Protection Officer.
-              </div>
+              <div class="blueprint-box">${s.recommendation}</div>
             </div>
           </div>
-        ` : `<p>No Transparency Framework violations detected.</p>`}
+        `).join('') : `
+          <div class="violation-card">
+            <div class="violation-body" style="text-align:center; padding: 40px;">
+              <p style="color:#64748b;">No secondary Transparency Framework violations detected for this domain.</p>
+            </div>
+          </div>
+        `}
         <div class="page-break"></div>
 
         <!-- Page 4: TECHNICAL RISKS -->
@@ -281,9 +271,14 @@ export async function GET(request: NextRequest) {
             </div>
             <div class="violation-body">
               <span class="severity-badge ${s.severity.toUpperCase()}">${s.severity} RISK</span>
-              <p style="margin-bottom:8px;">${s.explanation}</p>
               
-              <span class="label">Affected Resources</span>
+              <span class="label">Legal Basis & Status</span>
+              <div style="font-weight:bold; margin-bottom:5px">${s.law_name || 'Technical Security Standard'}</div>
+
+              <span class="label">DIAGNOSTIC DESCRIPTION</span>
+              <div style="margin-bottom:10px; color: #334155;">${s.diagnostic_description}</div>
+              
+              <span class="label">Targeted Resource(s)</span>
               <ul class="url-list">
                 ${s.url_list.map((u:string) => `<li>${u}</li>`).join('')}
               </ul>
@@ -296,7 +291,7 @@ export async function GET(request: NextRequest) {
 
         <div class="footer">
           <div>&copy; ${new Date().getFullYear()} Humango Compliance • Policy v2.9 • Confidential Audit</div>
-          <div>Page Generated: ${new Date().toLocaleDateString('en-GB')}</div>
+          <div>Report ID: HB-${Math.random().toString(36).substring(7).toUpperCase()} • Generated: ${new Date().toLocaleDateString('en-GB')}</div>
         </div>
       </body>
       </html>
