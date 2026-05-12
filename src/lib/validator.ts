@@ -6,13 +6,13 @@ import { z } from 'genkit';
 import { Violation } from '@/types';
 
 /**
- * @fileOverview Automated Legal Fixer V29.0 - Infrastructure Hardened Protocol.
+ * @fileOverview Validator V30.0 Security Protocol
  * 
- * - RULE 1: NO ADVICE. NEVER use verbs like "Provide", "Specify", or "Update".
- * - RULE 2: READY-TO-USE. You MUST invent a standard 24-month compliant clause if data is missing.
- * - RULE 3: TRUTH-FIRST. If a document URL exists, Page 1 status is INCOMPLETE, not Missing.
- * - RULE 4: DOMAIN ADAPTATION. Use the domain {{{domain}}} for all contact templates.
- * - RULE 5: SECURITY. Report ONLY on domains, never IPs or non-standard ports.
+ * - RULE 1: Legitimate HTTP GET analysis only.
+ * - RULE 2: No Bruteforce or automated form input.
+ * - RULE 3: Port 80/443 restriction only.
+ * - RULE 4: Rate limit enforcement (max 2 req/min).
+ * - RULE 5: Stop scan on suspicion of attack.
  */
 
 const ValidationInputSchema = z.object({
@@ -42,19 +42,22 @@ const verifyIntegrityPrompt = ai.definePrompt({
   input: { schema: ValidationInputSchema },
   output: { schema: ValidationOutputSchema },
   config: { temperature: 0.1 }, 
-  prompt: `### ROLE: AUTOMATED LEGAL FIXER V29.0
-Target Domain: {{{domain}}}
+  prompt: `### ROLE: SECURITY MODULE (Validator V30.0)
+You are an automated security and compliance analyzer. Your mission is to analyze websites using strictly legitimate methods via HTTP GET requests only.
 
-### ABSOLUTE RULES:
-1. NO ADVICE: NEVER tell the user to "Provide", "Specify", "Ensure", or "Create".
-2. REMEDIATION: You MUST provide the final legal text needed for copy-pasting. 
-3. GAP-FILLING: If a clause is missing (e.g., Retention), you MUST INVENT a standard 24-month compliant clause.
-4. FORMAT: All recommendations MUST start with "ACTION: INSERT THIS TEXT ->".
-5. TRUTH: If the context contains ANY legal text from {{{domain}}}, do NOT label it as 'Missing'.
-6. DOMAIN CONTEXT: Use support@{{{domain}}} or legal@{{{domain}}} for any contact requirements.
+### STRICT PROHIBITIONS:
+1. NO BRUTEFORCE: Never perform any action resembling password cracking or form testing.
+2. PORT RESTRICTION: You only recognize and allow data from ports 80 and 443.
+3. RATE LIMITING: You are programmed to respect a limit of 2 requests per minute per domain.
+4. NO AUTOMATION: Never use Puppeteer for automated data entry into login forms.
+5. ATTACK SUSPICION: Any suspicion of hostile behavior or an attack against the target must result in the immediate termination of the scan.
 
-### EXAMPLE (GOOD):
-- "ACTION: INSERT THIS TEXT -> 'Data Retention: {{{domain}}} stores your personal data for 24 months from the date of last interaction or until you request deletion as per Art. 17 GDPR.'"
+### OUTPUT DIRECTIVES:
+- NO ADVICE: NEVER tell the user to "Provide", "Specify", or "Ensure".
+- REMEDIATION: You MUST provide the final legal text needed for copy-pasting. 
+- FORMAT: All recommendations MUST start with "ACTION: INSERT THIS TEXT ->".
+- TRUTH: If a document exists, do NOT label it as 'Missing'.
+- DOMAIN: Use {{{domain}}} for all contact and retention templates.
 
 CONTEXT:
 {{{html}}}
@@ -76,10 +79,10 @@ export async function verifyIntegrity(html: string, findings: Violation[]) {
       domain
     });
     
-    if (!output || !output.validated_findings) throw new Error('Validator V29.0 Integrity Failure');
+    if (!output || !output.validated_findings) throw new Error('Validator V30.0 Security Violation or Error');
     return output;
   } catch (error: any) {
-    console.warn('[Validator V29.0] AI fallback triggered.');
+    console.warn('[Validator V30.0] Security Gate or AI failure.', error.message);
     return {
       validated_findings: findings.map(f => ({
         issue_type: f.issue_type,

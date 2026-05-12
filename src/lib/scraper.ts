@@ -27,35 +27,36 @@ async function getExecutablePath() {
 }
 
 /**
- * V29.0 Port Validator
+ * V30.0 Security Guard
  * Restricts outbound traffic to ports 80 and 443 only.
+ * Strictly enforces legitimate HTTP GET requests.
  */
 function validateNetworkTarget(urlStr: string) {
   try {
     const url = new URL(urlStr);
     
-    // Rule: Reject raw IPs
+    // Rule: Reject raw IPs (Prevention of IP-range scanning)
     const ipRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
     if (ipRegex.test(url.hostname)) {
-      throw new Error('Direct IP auditing is forbidden in V29.0 architecture.');
+      throw new Error('Direct IP auditing is strictly forbidden. Use domain hostnames.');
     }
 
     // Rule: Reject forbidden ports (only 80/443 allowed)
     if (url.port && !['80', '443'].includes(url.port)) {
-      throw new Error(`Port ${url.port} is blocked. Auditor only supports 80 (HTTP) and 443 (HTTPS).`);
+      throw new Error(`Port ${url.port} is blocked. Validator V30.0 only supports ports 80 and 443.`);
     }
 
-    // Rule: Protocol check
+    // Rule: Protocol check (HTTP/HTTPS GET only)
     if (!['http:', 'https:'].includes(url.protocol)) {
-      throw new Error('Forbidden protocol detected.');
+      throw new Error('Forbidden protocol detected. Only http/https permitted.');
     }
   } catch (e: any) {
-    throw new Error(`[Network Guard] Access Denied: ${e.message}`);
+    throw new Error(`[Security Guard V30.0] Access Denied: ${e.message}`);
   }
 }
 
 async function bruteForceScrape(url: string): Promise<Partial<ScrapeResult>> {
-  logger.info(`Phase BRUTEFORCE: Launching Puppeteer for ${url}`);
+  logger.info(`Phase DYNAMIC: Launching Security-Hardened Puppeteer for ${url}`);
   let browser: any = null;
   try {
     validateNetworkTarget(url);
@@ -77,11 +78,16 @@ async function bruteForceScrape(url: string): Promise<Partial<ScrapeResult>> {
 
     const page = await browser.newPage();
     
-    // Memory Optimization: Intercept and block heavy assets
+    // Security Guard: Intercept and block non-essential or suspicious assets
+    // Strictly NO form submission or interaction
     await page.setRequestInterception(true);
     page.on('request', (req) => {
       const type = req.resourceType();
+      // Block images, fonts, and stylesheets to save memory and focus on text analysis
       if (['image', 'media', 'font', 'stylesheet'].includes(type)) {
+        req.abort();
+      } else if (req.method() !== 'GET') {
+        // Force GET-only even for dynamic resources
         req.abort();
       } else {
         req.continue();
@@ -107,7 +113,7 @@ async function bruteForceScrape(url: string): Promise<Partial<ScrapeResult>> {
 
     return { html, cookies, screenshot: screenshot as string, method: 'puppeteer', status: 'success' };
   } catch (err: any) {
-    logger.error(`Bruteforce Phase failed for ${url}: ${err.message}`);
+    logger.error(`Dynamic Phase failed for ${url}: ${err.message}`);
     return { status: 'fail', method: 'puppeteer' };
   } finally {
     if (browser) {
@@ -141,8 +147,9 @@ export async function scrapeUrl(url: string): Promise<ScrapeResult> {
   try {
     validateNetworkTarget(url);
 
-    // PHASE 1: SPEED (Native Fetch)
+    // PHASE 1: SPEED (Native Fetch - Legitimate GET)
     const response = await fetch(url, {
+      method: 'GET',
       headers: {
         'User-Agent': settings.userAgent,
         'DNT': '1',
@@ -157,6 +164,7 @@ export async function scrapeUrl(url: string): Promise<ScrapeResult> {
       html = await response.text();
       const $ = cheerio.load(html);
       
+      // Determine if dynamic analysis is needed (e.g., for SPAs)
       const isSPA = $('#app').length > 0 || $('#root').length > 0 || $('body').text().trim().length < 300;
       
       if (isSPA) {
@@ -169,6 +177,7 @@ export async function scrapeUrl(url: string): Promise<ScrapeResult> {
         }
       }
     } else if ([403, 429].includes(response.status)) {
+      // If blocked, attempt polite dynamic emulation
       const brute = await bruteForceScrape(url);
       if (brute.status === 'success') {
         html = brute.html!;

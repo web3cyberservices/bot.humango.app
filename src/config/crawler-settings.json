@@ -4,7 +4,7 @@
   "timeout": 30000,
   "maxConcurrency": 5,
   "proxyEnabled": false,
-  "scanIntervalMs": 5000,
+  "scanIntervalMs": 30000,
   "complianceRules": [
     "GDPR_STATUTORY_DISCLOSURE",
     "CONTROLLER_IDENTITY_V5",
