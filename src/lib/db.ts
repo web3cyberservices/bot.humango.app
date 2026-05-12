@@ -15,7 +15,7 @@ export const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000, // Increased for server stability
+  connectionTimeoutMillis: 10000,
 });
 
 /**
@@ -29,9 +29,6 @@ export async function testConnection() {
     return true;
   } catch (error: any) {
     console.error('[Database Connection Test Error]', error.message);
-    if (error.message.includes('ECONNREFUSED')) {
-      console.error('Check if the database server is running at the specified host/port.');
-    }
     throw error;
   } finally {
     if (client) client.release();
@@ -92,13 +89,13 @@ export async function saveAuditResults(domain: string, url: string, violations: 
       await client.query(query, [
         sanitize(domain),
         sanitize(normalizeUrl(url)),
-        sanitize(v.evidence_html),
+        sanitize(v.evidence_html || url), // page_url placeholder
         v.category,
         v.issue_type,
         v.severity,
-        sanitize(v.evidence_html),
+        sanitize(v.evidence_html || url),
         sanitize(v.evidence_quote),
-        v.confidence_score,
+        v.confidence_score || 1.0,
         v.verification_status || 'pending',
         sanitize(v.description), 
         sanitize(v.explanation), 
@@ -108,7 +105,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
         v.report_type,
         standardFine,
         v.verification_method || (scanType === 'deep' ? 'Dynamic Emulation' : 'Static Analysis'),
-        sanitize(v.business_impact)
+        sanitize(v.business_impact || 'Regulatory non-compliance escalates financial and operational risks.')
       ]);
     }
     await client.query('COMMIT');

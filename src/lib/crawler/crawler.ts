@@ -66,6 +66,7 @@ export async function runCrawlTask(seedUrl: string, iteration: number = 1): Prom
         ...v,
         confidence_score: vMatch?.confidence_score ?? 0,
         evidence_quote: vMatch?.evidence_quote,
+        business_impact: vMatch?.business_impact || v.business_impact || 'Regulatory non-compliance escalates financial and operational risks.',
         verification_status: vMatch?.verification_status || 'pending',
         is_hallucination: vMatch?.is_hallucination ?? false
       };
@@ -85,11 +86,9 @@ export async function runCrawlTask(seedUrl: string, iteration: number = 1): Prom
         const deepUrl = normalizeUrl(targetUrl, initialNormalized);
         await saveBotEvent('SUCCESS', `Confidence Low [${validationResult.overall_confidence}]. Triggering Targeted Deep Dive: ${deepUrl}`);
         
-        // Recursive Call for iteration 2
         const deepResult = await runCrawlTask(deepUrl, iteration + 1);
         
         if (deepResult.status === 'success' && deepResult.violations) {
-          // Merge refined findings
           finalViolations = mergeFindings(finalViolations, deepResult.violations);
         }
       }
@@ -99,7 +98,6 @@ export async function runCrawlTask(seedUrl: string, iteration: number = 1): Prom
     const domain = new URL(initialNormalized).hostname;
     await saveAuditLog(domain, 200, null);
     
-    // Only save violations that crossed the verification threshold
     const verifiedFindings = finalViolations.filter(v => v.confidence_score >= 0.5);
     await saveAuditResults(domain, initialNormalized, verifiedFindings, iteration > 1 ? 'deep' : 'basic');
     
@@ -135,9 +133,6 @@ export async function runCrawlTask(seedUrl: string, iteration: number = 1): Prom
   }
 }
 
-/**
- * Merge findings from different iterations, preferring higher confidence.
- */
 function mergeFindings(base: Violation[], refined: Violation[]): Violation[] {
   const merged = new Map<string, Violation>();
   

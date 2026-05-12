@@ -114,7 +114,6 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
   const fullHtmlLower = html.toLowerCase();
   const footerText = $('footer').text().toLowerCase();
 
-  // HARD MERGE: GROUP ALL FINDINGS BY GDPR ARTICLE TO PREVENT REPETITION
   const reportedArticles = new Set<string>();
 
   // 1. SYSTEMIC TRANSPARENCY (Art. 13)
@@ -127,11 +126,11 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
         issue_type: 'SYSTEMIC TRANSPARENCY FAILURE (Art. 13)',
         severity: 'critical',
         evidence_html: url,
-        description: `Our legal diagnostic confirmed a critical failure: the domain completely lacks a statutory Privacy Policy. Under Article 13, website operators must provide clear, concise, and transparent information about their data processing activities at the moment of collection.`,
-        business_impact: 'The absence of a foundational privacy document prevents users from exercising their statutory rights and marks the entity as a high-priority target for regulatory enforcement. This is considered a "bad faith" compliance status.',
+        description: `Our legal diagnostic confirmed a critical failure: the domain completely lacks a statutory Privacy Policy. Under Article 13, website operators must provide transparent information at the moment of data collection.`,
+        business_impact: 'Vulnerability to complaints: Any dissatisfied client or visitor can file a complaint with their local regulator, which triggers a mandatory audit and high risk of administrative fines.',
         law_name: profile.law,
         potential_fine: LIABILITY_STANDARD,
-        explanation: 'GDPR Article 13 requires companies to explicitly inform data subjects of their rights (including access, rectification, erasure, and portability) when collecting personal data.',
+        explanation: 'GDPR Article 13 requires companies to explicitly inform data subjects of their rights when collecting personal data.',
         recommendation: '1. Create a dedicated Privacy Policy page.\n2. Add a clear link to the policy in the website footer.\n3. Ensure the policy explicitly lists all processing activities, legal bases, and user rights.',
         verification_method
       });
@@ -152,12 +151,12 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
         issue_type: 'CONTROLLER IDENTITY FAILURE (Art. 13-1-a)',
         severity: 'high',
         evidence_html: url,
-        description: `The audit infrastructure analyzed the website metadata and legal sections but failed to identify the official legal identity of the Data Controller. This includes the registered legal name, physical office address, and registration identifier.`,
-        business_impact: 'Failing to identify the data controller creates "regulatory anonymity." Under Article 13(1)(a), transparency regarding who is responsible for the data is a mandatory condition for lawful processing.',
+        description: `The audit infrastructure failed to identify the official legal identity of the Data Controller. This includes the registered legal name, physical office address, and registration identifier.`,
+        business_impact: 'Loss of trust: Customers are significantly more hesitant to leave data or make purchases when they cannot identify the legal owner. This directly leads to lower conversion rates.',
         law_name: 'Art. 13(1)(a) GDPR',
         potential_fine: LIABILITY_STANDARD,
-        explanation: 'Article 13(1)(a) requires that the identity and contact details of the controller (and, where applicable, their representative) are provided to the data subject.',
-        recommendation: '1. Specify the official legal entity name (e.g., "Company Name Ltd").\n2. Provide the registered office address and a valid electronic contact method.\n3. Include the company registration number and VAT identifier where applicable.',
+        explanation: 'Article 13(1)(a) requires that the identity and contact details of the controller are provided to the data subject.',
+        recommendation: '1. Specify the official legal entity name (e.g., "Company Name Ltd").\n2. Provide the registered office address and a valid electronic contact method.\n3. Include the company registration number.',
         verification_method
       });
       reportedArticles.add(article131a);
@@ -168,8 +167,8 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
         issue_type: 'PARTIAL IDENTITY TRANSPARENCY (Art. 13-1-a)',
         severity: 'medium',
         evidence_html: url,
-        description: 'Identity markers were found in the website footer, but these specific details are missing from the formal Transparency Disclosure (Privacy Policy). Information is fragmented across the site.',
-        business_impact: 'While footer placement helps, Art. 13 requires identity details to be consolidated within the transparency disclosure itself to ensure they are "easily accessible" as per Art. 12.',
+        description: 'Identity markers were found in the website footer, but these specific details are missing from the formal Transparency Disclosure (Privacy Policy).',
+        business_impact: 'Accountability risk: Fragmented legal information can be interpreted by regulators as a deliberate lack of transparency, increasing the likelihood of bad-faith audit findings.',
         law_name: 'Art. 13(1)(a) GDPR',
         potential_fine: LIABILITY_STANDARD,
         explanation: 'Consolidating identity information within the Privacy Policy ensures that data subjects can identify the responsible entity without searching multiple site sub-pages.',
@@ -189,12 +188,12 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
       issue_type: 'MISSING RETENTION FRAMEWORK (Art. 13-2-a)',
       severity: 'high',
       evidence_html: links.privacy || url,
-      description: 'The analysis identified that the Privacy Policy fails to disclose how long personal data will be stored. Article 13(2)(a) mandates the disclosure of either the specific storage duration or the criteria used to determine that period.',
-      business_impact: 'Indefinite data storage is a direct violation of the "Storage Limitation" principle. Lack of disclosure exposes the entity to fines for non-transparent processing.',
+      description: 'The Privacy Policy fails to disclose how long personal data will be stored or the criteria used to determine that period.',
+      business_impact: 'Compliance risk: Storing user data indefinitely without a declared retention strategy is a major GDPR violation (Storage Limitation) and a primary target for regulatory scrutiny.',
       law_name: 'Art. 13(2)(a) GDPR',
       potential_fine: LIABILITY_STANDARD,
-      explanation: 'Companies must explicitly inform subjects of the time period for which personal data will be stored, or if that is not possible, the criteria used to determine that period.',
-      recommendation: '1. Define specific storage durations for different data types (e.g., "Customer data is kept for 7 years following contract termination").\n2. If duration cannot be fixed, explain the criteria (e.g., "Data is kept until the original purpose of collection is satisfied or as required by statutory limitation periods").',
+      explanation: 'Companies must explicitly inform subjects of the time period for which personal data will be stored.',
+      recommendation: '1. Define specific storage durations for different data types.\n2. If duration cannot be fixed, explain the criteria (e.g., "Data is kept as required by statutory limitation periods").',
       verification_method
     });
     reportedArticles.add(article132a);
@@ -213,12 +212,12 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
         issue_type: 'LEGAL BASIS CORRELATION FAILURE (Art. 13-1-c)',
         severity: 'high',
         evidence_html: links.privacy || url,
-        description: `Our analysis identified active processing (e.g., ${activeProcessing.map(p => p.name).join(', ')}) but failed to find explicit links to the six legal bases defined in Article 6.`,
-        business_impact: 'Processing data without explicitly correlating it to a legal basis (e.g., Contractual, Consent, Legitimate Interest) invalidates the lawfulness of the operation.',
+        description: `The site performs processing (e.g., ${activeProcessing.map(p => p.name).join(', ')}) but fails to explicitly link these activities to the mandatory legal bases in Article 6.`,
+        business_impact: 'Risk of blocking: Modern advertising platforms like Google and Meta may suspend business accounts that fail to explicitly declare the legal basis for their tracking activities.',
         law_name: 'Art. 13(1)(c) GDPR',
         potential_fine: LIABILITY_STANDARD,
         explanation: 'Every processing activity must be explicitly linked to one of the six legal bases from Article 6 GDPR.',
-        recommendation: '1. Map every processing purpose to its statutory basis (e.g., "Analytics: Art. 6(1)(f)").\n2. Ensure the Privacy Policy explicitly uses the language from Article 6.',
+        recommendation: '1. Map every processing purpose to its statutory basis (e.g., "Analytics: Art. 6(1)(f)").\n2. Update the Privacy Policy to include a clear table of purposes and bases.',
         verification_method
       });
       reportedArticles.add(article131c);
@@ -236,18 +235,18 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
       issue_type: 'MISSING DATA SUBJECT RIGHTS (Art. 13-2-b)',
       severity: 'high',
       evidence_html: links.privacy || url,
-      description: 'The transparency disclosure fails to inform users of their mandatory data subject rights. This includes the right to access, rectification, erasure ("right to be forgotten"), and data portability.',
-      business_impact: 'Blocking user awareness of their statutory rights is a primary trigger for regulatory complaints. This marks the processing as non-transparent.',
+      description: 'The transparency disclosure fails to inform users of their mandatory rights, including access, erasure ("right to be forgotten"), and data portability.',
+      business_impact: 'Enforcement risk: Failing to inform users of their rights is a top reason for heavy fines, as it directly hinders the user\'s ability to control their personal data.',
       law_name: 'Art. 13(2)(b) GDPR',
       potential_fine: LIABILITY_STANDARD,
-      explanation: 'GDPR Article 13(2)(b) requires companies to explicitly inform subjects of their rights: access, rectification, erasure, restriction, objection, and portability.',
-      recommendation: '1. Add a dedicated "Your Rights" section to the Privacy Policy.\n2. Explicitly list all 6 statutory rights and provide a simple mechanism for users to exercise them.',
+      explanation: 'GDPR Article 13(2)(b) requires companies to explicitly inform subjects of their rights: access, rectification, erasure, and portability.',
+      recommendation: '1. Add a dedicated "Your Rights" section to the Privacy Policy.\n2. Explicitly list all statutory rights and provide a contact method to exercise them.',
       verification_method
     });
     reportedArticles.add(article132b);
   }
 
-  // 6. JURISDICTIONAL SPECIFICS (Section B)
+  // 6. JURISDICTIONAL SPECIFICS (Impressum)
   if (profile.requireImpressum && !links.impressum && !fullHtmlLower.includes('impressum')) {
     const articleImpressum = 'Statutory Legal Notice';
     if (!reportedArticles.has(articleImpressum)) {
@@ -257,19 +256,19 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
         issue_type: 'MISSING STATUTORY LEGAL NOTICE (TDDG)',
         severity: 'critical',
         evidence_html: url,
-        description: `The audit confirmed the total absence of a 'Statutory Legal Notice' (Impressum), which is mandatory for entities operating within the ${profile.name} jurisdiction.`,
-        business_impact: 'In Germany/DACH regions, the absence of an Impressum is a direct violation of § 5 TDDG. This allows for immediate administrative fines and leaves the entity vulnerable to competitive litigation.',
+        description: `The audit confirmed the total absence of a 'Statutory Legal Notice' (Impressum), mandatory for entities in ${profile.name}.`,
+        business_impact: 'Commercial risk: In Germany, missing an Impressum allows competitors or legal groups to file "Abmahnung" lawsuits, leading to immediate legal costs and injunctions.',
         law_name: '§ 5 TDDG (Germany)',
         potential_fine: LIABILITY_STANDARD,
-        explanation: 'Statutory transparency laws (like the German TDDG) require specific identity, tax, and contact information to be provided in a consolidated legal notice.',
-        recommendation: '1. Create a dedicated "Legal Notice" or "Impressum" page.\n2. Include the official company name, registered address, authorized representatives (directors), registration number, and VAT ID.',
+        explanation: 'Statutory transparency laws require specific identity and contact information to be provided in a consolidated legal notice.',
+        recommendation: '1. Create a dedicated "Legal Notice" or "Impressum" page.\n2. Include the official company name, registered address, directors, registration number, and VAT ID.',
         verification_method
       });
       reportedArticles.add(articleImpressum);
     }
   }
 
-  // 7. COOKIE TRANSPARENCY (ePrivacy Directive)
+  // 7. COOKIE TRANSPARENCY
   const articleCookie = 'Cookie Transparency';
   if (!fullHtmlLower.includes('cookie policy') && !fullHtmlLower.includes('cookies') && !reportedArticles.has(articleCookie)) {
     violationMap.set(articleCookie, {
@@ -278,12 +277,12 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
       issue_type: 'COOKIE DISCLOSURE FAILURE (ePrivacy)',
       severity: 'medium',
       evidence_html: url,
-      description: 'The site does not provide clear information about the use of cookies or similar tracking technologies.',
-      business_impact: 'Under the ePrivacy Directive, website operators must provide clear and comprehensive information about the use of cookies and obtain user consent before storing or accessing non-essential cookies.',
+      description: 'The site does not provide clear information about the use of cookies or tracking technologies.',
+      business_impact: 'Ad Account Risk: Advertising networks (Google, Meta, LinkedIn) strictly require clear cookie disclosures and user consent for tracking pixels to operate legally.',
       law_name: 'ePrivacy Directive (2002/58/EC)',
       potential_fine: LIABILITY_STANDARD,
-      explanation: 'Transparency regarding tracking is required to ensure users can make informed choices about their digital footprint.',
-      recommendation: '1. Implement a clear Cookie Disclosure (either as a standalone page or within the Privacy Policy).\n2. Detail the purpose of each cookie type (Essential, Marketing, Analytical).',
+      explanation: 'Website operators must provide clear information and obtain user consent before storing non-essential cookies.',
+      recommendation: '1. Implement a clear Cookie Disclosure.\n2. Detail the purpose of each cookie type (Essential, Marketing, Analytical).',
       verification_method
     });
     reportedArticles.add(articleCookie);

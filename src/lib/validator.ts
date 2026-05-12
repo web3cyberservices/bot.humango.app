@@ -1,3 +1,4 @@
+
 'use server';
 
 import { ai } from '@/ai/genkit';
@@ -21,6 +22,7 @@ const ValidationOutputSchema = z.object({
     evidence_quote: z.string().optional(),
     is_hallucination: z.boolean(),
     verification_status: z.enum(['verified', 'insufficient_data', 'rejected']),
+    business_impact: z.string().optional().describe("A simple, non-legal explanation of the business risk (e.g., loss of sales, risk of ad account blocking)."),
     missing_facts: z.array(z.string()).optional().describe("Specific missing facts for the crawler to find in a second pass."),
   })),
   overall_confidence: z.number().min(0).max(1),
@@ -43,10 +45,13 @@ TASK:
    - 1.0: Exact, detailed match found with clear context.
    - 0.5: Weak/partial match. 
    - 0.0: No evidence or contradictory evidence found.
-4. MARK STATUS:
-   - 'verified': High confidence (>= 0.9).
-   - 'insufficient_data': Weak evidence or missing details.
-   - 'rejected': Clearly hallucinated or contradictory.
+4. GENERATE USER-FRIENDLY BUSINESS IMPACT:
+   - For every finding, provide a simple explanation of why this matters to the business owner.
+   - Use non-legal terms like "Loss of trust", "Risk of ad account blocking", "Vulnerability to customer complaints".
+   - Examples: 
+     - Identity missing? "Loss of trust: Visitors are afraid to leave data, as they don't know who the owner is. This reduces sales."
+     - No Cookie Policy? "Risk of blocking: Advertising platforms (Google/Meta) may block your account for non-compliance."
+     - Art. 13 issues? "Vulnerability to complaints: Any dissatisfied client can file a complaint, which will lead to a regulatory audit."
 
 IMPORTANT:
 - DO NOT invent information.
