@@ -6,11 +6,12 @@ import { z } from 'genkit';
 import { Violation } from '@/types';
 
 /**
- * @fileOverview Automated Legal Gen V27.0 - Ready-to-Copy Protocol.
+ * @fileOverview Automated Legal Fixer V28.0 - Ready-to-Copy Protocol.
  * 
  * - RULE 1: NO ADVICE. NEVER use verbs like "Provide", "Specify", or "Update".
  * - RULE 2: READY-TO-USE. You MUST invent a standard 24-month compliant clause if data is missing.
  * - RULE 3: TRUTH-FIRST. If a document URL exists, Page 1 status is INCOMPLETE, not Missing.
+ * - RULE 4: DOMAIN ADAPTATION. Use the domain {{{domain}}} for all contact templates.
  */
 
 const ValidationInputSchema = z.object({
@@ -40,7 +41,7 @@ const verifyIntegrityPrompt = ai.definePrompt({
   input: { schema: ValidationInputSchema },
   output: { schema: ValidationOutputSchema },
   config: { temperature: 0.1 }, 
-  prompt: `### ROLE: AUTOMATED LEGAL GEN V27.0
+  prompt: `### ROLE: AUTOMATED LEGAL FIXER V28.0
 Target Domain: {{{domain}}}
 
 ### ABSOLUTE RULES:
@@ -49,6 +50,7 @@ Target Domain: {{{domain}}}
 3. GAP-FILLING: If a clause is missing (e.g., Retention), you MUST INVENT a standard 24-month compliant clause.
 4. FORMAT: All recommendations MUST start with "ACTION: INSERT THIS TEXT ->".
 5. TRUTH: If the context contains ANY legal text from {{{domain}}}, do NOT label it as 'Missing'.
+6. DOMAIN CONTEXT: Use support@{{{domain}}} or legal@{{{domain}}} for any contact requirements.
 
 ### EXAMPLE (GOOD):
 - "ACTION: INSERT THIS TEXT -> 'Data Retention: {{{domain}}} stores your personal data for 24 months from the date of last interaction or until you request deletion as per Art. 17 GDPR.'"
@@ -73,10 +75,10 @@ export async function verifyIntegrity(html: string, findings: Violation[]) {
       domain
     });
     
-    if (!output || !output.validated_findings) throw new Error('Validator V27.0 Integrity Failure');
+    if (!output || !output.validated_findings) throw new Error('Validator V28.0 Integrity Failure');
     return output;
   } catch (error: any) {
-    console.warn('[Validator V27.0] AI fallback triggered.');
+    console.warn('[Validator V28.0] AI fallback triggered.');
     return {
       validated_findings: findings.map(f => ({
         issue_type: f.issue_type,
@@ -87,7 +89,7 @@ export async function verifyIntegrity(html: string, findings: Violation[]) {
         recommendation: f.recommendation || `ACTION: INSERT THIS TEXT -> 'Data Controller: [Your Company Name], Email: legal@${domain}'`,
         law_name: f.law_name || "GDPR Article 13",
         potential_fine: "Administrative fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR).",
-        evidence_quote: "Verified via Senior Auditor V27.0 Static Diagnostic."
+        evidence_quote: "Verified via Senior Auditor V28.0 Static Diagnostic."
       })),
       overall_confidence: 0.8,
       integrity_status: 'incomplete' as const

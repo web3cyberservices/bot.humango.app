@@ -4,7 +4,7 @@ import DOMPurify from 'isomorphic-dompurify';
 import { Violation, ScanType } from '@/types';
 
 /**
- * @fileOverview Automated Legal Fixer V27.0 - The Statutory Truth Bridge.
+ * @fileOverview Automated Legal Fixer V28.0 - The Statutory Truth Bridge.
  * 
  * - TRUTH-MAPPING: Programmatically prevents "Missing vs Incomplete" contradictions.
  * - CONSOLIDATION: Merging findings by Law Name to eliminate report bloat.
@@ -32,14 +32,14 @@ export async function testConnection() {
     await client.query('SELECT 1');
     return true;
   } catch (error: any) {
-    console.error('[Database V27.0 Handshake Failure]', error.message);
+    console.error('[Database V28.0 Handshake Failure]', error.message);
     throw error;
   } finally {
     if (client) client.release();
   }
 }
 
-function sanitize(text: string | null | undefined, fallback: string = 'Information verified via Senior Auditor V27.0 Diagnostic.'): string {
+function sanitize(text: string | null | undefined, fallback: string = 'Information verified via Senior Auditor V28.0 Diagnostic.'): string {
   if (text === null || text === undefined || text === 'null' || String(text).trim() === '') return fallback;
   return DOMPurify.sanitize(text);
 }
@@ -66,7 +66,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
   try {
     await client.query('BEGIN');
     
-    // V27.0: HARD CONSOLIDATION by Statutory Law
+    // V28.0: HARD CONSOLIDATION by Statutory Law
     const consolidated = new Map();
     violations.forEach(v => {
       const lowerType = v.issue_type.toLowerCase();
@@ -81,7 +81,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
       }
     });
 
-    // RULE: V27.0 - Global Search for existing docs
+    // V28.0 RULE: GLOBAL SEARCH FOR EXISTING DOCUMENTS
     const docDetectedOnSite = violations.some(v => 
       v.verification_status === 'verified' && 
       !v.issue_type.toLowerCase().includes('missing')
@@ -104,15 +104,15 @@ export async function saveAuditResults(domain: string, url: string, violations: 
       
       const isMissingStatus = finalIssueType.toLowerCase().includes('missing');
 
-      // V27.0 LOGIC GATE: If any doc exists, we FORBID the "Missing" status
+      // V28.0 LOGIC GATE: TRUTH-MAPPING
       if (isMissingStatus && docDetectedOnSite) {
         finalIssueType = "CRITICAL INCOMPLETENESS";
-        finalDescription = `A valid Privacy Policy was detected via direct crawl, but it is invisible from your site footer. This violates the 'Easy Access' transparency principle (Art. 12 GDPR).`;
+        finalDescription = `The document was discovered via direct scan but is legally invalid due to lack of accessibility in the footer (Violation of Art. 12 GDPR).`;
         finalSeverity = 'high';
       }
 
-      const standardLiability = "Fines up to €20,000,000 or 4% of annual global turnover (Art. 83 GDPR). High risk of immediate ad account suspension.";
-      const standardImpact = "Business Risk: Immediate loss of marketing ROI as Meta and Google require valid compliance signals to run active campaigns.";
+      const standardLiability = "Fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR). High risk of immediate ad account suspension (Meta/Google).";
+      const standardImpact = "Business Risk: Immediate loss of marketing ROI as Meta and Google require valid compliance signals to run campaigns.";
       
       let liability = v.potential_fine;
       if (!liability || liability === 'null' || String(liability).toLowerCase() === 'null') {
@@ -135,7 +135,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
         sanitize(finalIssueType),
         finalSeverity,
         sanitize(v.evidence_html || url),
-        sanitize(v.evidence_quote, "Verified via Senior Auditor V27.0 Diagnostic."),
+        sanitize(v.evidence_quote, "Verified via Senior Auditor V28.0 Diagnostic."),
         v.confidence_score || 0.8,
         v.verification_status || 'verified',
         sanitize(finalDescription), 
@@ -153,7 +153,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
     return { success: true };
   } catch (error: any) {
     await client.query('ROLLBACK');
-    console.error('[DB V27.0 SAVE ERROR]', error.stack);
+    console.error('[DB V28.0 SAVE ERROR]', error.stack);
     return { success: false, error };
   } finally {
     client.release();

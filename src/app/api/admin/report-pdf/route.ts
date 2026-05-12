@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 
     if (res.rows.length === 0) return NextResponse.json({ error: 'No audit data found' }, { status: 404 });
 
-    // V27.0 HARD CONSOLIDATION & LOGIC BRIDGE
+    // V28.0 HARD CONSOLIDATION & LOGIC BRIDGE
     const consolidated = new Map();
     const docExistsOnSite = res.rows.some(row => 
       !row.issue_type.toLowerCase().includes('missing') && 
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
       const isMissing = finalIssueType.toLowerCase().includes('missing');
       if (isMissing && docExistsOnSite) {
         finalIssueType = "CRITICAL INCOMPLETENESS";
-        finalDescription = "The document was discovered via direct scan but is legally invalid due to lack of accessibility in the footer.";
+        finalDescription = "The document was discovered via direct scan but is legally invalid due to lack of accessibility in the footer (Violation of Art. 12 GDPR).";
       }
 
       const key = row.law_name || finalIssueType; 
@@ -86,6 +86,8 @@ export async function GET(request: NextRequest) {
           body { font-family: 'Helvetica', 'Arial', sans-serif; color: #1e293b; padding: 40px; line-height: 1.5; background: #ffffff; font-size: 11px; }
           .header { border-bottom: 3px solid #3b82f6; padding-bottom: 15px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; }
           .logo-text { font-size: 18px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
+          .operator-block { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px; margin-bottom: 25px; font-family: monospace; font-size: 9px; color: #475569; }
+          .operator-block strong { color: #0f172a; }
           .section-title { font-size: 13px; font-weight: 800; text-transform: uppercase; color: #3b82f6; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin: 40px 0 20px 0; letter-spacing: 1px; }
           .violation-card { border: 1px solid #e2e8f0; border-radius: 12px; margin-top: 15px; background: #ffffff; page-break-inside: avoid; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
           .violation-head { background: #0f172a; color: #ffffff; padding: 10px 20px; font-weight: 800; font-size: 10px; display: flex; justify-content: space-between; align-items: center; }
@@ -95,8 +97,7 @@ export async function GET(request: NextRequest) {
           .impact-box { background: #fff7ed; border-left: 4px solid #f97316; padding: 12px; color: #9a3412; font-weight: 600; font-size: 10px; margin: 10px 0; border-radius: 4px; }
           .action-box { background: #f0f9ff; border: 1px solid #bae6fd; padding: 15px; border-radius: 8px; color: #0369a1; font-size: 10px; white-space: pre-line; line-height: 1.6; font-family: monospace; border-left: 4px solid #3b82f6; font-weight: 600; }
           .url-list { font-size: 8px; color: #64748b; background: #f8fafc; padding: 10px; border-radius: 6px; font-family: monospace; border: 1px solid #e2e8f0; margin-top: 5px; list-style: none; padding-left: 15px; }
-          .term-box { background: #f1f5f9; padding: 15px; border-radius: 8px; margin: 20px 0; font-size: 9px; color: #475569; border: 1px solid #e2e8f0; line-height: 1.6; }
-          .footer-note { position: fixed; bottom: 20px; left: 0; right: 0; text-align: center; font-size: 8px; color: #94a3b8; }
+          .footer-note { position: fixed; bottom: 20px; left: 0; right: 0; text-align: center; font-size: 8px; color: #94a3b8; font-weight: 700; border-top: 1px solid #e2e8f0; padding-top: 10px; }
         </style>
       </head>
       <body>
@@ -106,19 +107,25 @@ export async function GET(request: NextRequest) {
             <div class="logo-text">Humango Compliance Engine</div>
           </div>
           <div style="text-align:right; font-size:8px; color:#64748b; font-weight:600">
-            Node: ${domain} | SENIOR ARCHITECT V27.0
+            Node: ${domain} | SENIOR ARCHITECT V28.0
           </div>
         </div>
 
-        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 30px;">
+        <div class="operator-block">
+          <hr style="border:0; border-top:1px solid #e2e8f0; margin:10px 0">
+          <strong>Operator:</strong> Humango Limited<br>
+          <strong>Address:</strong> 182-184 High Street North, London, England, E6 2JA<br>
+          <strong>Company No:</strong> 16750477<br>
+          <strong>User-Agent:</strong> HumangoBot/1.0 (+https://bot.humango.app)<br>
+          <strong>Static IP:</strong> 116.203.3.75<br>
+          <strong>Reverse DNS:</strong> bot.humango.app<br>
+          <strong>DPO Contact:</strong> abuse@humango.app<br>
+          <hr style="border:0; border-top:1px solid #e2e8f0; margin:10px 0">
+        </div>
+
+        <div style="margin-bottom: 30px;">
           <h1 style="font-size:20px; color:#0f172a; margin:0 0 8px 0; font-weight:800">Statutory Compliance Audit</h1>
           <p style="color:#64748b; margin:0; font-size:10px">Executive Diagnostic Report for ${domain}.</p>
-          <div class="term-box">
-            <strong>Glossary of Statutory Terms:</strong><br>
-            • <strong>Official Company Ownership:</strong> Mandatory business identity (Impressum).<br>
-            • <strong>Data Protection Officer (DPO):</strong> Individual responsible for privacy security.<br>
-            • <strong>Static Analysis:</strong> Technical scan of site code for legal gaps.
-          </div>
         </div>
 
         <div class="section-title">Findings by Statutory Law</div>
@@ -162,7 +169,7 @@ export async function GET(request: NextRequest) {
                 <div class="action-box">${remediation}</div>
                 
                 <div style="margin-top:15px; font-size:7px; color:#94a3b8; text-transform:uppercase;">
-                  VERIFICATION: STATIC+DYNAMIC | SENIOR ARCHITECT V27.0
+                  VERIFICATION: STATIC+DYNAMIC | SENIOR ARCHITECT V28.0
                 </div>
               </div>
             </div>
@@ -170,7 +177,7 @@ export async function GET(request: NextRequest) {
         }).join('')}
 
         <div class="footer-note">
-          Confidential Audit &bull; Humango Compliance Engine &bull; VERIFICATION: STATIC+DYNAMIC | SENIOR ARCHITECT V27.0
+          VERIFICATION: STATIC+DYNAMIC | AUDITOR V28.0 | <a href="mailto:abuse@humango.app" style="color:#3b82f6; text-decoration:none">abuse@humango.app</a>
         </div>
       </body>
       </html>

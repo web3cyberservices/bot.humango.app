@@ -3,14 +3,15 @@ import * as cheerio from 'cheerio';
 import { Violation, ComplianceReport, VerificationMethod } from '@/types';
 
 /**
- * @fileOverview Automated Legal Fixer V25.0 - Statutory Diagnostic Engine.
+ * @fileOverview Automated Legal Fixer V28.0 - Statutory Diagnostic Engine.
  * 
  * - Rule: Human-Friendly definitions (DPO, Official Company Identity).
  * - Rule: Zero-Advice Fixes (Copy-paste ready HTML/Text snippets).
+ * - Rule: Logic-Gate support for Missing vs Incomplete.
  */
 
-const LIABILITY_CRITICAL = "Fines up to €20,000,000 or 4% of annual global turnover (Art. 83 GDPR). High risk of immediate ad account suspension (Meta/Google).";
-const LIABILITY_HIGH = "Administrative penalties up to €20,000,000 (Art. 83 GDPR). High risk of competitor cease and desist (Abmahnung) notices.";
+const LIABILITY_CRITICAL = "Fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR). High risk of immediate regulatory intervention and ad account suspension.";
+const LIABILITY_HIGH = "Administrative penalties up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR). High risk of competitor cease and desist (Abmahnung) notices.";
 
 interface JurisdictionProfile {
   name: string;
@@ -81,7 +82,7 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
     violationMap.set('Art. 13-Missing', {
       category: 'Privacy',
       report_type: 'SaaS',
-      issue_type: 'MISSING PRIVACY INFRASTRUCTURE',
+      issue_type: 'MISSING CORE FRAMEWORK',
       severity: 'critical',
       evidence_html: url,
       description: `The law requires you to display a Privacy Policy document clearly on your site. No such resource was detected.`,
@@ -89,7 +90,7 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
       law_name: profile.law,
       potential_fine: LIABILITY_CRITICAL,
       explanation: 'You must inform users of site ownership and data usage before collection starts.',
-      recommendation: `ACTION: INSERT THIS TEXT -> Add a link to your website footer: <a href="/privacy">Privacy Policy</a>. Then create a page at /privacy and insert your legal disclosures.`,
+      recommendation: `ACTION: INSERT THIS HTML -> Add a link to your website footer: <a href="/privacy">Privacy Policy</a>. Then create a page at /privacy and insert your legal disclosures.`,
       verification_method
     });
   } else {
