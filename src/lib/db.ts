@@ -76,7 +76,6 @@ export function normalizeUrl(url: string, base?: string): string {
     u.pathname = pathname;
     return u.href.toLowerCase();
   } catch (e) {
-    // If invalid or forbidden, return empty or safe fallback that will fail in scraper
     return 'invalid-target';
   }
 }
