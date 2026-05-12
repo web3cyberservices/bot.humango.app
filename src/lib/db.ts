@@ -64,17 +64,20 @@ export async function saveAuditResults(domain: string, url: string, violations: 
   try {
     await client.query('BEGIN');
     
-    // HARD MERGE: Deduplication by Statutory Basis (Law Name)
+    // RULE 1: NO REPETITION (Hard Deduplication by Law Name)
     const uniqueViolations = new Map();
     violations.forEach(v => {
-      const key = v.law_name; // Use Law Name / Article as the unique key
+      const key = v.law_name; 
       if (!uniqueViolations.has(key)) {
-        uniqueViolations.set(key, v);
+        uniqueViolations.set(key, { ...v, affected_urls: [url] });
       } else {
-        // Update existing with better data if iteration is deep
         const existing = uniqueViolations.get(key);
+        if (!existing.affected_urls.includes(url)) {
+          existing.affected_urls.push(url);
+        }
+        // Retain the version with higher confidence
         if (v.confidence_score > existing.confidence_score) {
-          uniqueViolations.set(key, { ...v, affected_urls: [...(existing.affected_urls || []), url] });
+          uniqueViolations.set(key, { ...v, affected_urls: existing.affected_urls });
         }
       }
     });
@@ -95,7 +98,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
       await client.query(query, [
         sanitize(domain),
         sanitize(normalizeUrl(url)),
-        sanitize(v.evidence_html || url),
+        sanitize(v.affected_urls.join(', ')), // List all URLs
         v.category,
         v.issue_type,
         v.severity,
@@ -111,7 +114,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
         v.report_type,
         standardFine,
         v.verification_method || (scanType === 'deep' ? 'Dynamic Emulation' : 'Static Analysis'),
-        sanitize(v.business_impact || 'Regulatory non-compliance escalates financial and operational risks.')
+        sanitize(v.business_impact || 'Commercial Risk: Regulatory non-compliance triggers ad-platform suspensions and loss of enterprise customer trust.')
       ]);
     }
     await client.query('COMMIT');

@@ -42,7 +42,7 @@ const JURISDICTION_CONFIG: Record<string, JurisdictionProfile> = {
     authority: 'UODO', 
     lang: 'Polish', 
     requireImpressum: false, 
-    excluded_checks: ['impressum_check'], // PL Override
+    excluded_checks: ['impressum_check'],
     localGdprTerm: 'RODO',
     entitySuffixes: [/Sp\. z o\.o\./i, /S\.A\./i, /Sp\.k\./i, /S\.K\.A\./i]
   },
@@ -72,7 +72,6 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
   const $ = cheerio.load(html);
   const verification_method: VerificationMethod = isPuppeteer ? 'Dynamic Emulation' : 'Static Analysis';
   
-  // Jurisdiction Detection
   const hostname = new URL(url).hostname;
   const tld = hostname.split('.').pop()?.toUpperCase();
   const profile = JURISDICTION_CONFIG[userInputCountry?.toUpperCase() || tld || ''] || JURISDICTION_CONFIG.DEFAULT;
@@ -88,7 +87,7 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
   const violationMap = new Map<string, Violation>();
   const fullHtmlLower = html.toLowerCase();
 
-  // 1. STATUTORY PRIVACY NOTICE (Art. 13)
+  // RULE 1, 2, 3: Statutory Privacy Notice
   if (!links.privacy && !fullHtmlLower.includes('privacy policy')) {
     violationMap.set('Art. 13', {
       category: 'Privacy',
@@ -97,16 +96,16 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
       severity: 'critical',
       evidence_html: url,
       description: `Complete absence of a statutory Privacy Policy as required by Article 13 GDPR.`,
-      business_impact: 'High Risk of Regulatory Injunction: Failing to provide a privacy policy is a fundamental violation that triggers immediate administrative scrutiny and blocks ad accounts in Google/Meta.',
+      business_impact: 'Immediate Advertising Risk: Platforms like Google and Meta will suspend your accounts for missing privacy disclosures. Furthermore, this triggers bad-faith findings in regulatory audits.',
       law_name: profile.law,
       potential_fine: LIABILITY_STANDARD,
-      explanation: 'Companies must inform users of data processing activities at the moment of collection.',
-      recommendation: '1. Create a "Privacy Policy" page.\n2. Add a clear footer link.\n3. Include processing purposes and data subject rights.',
+      explanation: 'Statutory mandates require that data subjects are informed of processing activities at the point of collection.',
+      recommendation: 'Step-by-Step Corrective Action:\n1. Create a page titled "Privacy Policy".\n2. Add this link to your website footer on every page.\n3. Include a section named "Data Processing Purposes" using simple language.',
       verification_method
     });
   }
 
-  // 2. CONTROLLER IDENTITY (Art. 13-1-a)
+  // Identity Transparency
   const identityFound = profile.entitySuffixes.some(s => s.test(fullHtmlLower));
   if (!identityFound && !violationMap.has('Art. 13')) {
     violationMap.set('Art. 13(1)(a)', {
@@ -115,17 +114,17 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
       issue_type: 'IDENTITY TRANSPARENCY FAILURE (Art. 13-1-a)',
       severity: 'high',
       evidence_html: url,
-      description: 'The audit failed to identify the official legal entity responsible for data processing.',
-      business_impact: 'Loss of Customer Trust: Visitors are less likely to convert or provide information when they cannot verify the legal ownership of the platform.',
+      description: 'Failure to explicitly disclose the official legal identity and address of the Data Controller.',
+      business_impact: 'Loss of Customer Trust: Visitors are statistically less likely to convert or complete purchases when they cannot verify the physical ownership of the service.',
       law_name: 'Art. 13(1)(a) GDPR',
       potential_fine: LIABILITY_STANDARD,
-      explanation: 'The Data Controller\'s official identity and registered address must be explicitly disclosed.',
-      recommendation: '1. Add your official legal company name (e.g., Ltd/GmbH).\n2. Provide the full registered office address in your policy.',
+      explanation: 'Companies must identify their full registered name and physical office address to satisfy transparency requirements.',
+      recommendation: 'Step-by-Step Corrective Action:\n1. Update your Privacy Policy footer.\n2. Add this specific text: "Data Controller: [Your Company Ltd], Address: [Street, City, Postal Code]".',
       verification_method
     });
   }
 
-  // 3. STATUTORY LEGAL NOTICE (Impressum) - Override for PL
+  // Legal Notice (Impressum)
   if (profile.requireImpressum && !links.impressum && !profile.excluded_checks.includes('impressum_check')) {
     violationMap.set('TDDG', {
       category: 'IMPRESSUM',
@@ -133,17 +132,17 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
       issue_type: 'MISSING STATUTORY LEGAL NOTICE',
       severity: 'critical',
       evidence_html: url,
-      description: `Absence of a mandatory Legal Notice (Impressum) required for commercial operations in ${profile.name}.`,
-      business_impact: 'Immediate Injunction Risk: Competitors in jurisdictions like Germany can file legal cease-and-desist orders (Abmahnung) for missing identity info.',
-      law_name: profile.law.includes('TDDG') ? '§ 5 TDDG (Germany)' : 'Statutory Transparency Act',
+      description: `Absence of a mandatory Statutory Legal Notice (Impressum) required for commercial operations.`,
+      business_impact: 'Legal Injunction Risk: In jurisdictions like Germany, missing an Impressum leads to immediate cease-and-desist orders (Abmahnung) from competitors.',
+      law_name: profile.law.includes('TDDG') ? '§ 5 TDDG (Germany)' : 'Commercial Transparency Act',
       potential_fine: LIABILITY_STANDARD,
-      explanation: 'Statutory transparency laws require commercial websites to identify company ownership and contact details in a single, accessible notice.',
-      recommendation: '1. Create an "Impressum" page.\n2. List Company Name, Address, VAT ID, and Managing Directors.',
+      explanation: 'This is a mandatory "Identity Card" for your business required for commercial transparency in the EU.',
+      recommendation: 'Step-by-Step Corrective Action:\n1. Create a page titled "Legal Notice" or "Impressum".\n2. List: Company Name, Address, VAT ID, and Name of Managing Directors.',
       verification_method
     });
   }
 
-  // 4. COOKIE DISCLOSURE (ePrivacy)
+  // Cookies (Rule 4)
   if (!fullHtmlLower.includes('cookie') && !fullHtmlLower.includes('tracking')) {
     violationMap.set('ePrivacy', {
       category: 'Privacy',
@@ -151,12 +150,12 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
       issue_type: 'COOKIE CONSENT FAILURE (ePrivacy)',
       severity: 'medium',
       evidence_html: url,
-      description: 'Failure to provide comprehensive information about the use of cookies and tracking pixels.',
-      business_impact: 'Marketing Restriction: Ad platforms strictly require transparency for tracking pixels. Lack of disclosure leads to platform-wide advertising bans.',
-      law_name: 'ePrivacy Directive (2002/58/EC)',
+      description: 'The audit failed to detect a clear disclosure regarding cookies and user tracking.',
+      business_impact: 'Ad-Platform Suspension: Google Ads and Meta require explicit cookie transparency. Failure to disclose tracking leads to permanent domain-wide advertising bans.',
+      law_name: 'ePrivacy Directive (2002/58/EC) Art. 5(3)',
       potential_fine: LIABILITY_STANDARD,
-      explanation: 'Operators must provide clear information about non-essential cookies and obtain user consent before storage.',
-      recommendation: '1. Implement a Cookie Disclosure or Banner.\n2. Categorize all cookies and provide a clear opt-out mechanism.',
+      explanation: 'Website operators must provide clear and comprehensive information about cookies and obtain user consent before accessing non-essential data.',
+      recommendation: 'Step-by-Step Corrective Action:\n1. Implement a Cookie Banner.\n2. Ensure it explicitly states: "We use cookies to improve your experience. [Accept] / [Decline]".',
       verification_method
     });
   }

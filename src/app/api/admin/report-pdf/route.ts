@@ -45,14 +45,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No audit data found for this domain.' }, { status: 404 });
     }
 
-    // HARD MERGE: Consolidate by Law Name / Article
+    // RULE 1: CONSOLIDATION (Group by Statutory Basis)
     const consolidated = new Map();
     res.rows.forEach(row => {
       const key = row.law_name; 
       if (!consolidated.has(key)) {
-        consolidated.set(key, { ...row, urls: new Set([row.page_url]) });
+        // Normalize multiple URLs separated by comma
+        const urls = row.page_url.split(',').map((u: string) => u.trim());
+        consolidated.set(key, { ...row, urls: new Set(urls) });
       } else {
-        consolidated.get(key).urls.add(row.page_url);
+        const item = consolidated.get(key);
+        row.page_url.split(',').forEach((u: string) => item.urls.add(u.trim()));
       }
     });
 
@@ -83,7 +86,7 @@ export async function GET(request: NextRequest) {
           .label { font-size: 8px; font-weight: 800; color: #3b82f6; text-transform: uppercase; margin-top: 15px; display: block; margin-bottom: 4px; letter-spacing: 0.5px; }
           .risk-badge { font-size: 8px; font-weight: 800; padding: 2px 8px; border-radius: 99px; background: #fef2f2; color: #ef4444; border: 1px solid #fee2e2; }
           .impact-box { background: #fff7ed; border-left: 4px solid #f97316; padding: 12px; color: #9a3412; font-weight: 600; font-size: 10px; margin: 10px 0; border-radius: 4px; }
-          .action-box { background: #f0f9ff; border: 1px solid #bae6fd; padding: 15px; border-radius: 8px; color: #0369a1; font-size: 10px; white-space: pre-line; line-height: 1.6; }
+          .action-box { background: #f0f9ff; border: 1px solid #bae6fd; padding: 15px; border-radius: 8px; color: #0369a1; font-size: 10px; white-space: pre-line; line-height: 1.6; font-family: monospace; }
           .url-list { font-size: 8px; color: #64748b; background: #f8fafc; padding: 10px; border-radius: 6px; font-family: monospace; border: 1px solid #e2e8f0; margin-top: 5px; list-style: none; padding-left: 15px; }
           .term-box { background: #f1f5f9; padding: 15px; border-radius: 8px; margin: 20px 0; font-size: 9px; color: #475569; border: 1px solid #e2e8f0; line-height: 1.6; }
           .footer-note { position: fixed; bottom: 20px; left: 0; right: 0; text-align: center; font-size: 8px; color: #94a3b8; }
@@ -102,12 +105,12 @@ export async function GET(request: NextRequest) {
 
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 30px;">
           <h1 style="font-size:20px; color:#0f172a; margin:0 0 8px 0; font-weight:800">Executive Statutory Diagnostic</h1>
-          <p style="color:#64748b; margin:0; font-size:10px">Official regulatory audit regarding statutory transparency and processing operations.</p>
+          <p style="color:#64748b; margin:0; font-size:10px">Statutory transparency and data processing compliance report for ${domain}.</p>
           <div class="term-box">
-            <strong>Verification Methodology Glossary:</strong><br>
-            • <strong>Static Analysis:</strong> Rapid structural verification of source code and HTTP headers.<br>
-            • <strong>Dynamic Emulation:</strong> Live test simulating user interaction to detect hidden tracking scripts.<br>
-            • <strong>DPO:</strong> Data Protection Officer - Mandatory role for overseeing data protection strategy.
+            <strong>Methodology & Methodology explained:</strong><br>
+            • <strong>Static Analysis:</strong> Rapid structural verification of source code and legal disclosures.<br>
+            • <strong>Dynamic Emulation:</strong> Live test simulating human interaction to identify hidden scripts or non-compliant flows.<br>
+            • <strong>Data Protection Officer (DPO):</strong> A mandatory identity responsible for overseeing your data protection strategy.
           </div>
         </div>
 
@@ -152,9 +155,9 @@ export async function GET(request: NextRequest) {
         }).join('')}
 
         <div class="term-box" style="margin-top:40px; background:#fff">
-           <strong>Terms Explained:</strong><br>
-           • <strong>Statutory Legal Notice (Impressum):</strong> A mandatory transparency disclosure identifying company ownership, required for commercial sites in many EU jurisdictions (e.g., Germany).<br>
-           • <strong>Data Subject Rights:</strong> Rights granted to individuals (Access, Erasure, Rectification) that must be explicitly listed in your policy.
+           <strong>Statutory Definitions:</strong><br>
+           • <strong>Legal Notice (Impressum):</strong> A mandatory "Identity Card" for your business identifying ownership, required for commercial transparency in the EU.<br>
+           • <strong>Data Subject Rights:</strong> Fundamental rights granted to individuals (Access, Erasure, Objection) that must be explicitly listed in your policy.
         </div>
 
         <div class="footer-note">
