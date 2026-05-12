@@ -1,16 +1,16 @@
 
 {
   "policy_compliance": {
-    "version": "1.1",
-    "bot_category": "Security",
-    "business_purpose": "Automated GDPR compliance auditing and security monitoring to identify missing legal disclosures and encryption vulnerabilities.",
+    "version": "5.0",
+    "bot_category": "Statutory Compliance Audit",
+    "business_purpose": "Automated GDPR compliance auditing and statutory monitoring to identify missing legal disclosures and data protection vulnerabilities.",
     "traffic_volume": {
       "target": ">1000 requests/day",
-      "strategy": "Multi-domain queue rotation"
+      "strategy": "Multi-jurisdiction queue rotation"
     },
     "bot_identification": {
-      "user_agent_format": "HumangoBot/1.0 (+https://bot.humango.app)",
-      "identity": "HumangoBot",
+      "user_agent_format": "Humango Compliance Audit Engine/5.0 (+https://bot.humango.app)",
+      "identity": "Humango Compliance Bot",
       "gpc_support": true,
       "dnt_enabled": true
     },
@@ -20,16 +20,13 @@
       "rdns_suffix": "bot.humango.app"
     },
     "consent_protocols": {
-      "robots_txt": "Strict adherence (RFC 9309)",
-      "crawl_delay": "Full support",
-      "retry_after": "Full support",
+      "robots_txt": "Strict adherence",
       "legal_basis": "Legitimate Interest (Art. 6(1)(f) GDPR)"
     },
     "privacy_standards": {
       "stateless": true,
       "no_fingerprinting": true,
       "pii_redaction": true,
-      "dnt_header": "DNT: 1 (Sent with every request)",
       "retention": "365 days"
     },
     "company_info": {

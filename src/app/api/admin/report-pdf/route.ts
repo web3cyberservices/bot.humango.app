@@ -17,47 +17,43 @@ export async function GET(request: NextRequest) {
   try {
     const res = await pool.query(`
       SELECT 
-        issue_type, page_url, severity, category, explanation, 
-        fine_amount, law_name, recommendation, verification_method, description
+        issue_type, page_url, severity, category, description, 
+        fine_amount, law_name, recommendation, explanation, report_type
       FROM site_violations 
       WHERE domain = $1 
-      ORDER BY severity DESC, created_at DESC
+      ORDER BY 
+        CASE 
+          WHEN issue_type LIKE '%MISSING%' THEN 1 
+          WHEN issue_type LIKE '%CONTROLLER%' THEN 2 
+          WHEN issue_type LIKE '%PROCESSING%' THEN 3 
+          ELSE 4 
+        END,
+        severity DESC
     `, [domain]);
 
     if (res.rows.length === 0) return NextResponse.json({ error: 'Audit history not found.' }, { status: 404 });
 
-    // SYSTEMIC NON-COMPLIANCE LOGIC (Compaction for minimalist sites)
-    const isMinimalist = res.rows.length > 0 && new Set(res.rows.map(r => r.page_url)).size <= 2;
+    // EXPERT DEDUPLICATION & GROUPING
+    const universalFindings: any[] = [];
+    const countryFindings: any[] = [];
     
-    const consolidated: Record<string, any> = {};
+    const consolidated = new Map();
     res.rows.forEach(row => {
-      // Fix potential "null" fine_amount
-      const finalFine = row.fine_amount && row.fine_amount !== 'null' 
-        ? row.fine_amount 
-        : 'Up to €20,000,000 or 4% of global turnover';
-
-      const key = `${row.category}_${row.issue_type}_${row.law_name}`.toUpperCase();
-      if (!consolidated[key]) {
-        consolidated[key] = {
-          ...row,
-          fine_amount: finalFine,
-          affected_urls: new Set([row.page_url])
-        };
+      const key = `${row.category}_${row.issue_type}`.toUpperCase();
+      if (!consolidated.has(key)) {
+        consolidated.set(key, { ...row, urls: new Set([row.page_url]) });
       } else {
-        consolidated[key].affected_urls.add(row.page_url);
+        consolidated.get(key).urls.add(row.page_url);
       }
     });
 
-    // SORTING LOGIC: Missing -> Identity -> Processing -> Other
-    const sections = Object.values(consolidated).sort((a: any, b: any) => {
-      const getPriority = (type: string) => {
-        const t = type.toUpperCase();
-        if (t.includes('MISSING')) return 1;
-        if (t.includes('IDENTITY') || t.includes('CONTROLLER')) return 2;
-        if (t.includes('PROCESSING') || t.includes('LEGAL_GROUNDS')) return 3;
-        return 4;
-      };
-      return getPriority(a.issue_type) - getPriority(b.issue_type);
+    consolidated.forEach(v => {
+      const type = v.issue_type.toUpperCase();
+      if (type.includes('IMPRESSUM') || type.includes('MENTIONS') || type.includes('RODO')) {
+        countryFindings.push(v);
+      } else {
+        universalFindings.push(v);
+      }
     });
 
     let logoBase64 = '';
@@ -73,64 +69,83 @@ export async function GET(request: NextRequest) {
         <meta charset="utf-8">
         <style>
           body { font-family: 'Helvetica', sans-serif; color: #1e293b; padding: 30px; line-height: 1.4; background: #ffffff; font-size: 10px; }
-          .header { border-bottom: 2px solid #3b82f6; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
+          .header { border-bottom: 2px solid #3b82f6; padding-bottom: 10px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: flex-end; }
           .logo-text { font-size: 16px; font-weight: bold; color: #0f172a; }
-          .section-header { background: #0f172a; color: #ffffff; padding: 10px 15px; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-top: 25px; border-radius: 4px; }
-          .violation-card { border: 1px solid #e2e8f0; border-radius: 6px; margin-top: 15px; background: #ffffff; page-break-inside: avoid; }
-          .violation-head { background: #f8fafc; padding: 8px 15px; border-bottom: 1px solid #e2e8f0; font-weight: bold; }
+          .section-title { font-size: 12px; font-weight: bold; text-transform: uppercase; color: #3b82f6; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; margin: 30px 0 15px 0; }
+          .violation-card { border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 15px; background: #ffffff; page-break-inside: avoid; overflow: hidden; }
+          .violation-head { background: #0f172a; color: #ffffff; padding: 10px 15px; font-weight: bold; font-size: 11px; display: flex; justify-content: space-between; }
           .violation-body { padding: 15px; }
-          .severity-badge { font-size: 7px; font-weight: bold; padding: 2px 8px; border-radius: 99px; display: inline-block; margin-bottom: 10px; border: 1px solid; }
-          .CRITICAL { background: #fef2f2; color: #ef4444; border-color: #fee2e2; }
-          .HIGH { background: #fffbeb; color: #d97706; border-color: #fef3c7; }
           .label { font-size: 8px; font-weight: bold; color: #3b82f6; text-transform: uppercase; margin-top: 12px; display: block; margin-bottom: 4px; }
-          .fine-box { background: #fef2f2; border-left: 4px solid #ef4444; padding: 8px; color: #ef4444; font-weight: bold; margin-bottom: 15px; font-size: 9px; }
-          .url-list { font-size: 7px; color: #64748b; background: #f8fafc; padding: 8px; border-radius: 4px; margin-top: 5px; font-family: monospace; }
-          .blueprint { background: #f0f9ff; border: 1px solid #bae6fd; padding: 10px; border-radius: 4px; color: #0369a1; font-size: 9px; margin-top: 5px; }
+          .risk-badge { font-size: 7px; font-weight: bold; padding: 2px 8px; border-radius: 99px; background: #fef2f2; color: #ef4444; border: 1px solid #fee2e2; }
+          .fine-box { background: #fef2f2; border-left: 4px solid #ef4444; padding: 10px; color: #ef4444; font-weight: bold; margin: 15px 0; font-size: 9px; }
+          .blueprint { background: #f0f9ff; border: 1px solid #bae6fd; padding: 12px; border-radius: 6px; color: #0369a1; font-size: 9px; margin-top: 5px; }
+          .url-list { font-size: 7px; color: #64748b; background: #f8fafc; padding: 8px; border-radius: 4px; font-family: monospace; border: 1px solid #e2e8f0; }
+          .footer { position: fixed; bottom: 20px; left: 0; right: 0; text-align: center; font-size: 8px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 10px; }
         </style>
       </head>
       <body>
         <div class="header">
           <div style="display:flex; align-items:center; gap:10px">
-            ${logoBase64 ? `<img src="${logoBase64}" style="width:25px; height:25px">` : ''}
-            <div class="logo-text">Humango Compliance Audit</div>
+            ${logoBase64 ? `<img src="${logoBase64}" style="width:30px; height:30px">` : ''}
+            <div class="logo-text">Humango Compliance Audit Engine</div>
           </div>
-          <div style="text-align:right; font-size:8px; color:#64748b">Pan-European Engine v3.1<br>Target: ${domain}</div>
+          <div style="text-align:right; font-size:8px; color:#64748b">Pan-European Engine v5.0<br>Target: ${domain}</div>
         </div>
 
-        <h1 style="font-size:18px; color:#0f172a; margin-bottom:5px">Statutory Assessment Report</h1>
-        <p style="color:#64748b; margin-bottom:20px">Unified compliance audit for EU digital endpoints.</p>
+        <h1 style="font-size:22px; color:#0f172a; margin-bottom:5px">Statutory Assessment Report</h1>
+        <p style="color:#64748b; margin-bottom:30px">Consolidated audit of digital infrastructure and transparency requirements under GDPR.</p>
 
-        ${isMinimalist ? `
-          <div style="background:#fff7ed; border:1px solid #ffedd5; padding:15px; border-radius:6px; margin-bottom:25px">
-            <h3 style="color:#9a3412; margin:0 0 5px 0; font-size:11px">SYSTEMIC NON-COMPLIANCE DETECTED</h3>
-            <p style="color:#c2410c; margin:0; font-size:10px">The landing page is minimalist but technically active. Under Art. 13 of GDPR, even minimalist sites must provide identity and data processing transparency. This report consolidates systemic failures into a unified audit trail.</p>
-          </div>
-        ` : ''}
-
-        ${sections.map(s => `
+        <div class="section-title">SECTION A: UNIVERSAL GDPR REQUIREMENTS</div>
+        ${universalFindings.map(v => `
           <div class="violation-card">
-            <div class="violation-head">${s.issue_type}</div>
+            <div class="violation-head">
+              <span>${v.issue_type}</span>
+              <span class="risk-badge">${v.severity.toUpperCase()} RISK</span>
+            </div>
             <div class="violation-body">
-              <span class="severity-badge ${s.severity.toUpperCase()}">${s.severity.toUpperCase()} RISK</span>
-              <div class="fine-box">Administrative Liability: ${s.fine_amount}</div>
-              
               <span class="label">STATUS / LEGAL BASIS</span>
-              <div style="font-weight:bold">${s.law_name}</div>
+              <div style="font-weight:bold">${v.law_name}</div>
 
               <span class="label">DIAGNOSTIC DESCRIPTION</span>
-              <div style="color:#334155">${s.description}</div>
+              <div style="color:#334155">${v.description}</div>
+
+              <div class="fine-box">Administrative Liability: ${v.fine_amount}</div>
 
               <span class="label">Targeted Resource(s)</span>
-              <div class="url-list">${Array.from(s.affected_urls).join('<br>')}</div>
+              <div class="url-list">${Array.from(v.urls).join('<br>')}</div>
 
               <span class="label">REMEDIATION BLUEPRINT</span>
-              <div class="blueprint">${s.recommendation}</div>
+              <div class="blueprint">${v.recommendation}</div>
             </div>
           </div>
         `).join('')}
 
-        <div style="position:fixed; bottom:20px; left:0; right:0; text-align:center; font-size:8px; color:#94a3b8">
-          Confidential Audit &bull; Generated by HumangoBot &bull; GDPR &bull; ePrivacy
+        ${countryFindings.length > 0 ? `
+          <div class="section-title">SECTION B: COUNTRY-SPECIFIC SUPPLEMENTS</div>
+          ${countryFindings.map(v => `
+            <div class="violation-card">
+              <div class="violation-head">
+                <span>${v.issue_type}</span>
+                <span class="risk-badge">${v.severity.toUpperCase()} RISK</span>
+              </div>
+              <div class="violation-body">
+                <span class="label">STATUS / LEGAL BASIS</span>
+                <div style="font-weight:bold">${v.law_name}</div>
+
+                <span class="label">DIAGNOSTIC DESCRIPTION</span>
+                <div style="color:#334155">${v.description}</div>
+
+                <div class="fine-box">Administrative Liability: ${v.fine_amount}</div>
+
+                <span class="label">REMEDIATION BLUEPRINT</span>
+                <div class="blueprint">${v.recommendation}</div>
+              </div>
+            </div>
+          `).join('')}
+        ` : ''}
+
+        <div class="footer">
+          Confidential Audit &bull; Generated by Humango Compliance Audit Engine &bull; GDPR Art. 13 Compliance &bull; EU-wide
         </div>
       </body>
       </html>

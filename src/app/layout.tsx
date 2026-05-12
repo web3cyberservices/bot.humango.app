@@ -9,42 +9,35 @@ import { CookieBanner } from "@/components/ui/cookie-banner";
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
-  title: 'HumangoBot | Automated Compliance & Security Auditing',
-  description: 'HumangoBot is a specialized security crawler designed to identify technical vulnerabilities and monitor GDPR compliance across global web infrastructure.',
-  keywords: 'security crawler, web auditing, GDPR compliance, vulnerability scanner, bot transparency',
+  title: 'Humango Compliance | Automated Privacy & Security Auditing',
+  description: 'Humango Compliance Audit Engine is a specialized privacy scanner designed to identify statutory non-compliance and GDPR liability across global web infrastructure.',
+  keywords: 'privacy auditor, web compliance, GDPR audit, vulnerability scanner, digital accountability',
   metadataBase: new URL('https://humango.app'),
   alternates: {
     canonical: 'https://humango.app',
   },
   icons: {
     icon: [
-      { url: '/logo.png?v=4', type: 'image/png' },
+      { url: '/logo.png?v=5', type: 'image/png' },
     ],
-    shortcut: { url: '/logo.png?v=4', type: 'image/png' },
-    apple: { url: '/logo.png?v=4', type: 'image/png' },
+    shortcut: { url: '/logo.png?v=5', type: 'image/png' },
+    apple: { url: '/logo.png?v=5', type: 'image/png' },
   },
   robots: {
     index: true,
     follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      'max-video-preview': -1,
-      'max-image-preview': 'large',
-      'max-snippet': -1,
-    },
   },
   openGraph: {
-    title: 'HumangoBot | Automated Compliance & Security Auditing',
-    description: 'HumangoBot is a specialized security crawler designed to identify technical vulnerabilities and monitor GDPR compliance across global web infrastructure.',
+    title: 'Humango Compliance | Automated Privacy Auditing',
+    description: 'Statutory compliance monitoring and GDPR audit engine.',
     url: 'https://humango.app',
-    siteName: 'HumangoBot',
+    siteName: 'Humango Compliance',
     images: [
       {
         url: '/logo.png',
         width: 800,
         height: 600,
-        alt: 'HumangoBot Logo',
+        alt: 'Humango Compliance Logo',
       },
     ],
     locale: 'en_US',

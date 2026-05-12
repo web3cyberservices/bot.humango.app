@@ -23,10 +23,6 @@ function sanitize(text: string | null | undefined): string {
   return DOMPurify.sanitize(text);
 }
 
-/**
- * Normalizes a URL for consistent storage and comparison.
- * Supports an optional base URL for resolving relative paths.
- */
 export function normalizeUrl(url: string, base?: string): string {
   try {
     const u = base ? new URL(url, base) : new URL(url);
@@ -40,7 +36,6 @@ export function normalizeUrl(url: string, base?: string): string {
     u.pathname = pathname;
     return u.href.toLowerCase();
   } catch (e) {
-    // Fallback for invalid URLs or non-standard formats
     return url.toLowerCase().replace(/\/$/, "").split('?')[0].split('#')[0];
   }
 }
@@ -82,10 +77,9 @@ export async function saveAuditResults(domain: string, url: string, violations: 
     `;
 
     for (const v of uniqueViolations.values()) {
-      // Fix potential "null" fine_amount strings
       const finalFine = v.potential_fine && v.potential_fine !== 'null' 
         ? v.potential_fine 
-        : 'Up to €20,000,000 or 4% of global turnover';
+        : 'Administrative fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR)';
 
       await client.query(query, [
         sanitize(domain),

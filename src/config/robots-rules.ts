@@ -3,8 +3,7 @@ import robotsParser from 'robots-parser';
 import settings from '@/config/crawler-settings.json';
 
 /**
- * Логика проверки разрешений robots.txt на основе стандартов RFC 9309.
- * Использует библиотеку robots-parser для корректной интерпретации правил.
+ * Logic for robots.txt adherence.
  */
 export async function isUrlAllowed(urlStr: string): Promise<{allowed: boolean, reason?: string, delay?: number}> {
   try {
@@ -21,8 +20,7 @@ export async function isUrlAllowed(urlStr: string): Promise<{allowed: boolean, r
         robotsTxt = await response.text();
       }
     } catch (e) {
-      // Если robots.txt недоступен (404), RFC 9309 предписывает считать доступ разрешенным
-      console.log(`[Robots] No robots.txt found for ${targetUrl.hostname}, assuming allowed.`);
+      // Standard behavior: allow if unreachable
     }
 
     const robots = robotsParser(robotsUrl, robotsTxt);
@@ -32,11 +30,10 @@ export async function isUrlAllowed(urlStr: string): Promise<{allowed: boolean, r
     if (!allowed) {
       return { 
         allowed: false, 
-        reason: 'Forbidden by robots.txt directives (RFC 9309 compliance)' 
+        reason: 'Forbidden by robots.txt directives' 
       };
     }
 
-    // Дополнительная проверка на наши внутренние запрещенные пути
     const internalBlocked = ['/admin', '/private', '/config', '/api/internal', '/login'];
     if (internalBlocked.some(path => targetUrl.pathname.startsWith(path))) {
       return { allowed: false, reason: 'Internal protected path' };
@@ -47,7 +44,7 @@ export async function isUrlAllowed(urlStr: string): Promise<{allowed: boolean, r
       delay: crawlDelay ? crawlDelay * 1000 : settings.scanIntervalMs 
     };
   } catch (e) {
-    return { allowed: false, reason: 'Invalid URL or network error during robots.txt check' };
+    return { allowed: false, reason: 'Invalid URL or network error' };
   }
 }
 

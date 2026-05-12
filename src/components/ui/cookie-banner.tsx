@@ -4,7 +4,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { ShieldCheck, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 export function CookieBanner() {
   const [isVisible, setIsVisible] = useState(false);
@@ -31,9 +30,9 @@ export function CookieBanner() {
             <ShieldCheck className="w-6 h-6 text-primary" />
           </div>
           <div className="space-y-1">
-            <h4 className="text-white font-bold text-sm">Compliance & Transparency</h4>
+            <h4 className="text-white font-bold text-sm">Compliance Transparency</h4>
             <p className="text-xs text-slate-400 leading-relaxed">
-              We use only essential technical cookies to ensure the portal operates securely. By using our site, you acknowledge our commitment to RFC 9309 and GDPR compliance.
+              We use essential technical cookies to ensure the portal operates securely. By using our site, you acknowledge our commitment to statutory compliance and GDPR transparency.
             </p>
           </div>
         </div>

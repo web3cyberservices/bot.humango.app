@@ -1,19 +1,18 @@
 
 {
-  "userAgent": "HumangoBot/1.0 (+https://bot.humango.app)",
+  "userAgent": "Humango Compliance Audit Engine/5.0 (+https://bot.humango.app)",
   "timeout": 30000,
   "maxConcurrency": 5,
   "proxyEnabled": false,
   "scanIntervalMs": 5000,
   "complianceRules": [
-    "GDPR_PII_LEAK",
-    "SSL_TLS_VERSION_CHECK",
-    "ROBOTS_TXT_ADHERENCE",
-    "HEADER_TRANSPARENCY",
-    "RFC_9309_COMPLIANCE"
+    "GDPR_STATUTORY_DISCLOSURE",
+    "CONTROLLER_IDENTITY_V5",
+    "PROCESSING_BASIS_AUDIT",
+    "COUNTRY_SPECIFIC_LOCAL_LAW",
+    "HYBRID_DEDUPLICATION"
   ],
   "abuseEmail": "abuse@humango.app",
   "staticIp": "116.203.3.75",
-  "minDailyTraffic": 1000,
   "identityDomain": "bot.humango.app"
 }

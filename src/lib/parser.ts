@@ -6,53 +6,97 @@ import { Violation, ComplianceReport, Category, VerificationMethod } from '@/typ
  * AUTHORITATIVE LIABILITY DATABASE
  * Based on GDPR Article 83.
  */
-const LIABILITY_DATABASE: Record<string, string> = {
-    'PRIVACY': 'Up to €20,000,000 or 4% of global turnover',
-    'COOKIES': 'Up to €20,000,000 or 4% of global turnover',
-    'IMPRESSUM': 'Up to €20,000,000 or 4% of global turnover',
-    'LEGAL_GROUNDS': 'Up to €20,000,000 or 4% of global turnover',
-    'DEFAULT': 'Up to €20,000,000 or 4% of global turnover'
-};
+const LIABILITY_TEXT = 'Administrative fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR)';
 
 /**
- * Pan-European Statutory & Authority Mapping
+ * Pan-European Statutory & Authority Mapping v5.0
  */
-const COUNTRY_LEGAL_CONFIG: Record<string, { law: string; authority: string; lang: string }> = {
-  'de': { law: 'Art. 13 GDPR & § 5 TDDG (Germany)', authority: 'BfDI', lang: 'German' },
-  'at': { law: 'Art. 13 GDPR & ECG (Austria)', authority: 'DSB', lang: 'German' },
-  'fr': { law: 'Art. 13 GDPR & Mentions Légales (France)', authority: 'CNIL', lang: 'French' },
-  'pl': { law: 'Art. 13 GDPR & RODO (Poland)', authority: 'UODO', lang: 'Polish' },
-  'es': { law: 'Art. 13 GDPR & LSSI-CE (Spain)', authority: 'AEPD', lang: 'Spanish' },
-  'it': { law: 'Art. 13 GDPR & Codice della Privacy (Italy)', authority: 'Garante', lang: 'Italian' },
-  'pt': { law: 'Art. 13 GDPR & Lei da Proteção de Dados (Portugal)', authority: 'CNPD', lang: 'Portuguese' },
-  'nl': { law: 'Art. 13 GDPR & AVG (Netherlands)', authority: 'AP', lang: 'Dutch' },
-  'default': { law: 'GDPR Article 13', authority: 'Data Protection Authority', lang: 'English' }
+const JURISDICTION_CONFIG: Record<string, { 
+  law: string; 
+  authority: string; 
+  lang: string; 
+  requiresImpressum: boolean;
+  requiresMentionsLegales: boolean;
+  localGdprTerm: string;
+}> = {
+  'de': { 
+    law: 'Art. 13 GDPR & § 5 TDDG (Germany)', 
+    authority: 'BfDI', 
+    lang: 'German', 
+    requiresImpressum: true, 
+    requiresMentionsLegales: false,
+    localGdprTerm: 'DSGVO'
+  },
+  'at': { 
+    law: 'Art. 13 GDPR & ECG (Austria)', 
+    authority: 'DSB', 
+    lang: 'German', 
+    requiresImpressum: true, 
+    requiresMentionsLegales: false,
+    localGdprTerm: 'DSGVO'
+  },
+  'fr': { 
+    law: 'Art. 13 GDPR & Mentions Légales (France)', 
+    authority: 'CNIL', 
+    lang: 'French', 
+    requiresImpressum: false, 
+    requiresMentionsLegales: true,
+    localGdprTerm: 'RGPD'
+  },
+  'pl': { 
+    law: 'Art. 13 GDPR & RODO (Poland)', 
+    authority: 'UODO', 
+    lang: 'Polish', 
+    requiresImpressum: false, 
+    requiresMentionsLegales: false,
+    localGdprTerm: 'RODO'
+  },
+  'es': { 
+    law: 'Art. 13 GDPR & LSSI-CE (Spain)', 
+    authority: 'AEPD', 
+    lang: 'Spanish', 
+    requiresImpressum: false, 
+    requiresMentionsLegales: false,
+    localGdprTerm: 'RGPD'
+  },
+  'it': { 
+    law: 'Art. 13 GDPR & Codice della Privacy (Italy)', 
+    authority: 'Garante', 
+    lang: 'Italian', 
+    requiresImpressum: false, 
+    requiresMentionsLegales: false,
+    localGdprTerm: 'GDPR'
+  },
+  'default': { 
+    law: 'GDPR Article 13', 
+    authority: 'Data Protection Authority', 
+    lang: 'English', 
+    requiresImpressum: false, 
+    requiresMentionsLegales: false,
+    localGdprTerm: 'GDPR'
+  }
 };
 
 /**
- * Universal EU Document Discovery Map (All EU Languages)
+ * Universal EU Document Discovery Map (v5.0 Expert)
  */
 const DOC_KEYWORDS = {
   privacy: [
     /privacy/i, /datenschutz/i, /confidentialité/i, /privacidad/i, /trattamento dei dati/i, /privacyverklaring/i,
     /polityka prywatności/i, /rodo/i, /zásady ochrony osobních údajů/i, /adatkezelési tájékoztató/i,
-    /politică de confidențialitate/i, /integritetspolicy/i, /privatlivspolitik/i, /tietosuojaseloste/i,
-    /privatumo politika/i, /privātuma politika/i, /privaatsuspoliitika/i
+    /politică de confidențialitate/i, /integritetspolicy/i, /privatlivspolitik/i, /tietosuojaseloste/i
   ],
   impressum: [
     /impressum/i, /legal notice/i, /mentions légales/i, /aviso legal/i, /note legali/i, /rechtliche hinweise/i,
-    /notka prawna/i, /informacje prawne/i, /právní informace/i, /mentions legales/i
+    /notka prawna/i, /informacje prawne/i
   ],
-  terms: [/terms/i, /agb/i, /conditions/i, /términos/i, /condizioni/i, /voorwaarden/i, /regulamin/i, /všeobecné podmínky/i],
+  terms: [/terms/i, /agb/i, /conditions/i, /términos/i, /condizioni/i, /voorwaarden/i, /regulamin/i],
   cookies: [/cookie/i, /cookies/i, /galletas/i, /biscotti/i, /ciasteczka/i]
 };
 
-/**
- * Mandatory Legal Clusters for Semantic Analysis
- */
 const MANDATORY_CLUSTERS = {
   CONTROLLER: {
-    keywords: [/controller/i, /verantwortlicher/i, /responsable/i, /responsable del tratamiento/i, /administrator danych/i],
+    keywords: [/controller/i, /verantwortlicher/i, /responsable/i, /administrator danych/i, /администратор/i],
     law: "Art. 13(1)(a) GDPR",
     name: "Controller Identity"
   },
@@ -74,9 +118,9 @@ const MANDATORY_CLUSTERS = {
 };
 
 const PROCESSING_ACTIVITIES = [
-  { name: 'Usage Analysis', keywords: [/analytics/i, /tracking/i, /analyse/i, /analityka/i], defaultBasis: 'Art. 6(1)(f)' },
-  { name: 'Marketing', keywords: [/marketing/i, /advertising/i, /publicité/i, /publicidad/i], defaultBasis: 'Art. 6(1)(a)' },
-  { name: 'Security/Fraud', keywords: [/fraud/i, /security/i, /sécurité/i, /oszustwom/i], defaultBasis: 'Art. 6(1)(f)' }
+  { name: 'Analytics & Usage', keywords: [/analytics/i, /tracking/i, /analyse/i, /analityka/i], defaultBasis: 'Art. 6(1)(f)' },
+  { name: 'Marketing/Ads', keywords: [/marketing/i, /advertising/i, /publicité/i, /publicidad/i], defaultBasis: 'Art. 6(1)(a)' },
+  { name: 'Fraud & Security', keywords: [/fraud/i, /security/i, /sécurité/i, /oszustwom/i], defaultBasis: 'Art. 6(1)(f)' }
 ];
 
 export function parseHtmlContent(html: string, url: string, headers: any = {}, screenshot?: string, isPuppeteer: boolean = false): {
@@ -88,15 +132,16 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
   const $ = cheerio.load(html);
   const verification_method: VerificationMethod = isPuppeteer ? 'Dynamic Emulation' : 'Static Analysis';
   
-  // Country Detection
-  const tld = new URL(url).hostname.split('.').pop() || 'com';
-  const config = COUNTRY_LEGAL_CONFIG[tld] || COUNTRY_LEGAL_CONFIG.default;
+  // 1. Jurisdictional Detection
+  const hostname = new URL(url).hostname;
+  const tld = hostname.split('.').pop() || 'com';
+  const config = JURISDICTION_CONFIG[tld] || JURISDICTION_CONFIG.default;
   
   const links: Record<string, string | null> = { impressum: null, privacy: null, terms: null, cookies: null };
   const violations: Violation[] = [];
-  const fullText = html.substring(0, 300000).toLowerCase();
+  const fullText = html.substring(0, 400000).toLowerCase();
 
-  // 1. Multilingual Link Discovery
+  // 2. Multilingual Link Discovery
   $('a').each((_, el) => {
     const text = $(el).text().trim().toLowerCase();
     const href = $(el).attr('href')?.toLowerCase() || '';
@@ -108,65 +153,92 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
     if (DOC_KEYWORDS.cookies.some(k => k.test(text))) links.cookies = href;
   });
 
-  // 2. Expert Diagnostic Descriptions
-  const mandatoryDocs = [
-    { key: 'privacy', name: 'Privacy Policy', cat: 'PRIVACY' as Category },
-    { key: 'cookies', name: 'Cookie Policy', cat: 'COOKIES' as Category }
-  ];
-
-  mandatoryDocs.forEach(doc => {
-    // PRESENCE LOGIC FIX: If link is found, we assume document exists.
-    if (!links[doc.key]) {
-      violations.push({
-        category: doc.cat,
-        report_type: 'SaaS',
-        issue_type: `MISSING ${doc.name.toUpperCase()}`,
-        severity: 'critical',
-        evidence_html: url,
-        description: `The system analyzed the ${config.lang} version of the site and found that the mandatory ${doc.name} is missing or inaccessible. According to Art. 13 of GDPR and ${config.law}, this is a mandatory requirement for transparency and may lead to reporting to ${config.authority}.`,
-        law_name: config.law,
-        potential_fine: LIABILITY_DATABASE[doc.cat],
-        explanation: `Legal accountability requires a ${doc.name} to be visible to all visitors.`,
-        recommendation: `Implement a compliant ${doc.name} referencing Art. 13 requirements.`,
-        verification_method
-      });
-    }
-  });
-
-  // 3. Controller Identity Audit (Art. 13(1)(a))
-  const hasController = MANDATORY_CLUSTERS.CONTROLLER.keywords.some(k => k.test(fullText));
-  if (!hasController && links.privacy) {
+  // 3. Systemic Failure Check (Phase I)
+  if (!links.privacy) {
     violations.push({
       category: 'PRIVACY',
       report_type: 'SaaS',
-      issue_type: 'CONTROLLER IDENTITY COMPLIANCE',
+      issue_type: 'MISSING PRIVACY POLICY',
       severity: 'critical',
-      evidence_html: links.privacy || url,
-      description: `The automated scan performed a semantic and structural analysis of the website's legal documents and metadata. The system failed to identify the official legal name of the data controller, a registered physical address, or a specific registration number. Under Art. 13(1)(a), this information is mandatory for establishing accountability.`,
+      evidence_html: url,
+      description: `The automated scan performed a semantic analysis of the site structure and failed to locate a mandatory Privacy Policy. Under Art. 13 GDPR, this is a systemic compliance failure as the site is active and collecting metadata without transparency.`,
       law_name: config.law,
-      potential_fine: LIABILITY_DATABASE.PRIVACY,
-      explanation: `Information identifies the entity responsible for data processing.`,
-      recommendation: `Append the full legal name and physical address of the controller to the Privacy Policy body. Note: Detected in footer, but Art. 13 transparency requires document body inclusion.`,
+      potential_fine: LIABILITY_TEXT,
+      explanation: 'Legal accountability requires a Privacy Policy to be visible to all visitors.',
+      recommendation: `Implement a compliant Privacy Policy referencing ${config.localGdprTerm} Art. 13 requirements.`,
       verification_method
     });
   }
 
-  // 4. Processing Operations Audit (Art. 13(1)(c))
-  const detectedOps = PROCESSING_ACTIVITIES.filter(op => op.keywords.some(k => k.test(fullText)));
-  if (detectedOps.length > 0 && links.privacy) {
+  // 4. Country-Specific Mandates (Phase II)
+  if (config.requiresImpressum && !links.impressum) {
     violations.push({
-      category: 'LEGAL_GROUNDS',
+      category: 'IMPRESSUM',
       report_type: 'SaaS',
-      issue_type: 'AUDIT OF PROCESSING OPERATIONS',
-      severity: 'high',
-      evidence_html: links.privacy,
-      description: `The system analyzed the ${config.lang} version of the site and found that active processing operations (${detectedOps.map(o => o.name).join(', ')}) lack explicit correlation to Article 6 legal bases. According to Art. 13(1)(c) of GDPR, this is a mandatory requirement.`,
-      law_name: 'Art. 13(1)(c) GDPR',
-      potential_fine: LIABILITY_DATABASE.LEGAL_GROUNDS,
-      explanation: `Purpose-to-basis mapping is a core transparency requirement.`,
-      recommendation: `Update the policy to link each detected operation to an Article 6 legal basis (e.g., Legitimate Interests).`,
+      issue_type: 'MISSING MANDATORY IMPRESSUM',
+      severity: 'critical',
+      evidence_html: url,
+      description: `The scan analyzed the ${config.lang} version of the site and found no mandatory Impressum. According to § 5 TDDG (Germany) or ECG (Austria), every commercial website must provide an Impressum.`,
+      law_name: config.law,
+      potential_fine: LIABILITY_TEXT,
+      explanation: 'The Impressum is a statutory requirement for provider transparency in DACH regions.',
+      recommendation: 'Create a dedicated "Impressum" page with full legal entity details, registration, and tax ID.',
       verification_method
     });
+  }
+
+  if (config.requiresMentionsLegales && !links.impressum) {
+    violations.push({
+      category: 'LEGAL_CONTENT',
+      report_type: 'SaaS',
+      issue_type: 'MISSING MENTIONS LÉGALES',
+      severity: 'critical',
+      evidence_html: url,
+      description: `The system analyzed the French version of the site and found that the mandatory "Mentions Légales" is missing. This violates CNIL transparency standards for French digital endpoints.`,
+      law_name: config.law,
+      potential_fine: LIABILITY_TEXT,
+      explanation: 'Mentions Légales are required under French law to identify the publisher and host.',
+      recommendation: 'Implement a "Mentions Légales" section citing publisher identity and server hosting details.',
+      verification_method
+    });
+  }
+
+  // 5. Semantic Disclosure Audit (Phase III) - Only run if document is found
+  if (links.privacy) {
+    const hasController = MANDATORY_CLUSTERS.CONTROLLER.keywords.some(k => k.test(fullText));
+    if (!hasController) {
+      violations.push({
+        category: 'PRIVACY',
+        report_type: 'SaaS',
+        issue_type: 'CONTROLLER IDENTITY COMPLIANCE',
+        severity: 'critical',
+        evidence_html: links.privacy,
+        description: `The automated scan performed a semantic and structural analysis of the website's legal documents and metadata. The system failed to identify the official legal name of the data controller, a registered physical address, or a specific registration number. Under Art. 13(1)(a), this information is mandatory for establishing accountability.`,
+        law_name: config.law,
+        potential_fine: LIABILITY_TEXT,
+        explanation: 'The Privacy Policy must explicitly state who is legally responsible for data processing.',
+        recommendation: 'Append the full legal name and registered address of the controller to the document body. Note: detected in footer, but Art. 13 requires document inclusion.',
+        verification_method
+      });
+    }
+
+    // Processing Activities Audit (Art. 13(1)(c))
+    const detectedOps = PROCESSING_ACTIVITIES.filter(op => op.keywords.some(k => k.test(fullText)));
+    if (detectedOps.length > 0) {
+      violations.push({
+        category: 'LEGAL_GROUNDS',
+        report_type: 'SaaS',
+        issue_type: 'AUDIT OF PROCESSING OPERATIONS',
+        severity: 'high',
+        evidence_html: links.privacy,
+        description: `The system identified multiple processing purposes (${detectedOps.map(o => o.name).join(', ')}) but found no explicit correlation to Art. 6 legal bases. Art. 13(1)(c) requires each purpose to be linked to a specific basis (e.g. Legitimate Interests).`,
+        law_name: 'Art. 13(1)(c) GDPR',
+        potential_fine: LIABILITY_TEXT,
+        explanation: 'Explicit purpose-to-basis mapping is required for transparency.',
+        recommendation: `Update the policy to explicitly state that activities like "${detectedOps[0].name}" are conducted under Legitimate Interests (Art. 6(1)(f)).`,
+        verification_method
+      });
+    }
   }
 
   return {
@@ -174,9 +246,9 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
     discoveredLinks: [],
     meta: { hasCMP: false, legal_links: links },
     compliance_report: {
-      score: Math.max(0, 100 - (violations.length * 15)),
+      score: Math.max(0, 100 - (violations.length * 20)),
       verdict: violations.length > 0 ? 'RISKY' : 'COMPLIANT',
-      nav_scout: { found_links: [], missing_critical: [], discovery_score: 100 },
+      nav_scout: { found_links: Object.values(links).filter(Boolean) as string[], missing_critical: [], discovery_score: 100 },
       lex_analyzer: { has_vat_id: true, has_contact_info: true, has_mandatory_terms: true, content_truncated: false, missing_clusters: [] },
       cmp_detect: { detected_provider: null, is_active: false }
     }
