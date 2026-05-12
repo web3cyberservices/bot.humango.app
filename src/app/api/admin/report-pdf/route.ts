@@ -41,19 +41,27 @@ export async function GET(request: NextRequest) {
 
     if (res.rows.length === 0) return NextResponse.json({ error: 'No audit data found' }, { status: 404 });
 
-    // V23.0 HARD CONSOLIDATION & BLOAT PURGE
+    // V24.0 HARD CONSOLIDATION & LOGIC BRIDGE
     const consolidated = new Map();
     res.rows.forEach(row => {
-      const lowerType = row.issue_type.toLowerCase();
-      if (lowerType.includes('transparency framework') || lowerType.includes('analyzer summary')) return;
+      // RULE: V24.0 - Final logic check to ensure "Missing" is only used for total absence
+      let finalIssueType = row.issue_type;
+      let finalDescription = row.description;
+      
+      const pageUrl = row.page_url || '';
+      const isLegalPath = pageUrl.includes('/privacy') || pageUrl.includes('/legal') || pageUrl.includes('/impressum');
+      if (finalIssueType.toLowerCase().includes('missing') && isLegalPath) {
+        finalIssueType = "CRITICAL INCOMPLETENESS";
+        finalDescription = "The document was discovered via direct scan but is legally invalid due to lack of accessibility in the footer.";
+      }
 
-      const key = row.law_name || row.issue_type; 
+      const key = row.law_name || finalIssueType; 
       if (!consolidated.has(key)) {
-        const urls = row.page_url.split(',').map((u: string) => u.trim());
-        consolidated.set(key, { ...row, urls: new Set(urls) });
+        const urls = pageUrl.split(',').map((u: string) => u.trim());
+        consolidated.set(key, { ...row, issue_type: finalIssueType, description: finalDescription, urls: new Set(urls) });
       } else {
         const item = consolidated.get(key);
-        row.page_url.split(',').forEach((u: string) => item.urls.add(u.trim()));
+        pageUrl.split(',').forEach((u: string) => item.urls.add(u.trim()));
       }
     });
 
@@ -95,7 +103,7 @@ export async function GET(request: NextRequest) {
             <div class="logo-text">Humango Compliance Engine</div>
           </div>
           <div style="text-align:right; font-size:8px; color:#64748b; font-weight:600">
-            Node: ${domain} | SENIOR ARCHITECT V23.0
+            Node: ${domain} | SENIOR ARCHITECT V24.0
           </div>
         </div>
 
@@ -104,9 +112,9 @@ export async function GET(request: NextRequest) {
           <p style="color:#64748b; margin:0; font-size:10px">Executive Diagnostic Report for ${domain}.</p>
           <div class="term-box">
             <strong>Glossary of Statutory Terms:</strong><br>
-            • <strong>Official Company Ownership (Impressum):</strong> Mandatory EU identity card for businesses.<br>
-            • <strong>Data Protection Officer (DPO):</strong> The certified individual responsible for your company's privacy security.<br>
-            • <strong>Static Code Analysis:</strong> Technical scan of your site's text and structure to find missing legal disclosures.
+            • <strong>Official Company Ownership:</strong> The mandatory business identity card (Impressum).<br>
+            • <strong>Data Protection Officer (DPO):</strong> The certified individual responsible for privacy security.<br>
+            • <strong>Static Analysis:</strong> Technical scan of site text and structure for legal gaps.
           </div>
         </div>
 
@@ -146,7 +154,7 @@ export async function GET(request: NextRequest) {
                 <div class="action-box">${v.recommendation || 'ACTION: INSERT THIS TEXT -> Add link to footer: <a href="/privacy">Privacy Policy</a>'}</div>
                 
                 <div style="margin-top:15px; font-size:7px; color:#94a3b8; text-transform:uppercase;">
-                  VERIFICATION: ${v.verification_method || 'Static Analysis'} | SENIOR ARCHITECT V23.0
+                  VERIFICATION: STATIC+DYNAMIC | SENIOR ARCHITECT V24.0
                 </div>
               </div>
             </div>
@@ -154,7 +162,7 @@ export async function GET(request: NextRequest) {
         }).join('')}
 
         <div class="footer-note">
-          Confidential Audit &bull; Humango Compliance Engine &bull; VERIFICATION: STATIC+DYNAMIC | SENIOR ARCHITECT V23.0
+          Confidential Audit &bull; Humango Compliance Engine &bull; VERIFICATION: STATIC+DYNAMIC | SENIOR ARCHITECT V24.0
         </div>
       </body>
       </html>

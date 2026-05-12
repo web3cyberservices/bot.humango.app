@@ -4,9 +4,9 @@ import DOMPurify from 'isomorphic-dompurify';
 import { Violation, ScanType } from '@/types';
 
 /**
- * @fileOverview Automated Legal Fixer V23.0 - Data Integrity Layer.
+ * @fileOverview Automated Legal Fixer V24.0 - The Statutory Logic Bridge.
  * 
- * - TRUTH-MAPPING: Hard-coded logic to prevent "Missing vs Incomplete" contradictions.
+ * - TRUTH-MAPPING: Programmatically prevents "Missing vs Incomplete" contradictions.
  * - CONSOLIDATION: Merging findings by Law Name to eliminate report bloat.
  * - NULL-PURGE: Absolute protection against empty liability or impact fields.
  */
@@ -32,14 +32,14 @@ export async function testConnection() {
     await client.query('SELECT 1');
     return true;
   } catch (error: any) {
-    console.error('[Database V23.0 Handshake Failure]', error.message);
+    console.error('[Database V24.0 Handshake Failure]', error.message);
     throw error;
   } finally {
     if (client) client.release();
   }
 }
 
-function sanitize(text: string | null | undefined, fallback: string = 'Information verified via Senior Auditor V23.0 Diagnostic.'): string {
+function sanitize(text: string | null | undefined, fallback: string = 'Information verified via Senior Auditor V24.0 Diagnostic.'): string {
   if (text === null || text === undefined || text === 'null' || String(text).trim() === '') return fallback;
   return DOMPurify.sanitize(text);
 }
@@ -66,11 +66,11 @@ export async function saveAuditResults(domain: string, url: string, violations: 
   try {
     await client.query('BEGIN');
     
-    // V23.0: HARD CONSOLIDATION by Statutory Law to prevent duplicates
+    // V24.0: HARD CONSOLIDATION by Statutory Law to prevent duplicates
     const consolidated = new Map();
     violations.forEach(v => {
-      // RULE: V23.0 - Remove redundant "Transparency Framework" bloat
       const lowerType = v.issue_type.toLowerCase();
+      // Purge redundant summary blocks
       if (lowerType.includes('transparency framework') || lowerType.includes('analyzer summary')) return;
 
       const key = v.law_name || v.issue_type; 
@@ -93,8 +93,8 @@ export async function saveAuditResults(domain: string, url: string, violations: 
     `;
 
     for (const v of consolidated.values()) {
-      // RULE: V23.0 - HARD TRUTH MAPPING
-      // Programmatically prevent "Missing" status if the document was actually found.
+      // RULE: V24.0 - HARD LOGIC BRIDGE
+      // If a document was actually found, we FORBID the "Missing" status.
       let finalIssueType = v.issue_type;
       let finalDescription = v.description;
       
@@ -103,12 +103,12 @@ export async function saveAuditResults(domain: string, url: string, violations: 
 
       if (isMissingStatus && isLegalPath) {
         finalIssueType = "CRITICAL INCOMPLETENESS";
-        finalDescription = `The document was discovered at ${url} but is legally invalid due to being hidden from the site's footer navigation.`;
+        finalDescription = `The required document was successfully discovered at ${url}, but it is legally invalid because it is hidden from your website's footer navigation. Law requires clear, persistent access to these disclosures.`;
       }
 
-      // V23.0 Mandatory Liability & Impact Fallbacks
-      const standardLiability = "Fines up to €20,000,000 or 4% of annual global turnover (Art. 83 GDPR). High risk of immediate ad account termination.";
-      const standardImpact = "Business Risk: Immediate loss of marketing ROI as ad platforms (Google/Meta) require valid statutory compliance signals.";
+      // V24.0 Mandatory Liability & Impact Fallbacks
+      const standardLiability = "Fines up to €20,000,000 or 4% of annual global turnover (Art. 83 GDPR). High risk of immediate advertising account termination.";
+      const standardImpact = "Business Risk: Immediate loss of marketing ROI as Google, Meta, and LinkedIn require valid statutory compliance signals to run ads.";
       
       let liability = v.potential_fine;
       if (!liability || liability === 'null' || String(liability).toLowerCase() === 'null') {
@@ -126,7 +126,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
         sanitize(finalIssueType),
         v.severity,
         sanitize(v.evidence_html || url),
-        sanitize(v.evidence_quote, "Verified via Senior Auditor V23.0 Diagnostic."),
+        sanitize(v.evidence_quote, "Verified via Senior Auditor V24.0 Diagnostic."),
         v.confidence_score || 0.8,
         v.verification_status || 'verified',
         sanitize(finalDescription), 
@@ -144,7 +144,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
     return { success: true };
   } catch (error: any) {
     await client.query('ROLLBACK');
-    console.error('[DB V23.0 SAVE ERROR]', error.stack);
+    console.error('[DB V24.0 SAVE ERROR]', error.stack);
     return { success: false, error };
   } finally {
     client.release();

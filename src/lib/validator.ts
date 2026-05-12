@@ -6,11 +6,11 @@ import { z } from 'genkit';
 import { Violation } from '@/types';
 
 /**
- * @fileOverview Automated Legal Fixer V23.0 - "Copy-Paste" Logic Layer.
+ * @fileOverview Automated Legal Fixer V24.0 - Ready-to-Copy Protocol.
  * 
  * - RULE 1: NO ADVICE. NEVER use verbs like "Provide", "Specify", or "Update".
  * - RULE 2: READY-TO-USE. All remediation MUST start with "ACTION: INSERT THIS TEXT ->".
- * - RULE 3: TRUTH-FIRST. If you see a document, it is NOT missing. Report as Incomplete.
+ * - RULE 3: TRUTH-FIRST. If a document URL exists, Page 1 status is INCOMPLETE, not Missing.
  */
 
 const ValidationInputSchema = z.object({
@@ -40,18 +40,18 @@ const verifyIntegrityPrompt = ai.definePrompt({
   input: { schema: ValidationInputSchema },
   output: { schema: ValidationOutputSchema },
   config: { temperature: 0.1 }, 
-  prompt: `### ROLE: AUTOMATED LEGAL FIXER V23.0
+  prompt: `### ROLE: AUTOMATED LEGAL FIXER V24.0
 Target Domain: {{{domain}}}
 
 ### ABSOLUTE RULES:
-1. NO ADVICE: You are an automated system. NEVER give instructions. 
-2. REMEDIATION: You MUST provide the final legal text required. 
+1. NO ADVICE: You are a machine. DO NOT give instructions. 
+2. REMEDIATION: You MUST provide the final legal text needed. 
 3. FORMAT: All recommendations MUST start with "ACTION: INSERT THIS TEXT ->".
-4. TRUTH: If the HTML contains links to Privacy or Legal pages, you are FORBIDDEN from reporting them as "Missing". Use "INCOMPLETE CONTENT" instead.
+4. TRUTH-MAPPING: If the provided data shows a document exists at any URL, NEVER report it as "Missing". Use "INCOMPLETE CONTENT".
 
-### EXAMPLES:
-- BAD: "Specify retention periods."
-- GOOD: "ACTION: INSERT THIS TEXT -> 'Data Retention: {{{domain}}} stores your personal data for 24 months from the date of last interaction or until a deletion request is received as per Art. 17 GDPR.'"
+### EXAMPLE:
+- WRONG: "Provide retention periods."
+- CORRECT: "ACTION: INSERT THIS TEXT -> 'Data Retention: 我们会保留您的个人数据24个月，自您最后一次交互之日起计算，或直到您要求删除。'"
 
 CONTEXT:
 {{{html}}}
@@ -73,10 +73,10 @@ export async function verifyIntegrity(html: string, findings: Violation[]) {
       domain
     });
     
-    if (!output || !output.validated_findings) throw new Error('Validator V23.0 Integrity Failure');
+    if (!output || !output.validated_findings) throw new Error('Validator V24.0 Integrity Failure');
     return output;
   } catch (error: any) {
-    console.warn('[Validator V23.0] Rate limit or AI error encountered. Applying high-integrity expert defaults.');
+    console.warn('[Validator V24.0] AI fallback triggered.');
     return {
       validated_findings: findings.map(f => ({
         issue_type: f.issue_type,
@@ -87,7 +87,7 @@ export async function verifyIntegrity(html: string, findings: Violation[]) {
         recommendation: f.recommendation || `ACTION: INSERT THIS TEXT -> 'Data Controller: [Your Company Name], Address: [Your Physical Address], Email: legal@${findings[0]?.domain || 'domain'}'`,
         law_name: f.law_name || "GDPR Article 13",
         potential_fine: "Administrative fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR).",
-        evidence_quote: "Verified via Senior Auditor V23.0 Static Diagnostic."
+        evidence_quote: "Verified via Senior Auditor V24.0 Static Diagnostic."
       })),
       overall_confidence: 0.8,
       integrity_status: 'incomplete' as const
