@@ -1,3 +1,4 @@
+
 import { NextResponse, NextRequest } from 'next/server';
 import { pool } from '@/lib/db';
 import puppeteer from 'puppeteer';
@@ -36,8 +37,9 @@ export async function GET(request: NextRequest) {
         CASE 
           WHEN issue_type LIKE '%SYSTEMIC%' THEN 1 
           WHEN issue_type LIKE '%IDENTITY%' THEN 2 
-          WHEN issue_type LIKE '%PURPOSE%' THEN 3 
-          ELSE 4 
+          WHEN issue_type LIKE '%RETENTION%' THEN 3
+          WHEN issue_type LIKE '%PURPOSE%' THEN 4 
+          ELSE 5 
         END,
         severity DESC
     `, [domain]);
@@ -46,10 +48,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No audit data found for this domain.' }, { status: 404 });
     }
 
-    // AUDITOR V21.0 HARD MERGE: Consolidated by Issue Type (Article)
+    // CONSOLIDATION ENGINE: Group by Violation Logic (Statutory Article)
     const consolidated = new Map();
     res.rows.forEach(row => {
-      const key = row.issue_type; // Group by Article/Issue Type
+      const key = row.issue_type; 
       if (!consolidated.has(key)) {
         consolidated.set(key, { ...row, urls: new Set([row.page_url]) });
       } else {
@@ -58,10 +60,10 @@ export async function GET(request: NextRequest) {
     });
 
     const findings = Array.from(consolidated.values());
-    const systemicRisks = findings.filter(f => f.issue_type.includes('SYSTEMIC'));
+    const criticalRisks = findings.filter(f => f.severity === 'critical' || f.issue_type.includes('SYSTEMIC'));
     const identityRisks = findings.filter(f => f.issue_type.includes('IDENTITY') || f.category === 'IMPRESSUM');
-    const processingRisks = findings.filter(f => f.category === 'LEGAL_GROUNDS');
-    const otherRisks = findings.filter(f => !systemicRisks.includes(f) && !identityRisks.includes(f) && !processingRisks.includes(f));
+    const legalGrounds = findings.filter(f => f.category === 'LEGAL_GROUNDS' || f.issue_type.includes('RETENTION'));
+    const others = findings.filter(f => !criticalRisks.includes(f) && !identityRisks.includes(f) && !legalGrounds.includes(f));
 
     let logoBase64 = '';
     try {
@@ -78,50 +80,48 @@ export async function GET(request: NextRequest) {
         <meta charset="utf-8">
         <style>
           @page { margin: 0; }
-          body { font-family: 'Helvetica', 'Arial', sans-serif; color: #1e293b; padding: 45px; line-height: 1.5; background: #ffffff; font-size: 11px; }
-          .header { border-bottom: 3px solid #3b82f6; padding-bottom: 12px; margin-bottom: 35px; display: flex; justify-content: space-between; align-items: flex-end; }
-          .logo-text { font-size: 18px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
-          .section-title { font-size: 13px; font-weight: 800; text-transform: uppercase; color: #3b82f6; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin: 40px 0 20px 0; letter-spacing: 1px; }
-          .violation-card { border: 1px solid #e2e8f0; border-radius: 12px; margin-top: 15px; background: #ffffff; page-break-inside: avoid; overflow: hidden; }
-          .violation-head { background: #0f172a; color: #ffffff; padding: 10px 18px; font-weight: 800; font-size: 10px; display: flex; justify-content: space-between; }
-          .violation-body { padding: 18px; }
-          .label { font-size: 8px; font-weight: 800; color: #3b82f6; text-transform: uppercase; margin-top: 12px; display: block; margin-bottom: 3px; }
-          .risk-badge { font-size: 8px; font-weight: 800; padding: 2px 8px; border-radius: 99px; background: #fef2f2; color: #ef4444; border: 1px solid #fee2e2; }
-          .impact-box { background: #fff7ed; border-left: 3px solid #f97316; padding: 10px; color: #9a3412; font-weight: 600; font-size: 9px; margin: 10px 0; }
-          .blueprint { background: #f0f9ff; border: 1px solid #bae6fd; padding: 12px; border-radius: 6px; color: #0369a1; font-size: 9px; }
-          .url-list { font-size: 8px; color: #64748b; background: #f8fafc; padding: 8px; border-radius: 4px; font-family: monospace; border: 1px solid #e2e8f0; margin-top: 4px; list-style: none; padding-left: 15px; }
-          .url-list li { margin-bottom: 2px; }
-          .summary-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; margin-bottom: 25px; }
-          .footer-note { position: fixed; bottom: 30px; left: 0; right: 0; text-align: center; font-size: 8px; color: #94a3b8; }
-          .processing-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 9px; }
-          .processing-table th { background: #0f172a; color: white; text-align: left; padding: 8px; }
-          .processing-table td { border: 1px solid #e2e8f0; padding: 8px; }
-          .manifesto-box { border: 1px dashed #cbd5e1; padding: 15px; margin-top: 40px; background: #fdfdfd; border-radius: 8px; }
-          .manifesto-title { font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; display: block; }
-          .manifesto-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-          .manifesto-item { font-size: 8px; color: #334155; }
-          .manifesto-label { font-weight: 800; color: #94a3b8; text-transform: uppercase; font-size: 7px; margin-bottom: 2px; }
+          body { font-family: 'Helvetica', 'Arial', sans-serif; color: #1e293b; padding: 40px; line-height: 1.4; background: #ffffff; font-size: 10px; }
+          .header { border-bottom: 2px solid #3b82f6; padding-bottom: 10px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end; }
+          .logo-text { font-size: 16px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
+          .section-title { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #3b82f6; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; margin: 30px 0 15px 0; letter-spacing: 1px; }
+          .violation-card { border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 12px; background: #ffffff; page-break-inside: avoid; overflow: hidden; }
+          .violation-head { background: #0f172a; color: #ffffff; padding: 8px 15px; font-weight: 800; font-size: 9px; display: flex; justify-content: space-between; }
+          .violation-body { padding: 15px; }
+          .label { font-size: 7px; font-weight: 800; color: #3b82f6; text-transform: uppercase; margin-top: 10px; display: block; margin-bottom: 2px; }
+          .risk-badge { font-size: 7px; font-weight: 800; padding: 1px 6px; border-radius: 99px; background: #fef2f2; color: #ef4444; border: 1px solid #fee2e2; }
+          .impact-box { background: #fff7ed; border-left: 2px solid #f97316; padding: 8px; color: #9a3412; font-weight: 600; font-size: 8px; margin: 8px 0; }
+          .blueprint { background: #f0f9ff; border: 1px solid #bae6fd; padding: 10px; border-radius: 4px; color: #0369a1; font-size: 8px; white-space: pre-line; }
+          .url-list { font-size: 7px; color: #64748b; background: #f8fafc; padding: 6px; border-radius: 4px; font-family: monospace; border: 1px solid #e2e8f0; margin-top: 3px; list-style: none; padding-left: 12px; }
+          .summary-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+          .footer-note { position: fixed; bottom: 20px; left: 0; right: 0; text-align: center; font-size: 7px; color: #94a3b8; }
+          .explanation-text { color: #334155; font-size: 8px; margin-top: 4px; }
+          .term-box { background: #f1f5f9; padding: 8px; border-radius: 6px; margin: 10px 0; font-size: 8px; color: #475569; border: 1px solid #e2e8f0; }
         </style>
       </head>
       <body>
         <div class="header">
-          <div style="display:flex; align-items:center; gap:12px">
-            ${logoBase64 ? `<img src="${logoBase64}" style="width:30px; height:30px">` : ''}
+          <div style="display:flex; align-items:center; gap:10px">
+            ${logoBase64 ? `<img src="${logoBase64}" style="width:25px; height:25px">` : ''}
             <div class="logo-text">Humango Compliance Audit Engine</div>
           </div>
-          <div style="text-align:right; font-size:8px; color:#64748b; font-weight:600">
-            Node: ${domain} | GDPR V21.0
+          <div style="text-align:right; font-size:7px; color:#64748b; font-weight:600">
+            Node: ${domain} | Senior Auditor V21.0
           </div>
         </div>
 
         <div class="summary-card">
-          <h1 style="font-size:20px; color:#0f172a; margin:0 0 5px 0; font-weight:800">Executive Statutory Summary</h1>
-          <p style="color:#64748b; margin:0; font-size:10px">Consolidated legal diagnostic regarding transparency (Art. 12/13) and processing grounds (Art. 6).</p>
+          <h1 style="font-size:16px; color:#0f172a; margin:0 0 5px 0; font-weight:800">Executive Statutory Summary</h1>
+          <p style="color:#64748b; margin:0; font-size:9px">Consolidated legal diagnostic regarding statutory transparency and processing operations.</p>
+          <div class="term-box">
+            <strong>Verification Methods:</strong><br>
+            • <em>Static Analysis:</em> Rapid structural audit of source code and headers.<br>
+            • <em>Dynamic Emulation:</em> Deep rendering of JavaScript-heavy components and interaction simulation.
+          </div>
         </div>
 
-        ${systemicRisks.length > 0 ? `
+        ${criticalRisks.length > 0 ? `
           <div class="section-title">I. Mandatory Legal Infrastructure</div>
-          ${systemicRisks.map(renderViolation).join('')}
+          ${criticalRisks.map(renderViolation).join('')}
         ` : ''}
 
         ${identityRisks.length > 0 ? `
@@ -129,71 +129,18 @@ export async function GET(request: NextRequest) {
           ${identityRisks.map(renderViolation).join('')}
         ` : ''}
 
-        ${processingRisks.length > 0 ? `
-          <div class="section-title">III. Audit of Processing Operations (Art. 13-1-c/d)</div>
-          <div class="violation-card">
-            <div class="violation-head">PURPOSE-TO-BASIS CORRELATION AUDIT</div>
-            <div class="violation-body">
-              <table class="processing-table">
-                <thead>
-                  <tr>
-                    <th>Detected Activity</th>
-                    <th>Statutory Requirement (Art. 6)</th>
-                    <th>Diagnostic Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr><td>Usage Analysis / Analytics</td><td>Art. 6(1)(f) + Description</td><td>Deficient</td></tr>
-                  <tr><td>Fraud Prevention / Security</td><td>Art. 6(1)(f) + Description</td><td>Deficient</td></tr>
-                  <tr><td>Customer Support</td><td>Art. 6(1)(b) Contractual</td><td>Missing Correlation</td></tr>
-                </tbody>
-              </table>
-              ${processingRisks.map(renderViolation).join('')}
-            </div>
-          </div>
+        ${legalGrounds.length > 0 ? `
+          <div class="section-title">III. Data Processing & Legal Grounds</div>
+          ${legalGrounds.map(renderViolation).join('')}
         ` : ''}
 
-        ${otherRisks.length > 0 ? `
-          <div class="section-title">IV. Transparency Framework & Rights</div>
-          ${otherRisks.map(renderViolation).join('')}
+        ${others.length > 0 ? `
+          <div class="section-title">IV. Transparency Framework & User Rights</div>
+          ${others.map(renderViolation).join('')}
         ` : ''}
-
-        <div class="manifesto-box">
-          <span class="manifesto-title">Audit Network Verification Manifesto</span>
-          <div class="manifesto-grid">
-            <div>
-              <div class="manifesto-item">
-                <div class="manifesto-label">Audit Operator</div>
-                <strong>Humango Limited</strong>
-              </div>
-              <div class="manifesto-item" style="margin-top:8px">
-                <div class="manifesto-label">Registered Office</div>
-                182-184 High Street North, London, England, E6 2JA
-              </div>
-              <div class="manifesto-item" style="margin-top:8px">
-                <div class="manifesto-label">Corporate Identifier</div>
-                Company Registration No: 16750477 (UK)
-              </div>
-            </div>
-            <div>
-              <div class="manifesto-item">
-                <div class="manifesto-label">Verified User-Agent</div>
-                HumangoBot/1.0 (+https://bot.humango.app)
-              </div>
-              <div class="manifesto-item" style="margin-top:8px">
-                <div class="manifesto-label">Network Infrastructure</div>
-                IP: 116.203.3.75 | bot.humango.app
-              </div>
-              <div class="manifesto-item" style="margin-top:8px">
-                <div class="manifesto-label">Statutory DPO Contact</div>
-                abuse@humango.app
-              </div>
-            </div>
-          </div>
-        </div>
 
         <div class="footer-note">
-          Confidential Legal Audit &bull; Humango Compliance Audit Engine &bull; Senior Auditor V21.0
+          Confidential Legal Audit &bull; Humango Compliance Audit Engine &bull; Statutory V21.0
         </div>
       </body>
       </html>
@@ -208,25 +155,30 @@ export async function GET(request: NextRequest) {
             <span class="risk-badge">${v.severity.toUpperCase()} RISK</span>
           </div>
           <div class="violation-body">
-            <span class="label">STATUS / LEGAL BASIS</span>
-            <div style="font-weight:800; font-size:9px; color:#0f172a">${v.law_name}</div>
+            <span class="label">STATUTORY BASIS / LEGAL DEFINITION</span>
+            <div style="font-weight:800; font-size:8px; color:#0f172a">${v.law_name}</div>
+            <div class="explanation-text">${v.explanation}</div>
 
             <span class="label">DIAGNOSTIC DESCRIPTION</span>
-            <div style="color:#334155; font-size:9px;">${v.description}</div>
+            <div style="color:#334155; font-size:8px;">${v.description}</div>
 
             <span class="label">BUSINESS IMPACT</span>
-            <div class="impact-box">${v.business_impact || 'Lack of statutory compliance marks the entity as a high-priority target for regulatory scrutiny and bad-faith findings.'}</div>
+            <div class="impact-box">${v.business_impact}</div>
 
             <span class="label">ADMINISTRATIVE LIABILITY</span>
-            <div style="color:#ef4444; font-weight:700; font-size:9px;">Potential Administrative Liability: Up to €20,000,000 or 4% of annual global turnover (Art. 83 GDPR)</div>
+            <div style="color:#ef4444; font-weight:700; font-size:8px;">${v.fine_amount}</div>
 
             <span class="label">TARGETED RESOURCE(S)</span>
             <ul class="url-list">
               ${urls.map(u => `<li>&bull; ${u}</li>`).join('')}
             </ul>
 
-            <span class="label">REMEDIATION BLUEPRINT</span>
-            <div class="blueprint">${(v.recommendation || '').replace(/\n/g, '<br>')}</div>
+            <span class="label">STEP-BY-STEP CORRECTIVE ACTION</span>
+            <div class="blueprint">${v.recommendation}</div>
+            
+            <div style="margin-top:10px; font-size:6px; color:#94a3b8; text-transform:uppercase;">
+              Verification Method: ${v.verification_method} | Report: ${v.report_type}
+            </div>
           </div>
         </div>
       `;
@@ -257,7 +209,7 @@ export async function GET(request: NextRequest) {
     const pdfBuffer = await page.pdf({ 
       format: 'A4', 
       printBackground: true,
-      margin: { top: '15mm', bottom: '15mm', left: '15mm', right: '15mm' }
+      margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }
     });
 
     return new NextResponse(pdfBuffer, { 
