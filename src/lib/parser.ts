@@ -3,13 +3,13 @@ import * as cheerio from 'cheerio';
 import { Violation, ComplianceReport, VerificationMethod } from '@/types';
 
 /**
- * @fileOverview Automated Legal Fixer V23.0 - Statutory Diagnostic Engine.
+ * @fileOverview Automated Legal Fixer V25.0 - Statutory Diagnostic Engine.
  * 
  * - Rule: Human-Friendly definitions (DPO, Official Company Identity).
  * - Rule: Zero-Advice Fixes (Copy-paste ready HTML/Text snippets).
  */
 
-const LIABILITY_CRITICAL = "Fines up to €20,000,000 or 4% of annual global turnover (Art. 83 GDPR). High risk of immediate ad account suspension.";
+const LIABILITY_CRITICAL = "Fines up to €20,000,000 or 4% of annual global turnover (Art. 83 GDPR). High risk of immediate ad account suspension (Meta/Google).";
 const LIABILITY_HIGH = "Administrative penalties up to €20,000,000 (Art. 83 GDPR). High risk of competitor cease and desist (Abmahnung) notices.";
 
 interface JurisdictionProfile {
@@ -85,7 +85,7 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
       severity: 'critical',
       evidence_html: url,
       description: `The law requires you to display a Privacy Policy document clearly on your site. No such resource was detected.`,
-      business_impact: 'Business Risk: Immediate loss of marketing ROI as Google and Meta advertising platforms require valid compliance signals to run campaigns.',
+      business_impact: 'Business Risk: Immediate loss of marketing ROI as Meta and Google advertising platforms require valid compliance signals to run campaigns.',
       law_name: profile.law,
       potential_fine: LIABILITY_CRITICAL,
       explanation: 'You must inform users of site ownership and data usage before collection starts.',
@@ -102,11 +102,11 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
         severity: 'high',
         evidence_html: links.privacy,
         description: `Your policy fails to state exactly how long you store user data. This is a mandatory transparency requirement under Art. 13.`,
-        business_impact: 'Business Risk: Direct vulnerability to regulatory audits and Art. 17 data erasure lawsuits. High risk of ad account suspension.',
+        business_impact: 'Business Risk: Direct vulnerability to regulatory audits and Art. 17 data erasure lawsuits. High risk of immediate ad account suspension.',
         law_name: 'Art. 13(2)(a) GDPR',
         potential_fine: LIABILITY_HIGH,
         explanation: 'You must state how long you keep user data or the specific criteria used to decide that timeframe.',
-        recommendation: `ACTION: INSERT THIS TEXT -> 'Data Retention: We store user personal data for a period of 24 months from the date of your last interaction or until you request account deletion.'`,
+        recommendation: `ACTION: INSERT THIS TEXT -> 'Data Retention: ${domain} stores your personal data for a period of 24 months from the date of your last interaction or until you request account deletion.'`,
         verification_method
       });
     }

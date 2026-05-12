@@ -4,7 +4,7 @@ import DOMPurify from 'isomorphic-dompurify';
 import { Violation, ScanType } from '@/types';
 
 /**
- * @fileOverview Automated Legal Fixer V24.0 - The Statutory Logic Bridge.
+ * @fileOverview Automated Legal Fixer V25.0 - The Statutory Logic Bridge.
  * 
  * - TRUTH-MAPPING: Programmatically prevents "Missing vs Incomplete" contradictions.
  * - CONSOLIDATION: Merging findings by Law Name to eliminate report bloat.
@@ -32,14 +32,14 @@ export async function testConnection() {
     await client.query('SELECT 1');
     return true;
   } catch (error: any) {
-    console.error('[Database V24.0 Handshake Failure]', error.message);
+    console.error('[Database V25.0 Handshake Failure]', error.message);
     throw error;
   } finally {
     if (client) client.release();
   }
 }
 
-function sanitize(text: string | null | undefined, fallback: string = 'Information verified via Senior Auditor V24.0 Diagnostic.'): string {
+function sanitize(text: string | null | undefined, fallback: string = 'Information verified via Senior Auditor V25.0 Diagnostic.'): string {
   if (text === null || text === undefined || text === 'null' || String(text).trim() === '') return fallback;
   return DOMPurify.sanitize(text);
 }
@@ -66,12 +66,12 @@ export async function saveAuditResults(domain: string, url: string, violations: 
   try {
     await client.query('BEGIN');
     
-    // V24.0: HARD CONSOLIDATION by Statutory Law to prevent duplicates
+    // V25.0: HARD CONSOLIDATION by Statutory Law to prevent duplicates
     const consolidated = new Map();
     violations.forEach(v => {
       const lowerType = v.issue_type.toLowerCase();
-      // Purge redundant summary blocks
-      if (lowerType.includes('transparency framework') || lowerType.includes('analyzer summary')) return;
+      // Purge redundant summary blocks or meta-analysis
+      if (lowerType.includes('transparency framework') || lowerType.includes('analyzer summary') || lowerType.includes('discovery report')) return;
 
       const key = v.law_name || v.issue_type; 
       if (!consolidated.has(key)) {
@@ -93,22 +93,22 @@ export async function saveAuditResults(domain: string, url: string, violations: 
     `;
 
     for (const v of consolidated.values()) {
-      // RULE: V24.0 - HARD LOGIC BRIDGE
-      // If a document was actually found, we FORBID the "Missing" status.
+      // RULE: V25.0 - HARD LOGIC BRIDGE (TRUTH-MAPPING)
+      // If a document was actually found via any URL, we FORBID the "Missing" status.
       let finalIssueType = v.issue_type;
       let finalDescription = v.description;
       
-      const isLegalPath = url.includes('/privacy') || url.includes('/legal') || url.includes('/impressum') || url.includes('/cookies');
+      const isPrivacyDetected = violations.some(v => v.issue_type.toLowerCase().includes('privacy') && v.verification_status === 'verified');
       const isMissingStatus = finalIssueType.toLowerCase().includes('missing');
 
-      if (isMissingStatus && isLegalPath) {
+      if (isMissingStatus && isPrivacyDetected) {
         finalIssueType = "CRITICAL INCOMPLETENESS";
-        finalDescription = `The required document was successfully discovered at ${url}, but it is legally invalid because it is hidden from your website's footer navigation. Law requires clear, persistent access to these disclosures.`;
+        finalDescription = `The document was successfully discovered via direct scan, but it is legally invalid because it is hidden from your website footer. Statutory law requires clear, persistent access to these disclosures.`;
       }
 
-      // V24.0 Mandatory Liability & Impact Fallbacks
-      const standardLiability = "Fines up to €20,000,000 or 4% of annual global turnover (Art. 83 GDPR). High risk of immediate advertising account termination.";
-      const standardImpact = "Business Risk: Immediate loss of marketing ROI as Google, Meta, and LinkedIn require valid statutory compliance signals to run ads.";
+      // V25.0 Mandatory Liability & Impact Fallbacks
+      const standardLiability = "Fines up to €20,000,000 or 4% of annual global turnover (Art. 83 GDPR). High risk of immediate ad account suspension (Meta/Google).";
+      const standardImpact = "Business Risk: Immediate loss of marketing ROI as Meta, Google, and LinkedIn require valid statutory compliance signals to run active campaigns.";
       
       let liability = v.potential_fine;
       if (!liability || liability === 'null' || String(liability).toLowerCase() === 'null') {
@@ -118,6 +118,12 @@ export async function saveAuditResults(domain: string, url: string, violations: 
       let impact = sanitize(v.business_impact, standardImpact);
       if (impact === 'null' || impact.length < 5) impact = standardImpact;
 
+      // Fix remediation format to "ACTION: INSERT THIS TEXT ->"
+      let remediation = v.recommendation || '';
+      if (remediation && !remediation.startsWith('ACTION:')) {
+        remediation = `ACTION: INSERT THIS TEXT -> ${remediation}`;
+      }
+
       await client.query(query, [
         sanitize(domain),
         sanitize(normalizeUrl(url)),
@@ -126,13 +132,13 @@ export async function saveAuditResults(domain: string, url: string, violations: 
         sanitize(finalIssueType),
         v.severity,
         sanitize(v.evidence_html || url),
-        sanitize(v.evidence_quote, "Verified via Senior Auditor V24.0 Diagnostic."),
+        sanitize(v.evidence_quote, "Verified via Senior Auditor V25.0 Diagnostic."),
         v.confidence_score || 0.8,
         v.verification_status || 'verified',
         sanitize(finalDescription), 
         sanitize(v.explanation || finalDescription), 
         sanitize(v.law_name, "GDPR Article 13"),
-        sanitize(v.recommendation),
+        sanitize(remediation),
         scanType,
         v.report_type,
         sanitize(liability, standardLiability),
@@ -144,7 +150,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
     return { success: true };
   } catch (error: any) {
     await client.query('ROLLBACK');
-    console.error('[DB V24.0 SAVE ERROR]', error.stack);
+    console.error('[DB V25.0 SAVE ERROR]', error.stack);
     return { success: false, error };
   } finally {
     client.release();

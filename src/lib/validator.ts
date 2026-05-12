@@ -6,7 +6,7 @@ import { z } from 'genkit';
 import { Violation } from '@/types';
 
 /**
- * @fileOverview Automated Legal Fixer V24.0 - Ready-to-Copy Protocol.
+ * @fileOverview Automated Legal Fixer V25.0 - Ready-to-Copy Protocol.
  * 
  * - RULE 1: NO ADVICE. NEVER use verbs like "Provide", "Specify", or "Update".
  * - RULE 2: READY-TO-USE. All remediation MUST start with "ACTION: INSERT THIS TEXT ->".
@@ -40,7 +40,7 @@ const verifyIntegrityPrompt = ai.definePrompt({
   input: { schema: ValidationInputSchema },
   output: { schema: ValidationOutputSchema },
   config: { temperature: 0.1 }, 
-  prompt: `### ROLE: AUTOMATED LEGAL FIXER V24.0
+  prompt: `### ROLE: AUTOMATED LEGAL FIXER V25.0
 Target Domain: {{{domain}}}
 
 ### ABSOLUTE RULES:
@@ -51,7 +51,7 @@ Target Domain: {{{domain}}}
 
 ### EXAMPLE:
 - WRONG: "Provide retention periods."
-- CORRECT: "ACTION: INSERT THIS TEXT -> 'Data Retention: 我们会保留您的个人数据24个月，自您最后一次交互之日起计算，或直到您要求删除。'"
+- CORRECT: "ACTION: INSERT THIS TEXT -> 'Data Retention: We store your personal data for 24 months from the date of last interaction or until you request account deletion, in accordance with Art. 17 GDPR.'"
 
 CONTEXT:
 {{{html}}}
@@ -73,10 +73,10 @@ export async function verifyIntegrity(html: string, findings: Violation[]) {
       domain
     });
     
-    if (!output || !output.validated_findings) throw new Error('Validator V24.0 Integrity Failure');
+    if (!output || !output.validated_findings) throw new Error('Validator V25.0 Integrity Failure');
     return output;
   } catch (error: any) {
-    console.warn('[Validator V24.0] AI fallback triggered.');
+    console.warn('[Validator V25.0] AI fallback triggered.');
     return {
       validated_findings: findings.map(f => ({
         issue_type: f.issue_type,
@@ -87,7 +87,7 @@ export async function verifyIntegrity(html: string, findings: Violation[]) {
         recommendation: f.recommendation || `ACTION: INSERT THIS TEXT -> 'Data Controller: [Your Company Name], Address: [Your Physical Address], Email: legal@${findings[0]?.domain || 'domain'}'`,
         law_name: f.law_name || "GDPR Article 13",
         potential_fine: "Administrative fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR).",
-        evidence_quote: "Verified via Senior Auditor V24.0 Static Diagnostic."
+        evidence_quote: "Verified via Senior Auditor V25.0 Static Diagnostic."
       })),
       overall_confidence: 0.8,
       integrity_status: 'incomplete' as const
