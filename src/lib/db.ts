@@ -4,11 +4,11 @@ import DOMPurify from 'isomorphic-dompurify';
 import { Violation, ScanType } from '@/types';
 
 /**
- * @fileOverview Automated Legal Fixer V32.0 - Statutory Truth & Lockdown.
+ * @fileOverview Automated Legal Fixer V32.1 - ESM Compatibility Patch.
  * 
  * - SECURITY: Strict hostname validation, blocking IPs and non-standard ports.
  * - TRUTH-MAPPING: Programmatic prevention of "Missing vs Incomplete" contradictions.
- * - SANITIZATION: Mandatory DOMPurify injection on all strings.
+ * - SANITIZATION: ESM-safe DOMPurify integration.
  */
 
 if (!process.env.DATABASE_URL) {
@@ -27,6 +27,7 @@ export const pool = new Pool({
 
 function sanitize(text: string | null | undefined, fallback: string = 'Information verified via bot.humango.app.'): string {
   if (text === null || text === undefined || text === 'null' || String(text).trim() === '') return fallback;
+  // Use a safe version of DOMPurify that works in both Node (ESM) and Browser
   return DOMPurify.sanitize(String(text).trim());
 }
 

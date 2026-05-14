@@ -7,7 +7,14 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   experimental: {
-    serverComponentsExternalPackages: ['pg', 'puppeteer', 'isomorphic-dompurify', 'jsdom'],
+    serverComponentsExternalPackages: [
+      'pg', 
+      'puppeteer', 
+      'isomorphic-dompurify', 
+      'jsdom',
+      'html-encoding-sniffer',
+      'whatwg-url'
+    ],
   },
   images: {
     remotePatterns: [
