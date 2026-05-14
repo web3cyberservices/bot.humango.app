@@ -7,7 +7,7 @@ import { saveBotEvent } from '@/lib/db';
 import { z } from 'zod';
 
 const StartScanSchema = z.object({
-  url: z.string().url().regex(/^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+$/),
+  url: z.string().url(),
   email: z.string().email().optional()
 });
 
@@ -20,6 +20,17 @@ export async function startCrawlAction(rawUrl: string, rawEmail?: string) {
   }
 
   const { url, email } = validation.data;
+  
+  // Additional security check for protocol and domain
+  try {
+    const parsedUrl = new URL(url);
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      return { status: 'failed', reason: 'Forbidden protocol.' };
+    }
+  } catch (e) {
+    return { status: 'failed', reason: 'Malformed URL.' };
+  }
+
   const result = await runCrawlTask(url);
   
   revalidatePath('/admin');
