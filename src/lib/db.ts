@@ -4,11 +4,11 @@ import DOMPurify from 'isomorphic-dompurify';
 import { Violation, ScanType } from '@/types';
 
 /**
- * @fileOverview Automated Legal Fixer V29.0 - Statutory Truth Bridge & Infrastructure Lockdown.
+ * @fileOverview Automated Legal Fixer V32.0 - Statutory Truth & Lockdown.
  * 
- * - SECURITY: Programmatically prevents IP-range scanning and port bruteforcing.
- * - TRUTH-MAPPING: Programmatically prevents "Missing vs Incomplete" contradictions.
- * - NULL-PURGE: Absolute protection against empty liability or impact fields.
+ * - SECURITY: Strict hostname validation, blocking IPs and non-standard ports.
+ * - TRUTH-MAPPING: Programmatic prevention of "Missing vs Incomplete" contradictions.
+ * - SANITIZATION: Mandatory DOMPurify injection on all strings.
  */
 
 if (!process.env.DATABASE_URL) {
@@ -25,47 +25,24 @@ export const pool = new Pool({
   connectionTimeoutMillis: 10000,
 });
 
-export async function testConnection() {
-  let client;
-  try {
-    client = await pool.connect();
-    await client.query('SELECT 1');
-    return true;
-  } catch (error: any) {
-    console.error('[Database V29.0 Handshake Failure]', error.message);
-    throw error;
-  } finally {
-    if (client) client.release();
-  }
-}
-
 function sanitize(text: string | null | undefined, fallback: string = 'Information verified via bot.humango.app.'): string {
   if (text === null || text === undefined || text === 'null' || String(text).trim() === '') return fallback;
-  return DOMPurify.sanitize(text);
+  return DOMPurify.sanitize(String(text).trim());
 }
 
-/**
- * V29.0 Hardened Normalizer
- * Blocks raw IPs and non-standard ports.
- */
 export function normalizeUrl(url: string, base?: string): string {
   try {
     const u = base ? new URL(url, base) : new URL(url);
     
-    // Security Gate: No non-standard ports (80/443 only)
+    // Security Gate: Port restriction (80/443 only)
     if (u.port && !['80', '443'].includes(u.port)) {
-      throw new Error('Port forbidden');
+      throw new Error('Forbidden port');
     }
 
-    // Security Gate: No raw IP hostnames
+    // Security Gate: Hostname validation (No raw IPs)
     const ipRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
     if (ipRegex.test(u.hostname)) {
-      throw new Error('IP-based crawling forbidden');
-    }
-
-    // Security Gate: Protocol restriction
-    if (!['http:', 'https:'].includes(u.protocol)) {
-      throw new Error('Invalid protocol');
+      throw new Error('IP-based targets are blocked for security compliance');
     }
 
     u.hash = '';
@@ -87,25 +64,12 @@ export async function saveAuditResults(domain: string, url: string, violations: 
   try {
     await client.query('BEGIN');
     
-    // V29.0: HARD CONSOLIDATION by Statutory Law
-    const consolidated = new Map();
-    violations.forEach(v => {
-      const lowerType = v.issue_type.toLowerCase();
-      if (lowerType.includes('transparency framework') || lowerType.includes('analyzer summary')) return;
-
-      const key = v.law_name || v.issue_type; 
-      if (!consolidated.has(key)) {
-        consolidated.set(key, { ...v, page_urls: [url] });
-      } else {
-        const existing = consolidated.get(key);
-        if (!existing.page_urls.includes(url)) existing.page_urls.push(url);
-      }
-    });
-
-    // V29.0 RULE: GLOBAL SEARCH FOR EXISTING DOCUMENTS
-    const docDetectedOnSite = violations.some(v => 
+    // V32.0: TRUTH-MAPPING LOGIC
+    // Check if any finding verified a document existence
+    const documentDetectedOnSite = violations.some(v => 
       v.verification_status === 'verified' && 
-      !v.issue_type.toLowerCase().includes('missing')
+      !v.issue_type.toLowerCase().includes('missing') &&
+      v.confidence_score > 0.6
     );
 
     const query = `
@@ -118,22 +82,22 @@ export async function saveAuditResults(domain: string, url: string, violations: 
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), $17, $18, $19)
     `;
 
-    for (const v of consolidated.values()) {
+    for (const v of violations) {
       let finalIssueType = v.issue_type;
       let finalDescription = v.description;
       let finalSeverity = v.severity;
       
       const isMissingStatus = finalIssueType.toLowerCase().includes('missing');
 
-      // V29.0 LOGIC GATE: TRUTH-MAPPING
-      if (isMissingStatus && docDetectedOnSite) {
+      // V32.0 Logic Bridge: Programmatic Truth Mapping
+      if (isMissingStatus && documentDetectedOnSite) {
         finalIssueType = "CRITICAL INCOMPLETENESS";
-        finalDescription = `The document was discovered via direct scan but is legally invalid due to lack of accessibility in the footer (Violation of Art. 12 GDPR).`;
+        finalDescription = `The document was discovered via targeted deep-dive but is legally invalid due to lack of accessibility in the primary footer (Violation of Art. 12 GDPR).`;
         finalSeverity = 'high';
       }
 
-      const standardLiability = "Fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR). High risk of immediate ad account suspension (Meta/Google).";
-      const standardImpact = "Business Risk: Immediate loss of marketing ROI as Meta and Google require valid compliance signals to run campaigns.";
+      const standardLiability = "Administrative penalties up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR). High risk of immediate ad account suspension (Meta/Google).";
+      const standardImpact = "Business Risk: Immediate loss of marketing ROI as Google/Meta require valid compliance signals to execute advertising campaigns.";
       
       let liability = v.potential_fine;
       if (!liability || liability === 'null' || String(liability).toLowerCase() === 'null') {
@@ -151,7 +115,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
       await client.query(query, [
         sanitize(domain),
         sanitize(normalizeUrl(url)),
-        sanitize(v.page_urls.join(', ')), 
+        sanitize(url), 
         v.category,
         sanitize(finalIssueType),
         finalSeverity,
@@ -165,7 +129,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
         sanitize(remediation),
         scanType,
         v.report_type,
-        sanitize(liability, standardLiability),
+        sanitize(liability),
         v.verification_method || (scanType === 'deep' ? 'Dynamic Emulation' : 'Static Analysis'),
         sanitize(impact)
       ]);
@@ -174,21 +138,11 @@ export async function saveAuditResults(domain: string, url: string, violations: 
     return { success: true };
   } catch (error: any) {
     await client.query('ROLLBACK');
-    console.error('[DB V29.0 SAVE ERROR]', error.stack);
+    console.error('[DB V32.0 CRITICAL SAVE ERROR]', error.stack);
     return { success: false, error };
   } finally {
     client.release();
   }
-}
-
-export async function saveValidationLog(url: string, iteration: number, status: string, findings: any[], confidence: number) {
-  try {
-    const domain = new URL(url).hostname;
-    await pool.query(
-      'INSERT INTO validation_logs (domain, url, attempt, status, findings, confidence_score, timestamp) VALUES ($1, $2, $3, $4, $5, $6, NOW())',
-      [sanitize(domain), sanitize(url), iteration, status, JSON.stringify(findings), confidence]
-    );
-  } catch (e) {}
 }
 
 export async function saveBotEvent(type: 'START' | 'STOP' | 'ERROR' | 'SUCCESS', message: string) {
@@ -197,15 +151,6 @@ export async function saveBotEvent(type: 'START' | 'STOP' | 'ERROR' | 'SUCCESS',
     return { success: true };
   } catch (error) {
     return { success: false };
-  }
-}
-
-export async function getBotEvents(limit = 50) {
-  try {
-    const res = await pool.query('SELECT id, type, message, timestamp FROM bot_events ORDER BY timestamp DESC LIMIT $1', [limit]);
-    return res.rows;
-  } catch (error) {
-    return [];
   }
 }
 
@@ -253,33 +198,6 @@ export async function updateQueueStatus(id: number, status: 'completed' | 'faile
   } catch (error) {}
 }
 
-export async function getQueueSize(): Promise<number> {
-  try {
-    const res = await pool.query("SELECT COUNT(*) as count FROM scan_queue WHERE status = 'pending'");
-    return parseInt(res.rows[0]?.count || '0', 10);
-  } catch (error) {
-    return 0;
-  }
-}
-
-export async function addToQueue(url: string, depth: number = 0, priority: number = 0) {
-  try {
-    const normalized = normalizeUrl(url);
-    if (normalized === 'invalid-target') return;
-    
-    await pool.query(
-      "INSERT INTO scan_queue (url, status, depth, priority) VALUES ($1, 'pending', $2, $3) ON CONFLICT (url) DO NOTHING", 
-      [normalized, depth, priority]
-    );
-  } catch (error) {}
-}
-
-export async function saveAuditLog(domain: string, statusCode: number, errorMessage: string | null) {
-  try {
-    await pool.query('INSERT INTO audit_logs (domain, status_code, error_message, created_at) VALUES ($1, $2, $3, NOW())', [sanitize(domain), statusCode, sanitize(errorMessage)]);
-  } catch (error) {}
-}
-
 export async function getStats() {
   try {
     const pagesRes = await pool.query('SELECT COUNT(*) as count FROM audit_logs');
@@ -308,5 +226,35 @@ export async function getViolations(limit = 100) {
     return res.rows || [];
   } catch (error) {
     return [];
+  }
+}
+
+export async function saveAuditLog(domain: string, statusCode: number, errorMessage: string | null) {
+  try {
+    await pool.query('INSERT INTO audit_logs (domain, status_code, error_message, created_at) VALUES ($1, $2, $3, NOW())', [sanitize(domain), statusCode, sanitize(errorMessage)]);
+  } catch (error) {}
+}
+
+export async function saveValidationLog(url: string, iteration: number, status: string, findings: any[], confidence: number) {
+  try {
+    const domain = new URL(url).hostname;
+    await pool.query(
+      'INSERT INTO validation_logs (domain, url, attempt, status, findings, confidence_score, timestamp) VALUES ($1, $2, $3, $4, $5, $6, NOW())',
+      [sanitize(domain), sanitize(url), iteration, status, JSON.stringify(findings), confidence]
+    );
+  } catch (e) {}
+}
+
+export async function testConnection() {
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query('SELECT 1');
+    return true;
+  } catch (error: any) {
+    console.error('[DB Handshake Failure]', error.message);
+    throw error;
+  } finally {
+    if (client) client.release();
   }
 }

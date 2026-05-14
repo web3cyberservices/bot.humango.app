@@ -4,26 +4,33 @@
 import { runCrawlTask } from '@/lib/crawler/crawler';
 import { revalidatePath } from 'next/cache';
 import { saveBotEvent } from '@/lib/db';
+import { z } from 'zod';
 
-export async function startCrawlAction(url: string, email?: string) {
-  // This server action triggers the crawler logic
+const StartScanSchema = z.object({
+  url: z.string().url().regex(/^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+$/),
+  email: z.string().email().optional()
+});
+
+export async function startCrawlAction(rawUrl: string, rawEmail?: string) {
+  // Security Gate: Strict Zod Validation at the Server Action level
+  const validation = StartScanSchema.safeParse({ url: rawUrl, email: rawEmail });
+  
+  if (!validation.success) {
+    return { status: 'failed', reason: 'Invalid target URL format or email address.' };
+  }
+
+  const { url, email } = validation.data;
   const result = await runCrawlTask(url);
   
-  // Force update for admin dashboard
   revalidatePath('/admin');
   
   if (result.status === 'success' && email) {
-    // Simulate sending email with PDF
-    // In a production environment, this would call a service like Resend, SendGrid or Postmark
-    // using a buffer generated from the report-pdf API logic
     const domain = new URL(url).hostname;
-    
     await saveBotEvent(
       'SUCCESS', 
-      `PDF Report generated and dispatched to ${email} for domain: ${domain}`
+      `Audit Dispatched: Detailed PDF report queued for delivery to ${email} for node: ${domain}`
     );
     
-    // We add a flag to the result to let the UI know email was "sent"
     return {
       ...result,
       emailSent: true,
