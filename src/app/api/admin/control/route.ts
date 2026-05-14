@@ -4,7 +4,6 @@ import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
 
-// Strict validation for input payload
 const ControlSchema = z.object({
   isActive: z.boolean(),
 });

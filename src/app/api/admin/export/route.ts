@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
 
@@ -6,7 +5,6 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    // Select essential columns for the audit report
     const res = await pool.query(`
       SELECT 
         domain,
@@ -21,7 +19,6 @@ export async function GET() {
       ORDER BY created_at DESC
     `);
     
-    // CSV Headers
     const headers = [
       "Domain",
       "Violation Link", 
@@ -33,7 +30,6 @@ export async function GET() {
       "Description"
     ];
 
-    // Build rows with proper quoting for CSV format
     const rows = res.rows.map(r => {
       const date = new Date(r.created_at).toLocaleDateString();
       return [
@@ -48,7 +44,6 @@ export async function GET() {
       ];
     });
 
-    // Assemble CSV content
     const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
     
     return new NextResponse(csvContent, {

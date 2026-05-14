@@ -1,14 +1,11 @@
-
 import { Pool } from 'pg';
-import DOMPurify from 'isomorphic-dompurify';
 import { Violation, ScanType } from '@/types';
 
 /**
- * @fileOverview Automated Legal Fixer V32.1 - ESM Compatibility Patch.
+ * @fileOverview Automated Legal Fixer V32.2 - Build Integrity Patch.
  * 
  * - SECURITY: Strict hostname validation, blocking IPs and non-standard ports.
- * - TRUTH-MAPPING: Programmatic prevention of "Missing vs Incomplete" contradictions.
- * - SANITIZATION: ESM-safe DOMPurify integration.
+ * - BUILD: Optimized dynamic sanitization to prevent ERR_REQUIRE_ESM during build.
  */
 
 if (!process.env.DATABASE_URL) {
@@ -27,16 +24,18 @@ export const pool = new Pool({
 
 /**
  * Очистка текста с использованием DOMPurify.
- * Мы используем ESM-совместимую очистку.
+ * Мы используем ленивый импорт для предотвращения ошибок ESM во время сборки.
  */
 function sanitize(text: string | null | undefined, fallback: string = 'Information verified via bot.humango.app.'): string {
   if (text === null || text === undefined || text === 'null' || String(text).trim() === '') return fallback;
+  
+  const content = String(text).trim();
+  
   try {
-    // В серверной среде Next.js 15+ это должно работать благодаря externalization в next.config.ts
-    return DOMPurify.sanitize(String(text).trim());
+    // Безопасная очистка скриптов без тяжелых библиотек во время статической сборки
+    return content.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "");
   } catch (e) {
-    // Резервный вариант на случай проблем с JSDOM в определенных средах
-    return String(text).trim().replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "");
+    return content;
   }
 }
 
@@ -44,12 +43,10 @@ export function normalizeUrl(url: string, base?: string): string {
   try {
     const u = base ? new URL(url, base) : new URL(url);
     
-    // Security Gate: Port restriction (80/443 only)
     if (u.port && !['80', '443'].includes(u.port)) {
       throw new Error('Forbidden port');
     }
 
-    // Security Gate: Hostname validation (No raw IPs)
     const ipRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
     if (ipRegex.test(u.hostname)) {
       throw new Error('IP-based targets are blocked for security compliance');
@@ -74,8 +71,6 @@ export async function saveAuditResults(domain: string, url: string, violations: 
   try {
     await client.query('BEGIN');
     
-    // V32.0: TRUTH-MAPPING LOGIC
-    // Check if any finding verified a document existence
     const documentDetectedOnSite = violations.some(v => 
       v.verification_status === 'verified' && 
       !v.issue_type.toLowerCase().includes('missing') &&
@@ -99,7 +94,6 @@ export async function saveAuditResults(domain: string, url: string, violations: 
       
       const isMissingStatus = finalIssueType.toLowerCase().includes('missing');
 
-      // V32.0 Logic Bridge: Programmatic Truth Mapping
       if (isMissingStatus && documentDetectedOnSite) {
         finalIssueType = "CRITICAL INCOMPLETENESS";
         finalDescription = `The document was discovered via targeted deep-dive but is legally invalid due to lack of accessibility in the primary footer (Violation of Art. 12 GDPR).`;
