@@ -6,9 +6,9 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 /**
- * @fileOverview HUMANGO GERMAN TARGET EXTRACTOR V3.5
+ * @fileOverview HUMANGO GERMAN TARGET EXTRACTOR V3.6
  * Специализированный экстрактор для немецкого сегмента (GelbeSeiten).
- * Использует Puppeteer для обхода динамической верстки и извлечения прямых ссылок.
+ * Использует высокоточные селекторы для извлечения только корпоративных сайтов.
  */
 
 const pool = new Pool({
@@ -18,13 +18,13 @@ const pool = new Pool({
 
 async function runAutonomousExtractor() {
   console.log('==================================================');
-  console.log('   HUMANGO GERMAN TARGET EXTRACTOR V3.5           ');
-  console.log('   Target: GelbeSeiten Optimized Deep Scan        ');
+  console.log('   HUMANGO GERMAN TARGET EXTRACTOR V3.6           ');
+  console.log('   Target: GelbeSeiten Targeted Business Class    ');
   console.log('==================================================');
 
   const dbClient = await pool.connect();
   
-  // Запуск браузера (используем уже установленный puppeteer)
+  // Запуск браузера через Puppeteer (уже в проекте)
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
@@ -47,22 +47,40 @@ async function runAutonomousExtractor() {
         // Небольшая задержка для подгрузки элементов
         await new Promise(r => setTimeout(r, 3000));
 
-        // Извлекаем ссылки на сайты компаний
+        // Ювелирный сбор ссылок через оценку контекста кнопок
         const companySites = await page.evaluate(() => {
-          const links = Array.from(document.querySelectorAll('a[href*="http"]')) as HTMLAnchorElement[];
-          return links
-            .map(a => a.href)
-            .filter(href => {
+          const elements = Array.from(document.querySelectorAll('a[href*="http"]'));
+          
+          return elements
+            .map(el => {
+              const anchor = el as HTMLAnchorElement;
+              const href = anchor.href;
+              const text = anchor.textContent?.toLowerCase() || '';
+              const html = anchor.innerHTML.toLowerCase();
+              
+              // Нацеливаемся строго на маркеры официальных сайтов
+              const isOfficialLink = 
+                text.includes('webseite') || 
+                text.includes('homepage') || 
+                html.includes('it-icon-homepage') || 
+                html.includes('gs_btn');
+                
+              if (isOfficialLink) {
+                return href;
+              }
+              return null;
+            })
+            .filter((href): href is string => {
               if (!href) return false;
               try {
                 const url = new URL(href);
                 const domain = url.hostname.toLowerCase();
                 
-                // Черный список: исключаем сам каталог, соцсети и тех-гигантов
+                // Черный список: исключаем соцсети, сам каталог и рекламные сети
                 const forbidden = [
                   'gelbeseiten', 'google', 'facebook', 'instagram', 'twitter', 
-                  'linkedin', 'youtube', 'timmone', 'link.', 'apple', 'microsoft',
-                  'bing', 'mapquest', 'yelp', 'telekom', 'ebay'
+                  'linkedin', 'youtube', 'tiktok', 'pinterest', 'apple', 
+                  'microsoft', 'bing', 'timmone', 'link.', 'yelp', 'ebay'
                 ];
                 
                 return !forbidden.some(d => domain.includes(d)) && domain.includes('.');
@@ -73,7 +91,7 @@ async function runAutonomousExtractor() {
         });
 
         const uniquePageSites = [...new Set(companySites)];
-        console.log(`  -> Обнаружено потенциальных кандидатов: ${uniquePageSites.length}`);
+        console.log(`  -> Найдено потенциальных бизнес-сайтов: ${uniquePageSites.length}`);
 
         let addedCount = 0;
         for (const siteUrl of uniquePageSites) {
@@ -90,7 +108,7 @@ async function runAutonomousExtractor() {
             );
             
             if (res.rowCount && res.rowCount > 0) {
-              console.log(`     [+] В очередь добавлен новый хост: ${cleanUrl}`);
+              console.log(`     [+] Добавлен новый хост: ${cleanUrl}`);
               addedCount++;
             }
           } catch (e) {}
