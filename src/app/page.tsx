@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { startCrawlAction } from '@/app/actions/crawler-actions';
+import { startCrawlAction, checkAuditStatus } from '@/app/actions/crawler-actions';
 import { 
   Mail, 
   Globe, 
@@ -19,72 +19,75 @@ import {
   FileText, 
   Lock, 
   Activity, 
-  ShoppingCart, 
-  ArrowRight, 
   Zap,
   Loader2,
-  AlertTriangle,
+  ShieldAlert,
   Download,
   CheckCircle2,
-  Info,
-  ShieldAlert,
-  FileSearch,
-  Check,
-  MapPin,
   Cpu,
-  Fingerprint
+  Fingerprint,
+  ArrowRight
 } from "lucide-react";
 
 export default function Home() {
   const [url, setUrl] = useState('');
   const [email, setEmail] = useState('');
   const [isScanning, setIsScanning] = useState(false);
-  const [scanResult, setScanResult] = useState<any>(null);
+  const [scanStatus, setScanStatus] = useState<'idle' | 'queued' | 'processing' | 'completed' | 'failed'>('idle');
+  const [targetDomain, setTargetDomain] = useState('');
   const { toast } = useToast();
 
   const handleScan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!url || !email) {
-      toast({
-        variant: "destructive",
-        title: "Missing Information",
-        description: "Please provide both a valid URL and your email address.",
-      });
+      toast({ variant: "destructive", title: "Missing Information", description: "Please provide both a valid URL and your email address." });
       return;
     }
 
     setIsScanning(true);
-    setScanResult(null);
+    setScanStatus('queued');
+    const domain = new URL(url.startsWith('http') ? url : `https://${url}`).hostname;
+    setTargetDomain(domain);
 
     try {
       const result = await startCrawlAction(url, email);
-      setScanResult(result);
-      
       if (result.status === 'success') {
-        toast({
-          title: "Audit Completed",
-          description: `Consolidated compliance report has been sent to ${email}.`,
-        });
+        toast({ title: "Audit Queued", description: "Your request is now in the priority audit queue." });
       } else {
-        toast({
-          variant: "destructive",
-          title: "Audit Failed",
-          description: result.reason || "Could not complete the statutory scan.",
-        });
+        toast({ variant: "destructive", title: "Audit Failed", description: result.reason || "Could not queue the scan." });
+        setIsScanning(false);
+        setScanStatus('failed');
       }
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "An unexpected error occurred during the audit.",
-      });
-    } finally {
+      toast({ variant: "destructive", title: "Error", description: "An unexpected error occurred." });
       setIsScanning(false);
+      setScanStatus('failed');
     }
   };
 
-  const domain = scanResult?.url ? new URL(scanResult.url).hostname : '';
-  const report = scanResult?.compliance_report;
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isScanning && (scanStatus === 'queued' || scanStatus === 'processing')) {
+      interval = setInterval(async () => {
+        const res = await checkAuditStatus(targetDomain);
+        if (res.success) {
+          if (res.status === 'completed') {
+            setScanStatus('completed');
+            setIsScanning(false);
+            clearInterval(interval);
+            toast({ title: "Audit Finished!", description: "The PDF report has been sent to your email and is ready for download." });
+          } else if (res.status === 'failed') {
+            setScanStatus('failed');
+            setIsScanning(false);
+            clearInterval(interval);
+          } else {
+            setScanStatus(res.status as any);
+          }
+        }
+      }, 4000);
+    }
+    return () => clearInterval(interval);
+  }, [isScanning, scanStatus, targetDomain, toast]);
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-50 font-body overflow-x-hidden flex flex-col">
@@ -96,23 +99,11 @@ export default function Home() {
       <header className="border-b border-white/5 bg-[#020617]/50 backdrop-blur-xl shrink-0 sticky top-0 z-50">
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3 group cursor-default">
-            <Image 
-              src="/logo.png" 
-              alt="Humango Logo" 
-              width={40}
-              height={40}
-              className="object-contain"
-              priority
-            />
-            <span className="font-bold text-xl tracking-tight text-white">
-              Humango Compliance
-            </span>
+            <Image src="/logo.png" alt="Humango Logo" width={40} height={40} className="object-contain" priority />
+            <span className="font-bold text-xl tracking-tight text-white">Humango Compliance</span>
           </div>
           <nav className="flex items-center gap-6">
-            <Link 
-              href="/admin" 
-              className="hidden md:flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-primary transition-colors"
-            >
+            <Link href="/admin" className="hidden md:flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-primary transition-colors">
               <Terminal className="w-3 h-3" /> Audit Terminal
             </Link>
             <Badge variant="outline" className="hidden sm:flex border-primary/20 bg-primary/5 text-primary text-[10px] font-bold tracking-[0.2em] px-3 py-1 rounded-full uppercase">
@@ -133,7 +124,8 @@ export default function Home() {
                 Statutory Privacy & <br />Security Monitoring
               </h1>
               <p className="text-lg text-slate-400 max-w-xl leading-relaxed">
-                Identify systemic compliance failures and <span className="text-white font-medium">GDPR liability</span> across digital assets. Legal diagnostic regarding multi-jurisdictional mandates.
+                Identify systemic compliance failures and <span className="text-white font-medium">GDPR liability</span>. 
+                Our bot will scan your site, analyze it with AI, and deliver a legal PDF to your inbox.
               </p>
             </div>
 
@@ -143,38 +135,18 @@ export default function Home() {
                   <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   <div className="relative flex flex-col md:flex-row gap-3 bg-white/[0.03] border border-white/10 p-3 rounded-2xl backdrop-blur-xl focus-within:border-primary/50 transition-all">
                     <div className="flex-1 flex flex-col bg-white/5 rounded-xl border border-white/5">
-                      <div className="flex items-center w-full">
-                        <div className="pl-4 pr-2"><Globe className="w-4 h-4 text-slate-500" /></div>
-                        <Input 
-                          id="target-url"
-                          type="url" 
-                          placeholder="https://target-domain.com" 
-                          value={url}
-                          onChange={(e) => setUrl(e.target.value)}
-                          className="bg-transparent border-none focus-visible:ring-0 text-white placeholder:text-slate-600 h-11 text-sm"
-                          required
-                        />
+                      <div className="flex items-center w-full px-4">
+                        <Globe className="w-4 h-4 text-slate-500" />
+                        <Input type="url" placeholder="target-domain.com" value={url} onChange={(e) => setUrl(e.target.value)} className="bg-transparent border-none focus-visible:ring-0 text-white h-11 text-sm" required />
                       </div>
                     </div>
                     <div className="flex-1 flex flex-col bg-white/5 rounded-xl border border-white/5">
-                      <div className="flex items-center w-full">
-                        <div className="pl-4 pr-2"><Mail className="w-4 h-4 text-slate-500" /></div>
-                        <Input 
-                          id="recipient-email"
-                          type="email" 
-                          placeholder="auditor@email.com" 
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="bg-transparent border-none focus-visible:ring-0 text-white placeholder:text-slate-600 h-11 text-sm"
-                          required
-                        />
+                      <div className="flex items-center w-full px-4">
+                        <Mail className="w-4 h-4 text-slate-500" />
+                        <Input type="email" placeholder="auditor@email.com" value={email} onChange={(e) => setEmail(e.target.value)} className="bg-transparent border-none focus-visible:ring-0 text-white h-11 text-sm" required />
                       </div>
                     </div>
-                    <Button 
-                      type="submit" 
-                      disabled={isScanning}
-                      className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-6 rounded-xl shrink-0 gap-2"
-                    >
+                    <Button type="submit" disabled={isScanning} className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-6 rounded-xl shrink-0 gap-2">
                       {isScanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
                       {isScanning ? 'Auditing...' : 'Run Audit'}
                     </Button>
@@ -182,68 +154,48 @@ export default function Home() {
                 </div>
               </form>
               <p className="mt-4 text-[10px] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2">
-                <ShieldCheck className="w-3 h-3 text-primary" /> Reports cite Art. 83 statutory liability estimates
+                <ShieldCheck className="w-3 h-3 text-primary" /> Reports include statutory liability estimates and AI-generated fixes.
               </p>
             </div>
 
-            {scanResult && scanResult.status === 'success' && (
+            {isScanning && (
               <div className="animate-in fade-in slide-in-from-top-4 duration-500">
-                <Card className="bg-white/[0.03] border-white/10 overflow-hidden shadow-2xl">
-                  <div className={`p-4 flex items-center justify-between border-b border-white/5 ${report?.verdict === 'COMPLIANT' ? 'bg-emerald-500/10' : 'bg-rose-500/10'}`}>
-                    <div className="flex items-center gap-3">
-                      {report?.verdict === 'COMPLIANT' ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <ShieldAlert className="w-5 h-5 text-rose-500" />}
-                      <div className="flex flex-col">
-                        <span className={`text-[10px] font-bold uppercase tracking-widest ${report?.verdict === 'COMPLIANT' ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          Audit Status: {report?.verdict}
-                        </span>
-                        <span className="text-[9px] text-slate-500 uppercase font-mono">{domain}</span>
+                <Card className="bg-white/[0.03] border-white/10 p-8 flex flex-col items-center justify-center text-center space-y-4">
+                  <div className="relative">
+                    <Loader2 className="w-12 h-12 text-primary animate-spin" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Cpu className="w-4 h-4 text-primary" />
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-white uppercase tracking-widest text-sm">
+                      {scanStatus === 'queued' ? 'Initializing Secure Connection...' : 'AI Legal Analysis in Progress...'}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-2 max-w-sm">
+                      The HumangoBot is crawling {targetDomain} and mapping findings to GDPR articles. This usually takes 30-60 seconds.
+                    </p>
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            {scanStatus === 'completed' && (
+              <div className="animate-in zoom-in duration-500">
+                <Card className="bg-primary/10 border-primary/20 overflow-hidden shadow-2xl">
+                  <div className="p-6 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+                      <div>
+                        <h4 className="font-bold text-white text-lg">Audit Complete</h4>
+                        <p className="text-sm text-slate-400">Detailed report sent to <strong>{email}</strong></p>
                       </div>
                     </div>
-                    <Button size="sm" variant="outline" className="h-8 border-white/10 hover:bg-white/5 text-[9px] font-bold uppercase tracking-widest gap-2" asChild>
-                      <a href={`/api/admin/report-pdf?domain=${domain}`} target="_blank">
-                        <Download className="w-3 h-3" /> PDF Export
+                    <Button className="bg-white text-primary hover:bg-slate-100 font-bold gap-2" asChild>
+                      <a href={`/api/admin/report-pdf?domain=${targetDomain}`} target="_blank">
+                        <Download className="w-4 h-4" /> Download PDF
                       </a>
                     </Button>
                   </div>
-                  
-                  <CardContent className="p-8">
-                    <div className="grid md:grid-cols-2 gap-10">
-                      <div className="space-y-6">
-                        <h4 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
-                          <FileSearch className="w-4 h-4 text-primary" /> Structural Discovery
-                        </h4>
-                        <div className="space-y-3">
-                          {['Privacy Policy', 'Legal Notice / Impressum', 'Terms of Service', 'Cookie Consent'].map((docName, idx) => (
-                            <div key={idx} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5">
-                              <span className="text-xs text-slate-300 font-medium">{docName}</span>
-                              <Check className="w-3.5 h-3.5 text-emerald-500" />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="space-y-6">
-                        <h4 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
-                          <Terminal className="w-4 h-4 text-primary" /> Statutory Analyzer
-                        </h4>
-                        <div className="grid grid-cols-2 gap-3">
-                          {[
-                            { label: 'Art. 13(1)(a) Identity', status: true },
-                            { label: 'Art. 13(1)(c) Basis', status: false },
-                            { label: 'Art. 13(2)(a) Retention', status: true },
-                            { label: 'DPO/Contact Info', status: true },
-                            { label: 'Jurisdiction Check', status: true },
-                            { label: 'Statutory Correlation', status: true }
-                          ].map((item, i) => (
-                            <div key={i} className="flex items-center gap-2 p-3 bg-white/5 rounded-xl border border-white/5">
-                              {item.status ? <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> : <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />}
-                              <span className="text-[10px] text-slate-400 font-medium truncate">{item.label}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
                 </Card>
               </div>
             )}
@@ -251,9 +203,9 @@ export default function Home() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {[
                 { icon: ShieldCheck, title: "Jurisdictional Logic", desc: "Country-aware detection for Germany (TDDG), France (CNIL), and Poland (RODO)." },
-                { icon: FileText, title: "Statutory Reporting", desc: "Consolidated audit evidence mapping violations directly to GDPR Statutory Articles." },
+                { icon: FileText, title: "AI Reporting", desc: "Genkit-powered analysis mapping violations directly to statutory articles." },
                 { icon: Scale, title: "Liability Estimates", desc: "Authoritative financial risk mapping based on Art. 83 enforcement frameworks." },
-                { icon: Globe, title: "Hybrid Analysis", desc: "Combined Static and Dynamic analysis providing a unified, deduplicated diagnostic trail." },
+                { icon: Lock, title: "Stateless Security", desc: "Audits are performed without cookies or session storage for maximum privacy." },
               ].map((item, i) => (
                 <Card key={i} className="bg-white/[0.02] border-white/5 p-6 hover:bg-white/[0.04] transition-all">
                   <div className="bg-primary/10 w-10 h-10 rounded-xl flex items-center justify-center mb-4">
@@ -276,22 +228,15 @@ export default function Home() {
               <CardContent className="space-y-6 pt-6">
                 <div className="space-y-4">
                   <div className="flex items-start gap-4">
-                    <div className="bg-primary/10 p-2.5 rounded-xl">
-                      <ShieldCheck className="w-4 h-4 text-primary" />
-                    </div>
+                    <div className="bg-primary/10 p-2.5 rounded-xl"><ShieldCheck className="w-4 h-4 text-primary" /></div>
                     <div>
                       <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Operator Identity</p>
                       <p className="text-sm font-bold text-white">Humango Limited</p>
-                      <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                        182-184 High Street North, London,<br />
-                        England, E6 2JA
-                      </p>
+                      <p className="text-[11px] text-slate-400 mt-1">182-184 High Street North, London, E6 2JA</p>
                       <p className="text-[10px] font-mono text-primary mt-1">Co. No: 16750477</p>
                     </div>
                   </div>
-
                   <div className="h-px bg-white/5" />
-
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
                       <Cpu className="w-4 h-4 text-slate-500" />
@@ -304,48 +249,21 @@ export default function Home() {
                       <Fingerprint className="w-4 h-4 text-slate-500" />
                       <div className="flex-1">
                         <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Static Network Node</p>
-                        <div className="flex items-center justify-between">
-                          <p className="text-[10px] font-mono text-slate-300">IP: 116.203.3.75</p>
-                          <p className="text-[10px] font-mono text-emerald-500">bot.humango.app</p>
-                        </div>
+                        <p className="text-[10px] font-mono text-slate-300">IP: 116.203.3.75</p>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="h-px bg-white/5" />
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Mail className="w-3.5 h-3.5 text-primary" />
-                      <span className="text-[10px] font-bold text-slate-400">Statutory Inquiry</span>
-                    </div>
-                    <a href="mailto:abuse@humango.app" className="text-[10px] font-bold text-white hover:text-primary transition-colors underline underline-offset-4">
-                      abuse@humango.app
-                    </a>
-                  </div>
-                </div>
-
-                <div className="p-4 bg-primary/10 rounded-xl border border-primary/20">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-bold uppercase text-primary">System Coverage</span>
-                    <span className="text-[10px] font-bold text-white">Full EU-27</span>
-                  </div>
-                  <div className="w-full bg-primary/20 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-primary h-full w-[100%]" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             <Card className="bg-gradient-to-br from-indigo-500/10 to-primary/10 border-primary/20 p-6 space-y-4">
-              <h3 className="text-sm font-bold flex items-center gap-2 text-white">
-                <ShieldAlert className="w-4 h-4 text-primary" /> Statutory Evidence
-              </h3>
+              <h3 className="text-sm font-bold flex items-center gap-2 text-white"><ShieldAlert className="w-4 h-4 text-primary" /> Statutory Evidence</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Identify statutory non-compliance before regulatory intervention. Authoritative evidence for enterprise risk management.
+                Our bot uses AI to interpret complex legal requirements into actionable PDF reports.
               </p>
-              <Button className="w-full bg-primary font-bold h-11 text-xs gap-2 rounded-xl shadow-xl shadow-primary/20" asChild>
-                <a href="mailto:abuse@humango.app">Statutory Inquiry</a>
+              <Button className="w-full bg-primary font-bold h-11 text-xs gap-2 rounded-xl" asChild>
+                <a href="mailto:abuse@humango.app">Statutory Inquiry <ArrowRight className="w-3 h-3" /></a>
               </Button>
             </Card>
           </div>

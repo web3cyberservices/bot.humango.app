@@ -18,11 +18,10 @@ async function migrate() {
   const client = await pool.connect();
   try {
     console.log('==================================================');
-    console.log('   HUMANGO COMPLIANCE DATABASE MIGRATOR V32.2     ');
-    console.log('   Target: PostgreSQL Remote/Local Cluster        ');
+    console.log('   HUMANGO COMPLIANCE DATABASE MIGRATOR V33.0     ');
+    console.log('   Target: Priority Queue & User Integration      ');
     console.log('==================================================');
     
-    // 1. Core System Tables
     await client.query(`
       CREATE TABLE IF NOT EXISTS public.bot_settings (
         id int DEFAULT 1 PRIMARY KEY, 
@@ -55,6 +54,7 @@ async function migrate() {
         status varchar(20) DEFAULT 'pending', 
         priority int DEFAULT 0, 
         depth int DEFAULT 0, 
+        user_email varchar(255),
         created_at timestamp DEFAULT NOW()
       );
 
@@ -68,10 +68,7 @@ async function migrate() {
         confidence_score float DEFAULT 0.0,
         timestamp timestamp DEFAULT NOW()
       );
-    `);
 
-    // 2. Site Violations Table (The main storage for audit findings)
-    await client.query(`
       CREATE TABLE IF NOT EXISTS public.site_violations (
         id SERIAL PRIMARY KEY,
         domain character varying(255),
@@ -98,15 +95,11 @@ async function migrate() {
       );
     `);
 
-    // 3. High-Integrity Column Checks (Ensuring schema matches V32.2 code)
+    // Ensure columns exist for V33.0
     const columnsToEnsure = [
-      { table: 'site_violations', name: 'evidence_quote', type: 'text', default: 'NULL' },
-      { table: 'site_violations', name: 'confidence_score', type: 'float', default: '1.0' },
-      { table: 'site_violations', name: 'verification_status', type: 'varchar(50)', default: "'pending'" },
-      { table: 'site_violations', name: 'business_impact', type: 'text', default: 'NULL' },
-      { table: 'site_violations', name: 'recommendation', type: 'text', default: 'NULL' },
-      { table: 'site_violations', name: 'verification_method', type: 'varchar(50)', default: "'Static Analysis'" },
-      { table: 'validation_logs', name: 'confidence_score', type: 'float', default: '0.0' }
+      { table: 'scan_queue', name: 'user_email', type: 'varchar(255)', default: 'NULL' },
+      { table: 'scan_queue', name: 'priority', type: 'int', default: '0' },
+      { table: 'site_violations', name: 'business_impact', type: 'text', default: 'NULL' }
     ];
 
     for (const col of columnsToEnsure) {
@@ -118,14 +111,12 @@ async function migrate() {
             WHERE table_name='${col.table}' AND column_name='${col.name}'
           ) THEN
             EXECUTE 'ALTER TABLE public.${col.table} ADD COLUMN ${col.name} ${col.type} DEFAULT ${col.default}';
-            RAISE NOTICE 'Added column % to %', '${col.name}', '${col.table}';
           END IF;
         END $$;
       `);
     }
     
-    console.log('[Migration] SUCCESS: Database schema is V32.2 compliant.');
-    console.log('[Migration] Ready for production audits.');
+    console.log('[Migration] SUCCESS: Database schema V33.0 deployed.');
   } catch (err: any) {
     console.error('[Migration] CRITICAL ERROR:', err.message);
     process.exit(1);

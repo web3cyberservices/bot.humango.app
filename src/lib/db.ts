@@ -1,12 +1,6 @@
+
 import { Pool } from 'pg';
 import { Violation, ScanType } from '@/types';
-
-/**
- * @fileOverview Automated Legal Fixer V32.2 - Build Integrity Patch.
- * 
- * - SECURITY: Strict hostname validation, blocking IPs and non-standard ports.
- * - BUILD: Optimized dynamic sanitization to prevent ERR_REQUIRE_ESM during build.
- */
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL is missing in environment variables!');
@@ -22,17 +16,10 @@ export const pool = new Pool({
   connectionTimeoutMillis: 10000,
 });
 
-/**
- * Очистка текста с использованием DOMPurify.
- * Мы используем ленивый импорт для предотвращения ошибок ESM во время сборки.
- */
 function sanitize(text: string | null | undefined, fallback: string = 'Information verified via bot.humango.app.'): string {
   if (text === null || text === undefined || text === 'null' || String(text).trim() === '') return fallback;
-  
   const content = String(text).trim();
-  
   try {
-    // Безопасная очистка скриптов без тяжелых библиотек во время статической сборки
     return content.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "");
   } catch (e) {
     return content;
@@ -42,16 +29,9 @@ function sanitize(text: string | null | undefined, fallback: string = 'Informati
 export function normalizeUrl(url: string, base?: string): string {
   try {
     const u = base ? new URL(url, base) : new URL(url);
-    
-    if (u.port && !['80', '443'].includes(u.port)) {
-      throw new Error('Forbidden port');
-    }
-
+    if (u.port && !['80', '443'].includes(u.port)) throw new Error('Forbidden port');
     const ipRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
-    if (ipRegex.test(u.hostname)) {
-      throw new Error('IP-based targets are blocked for security compliance');
-    }
-
+    if (ipRegex.test(u.hostname)) throw new Error('IP-based targets blocked');
     u.hash = '';
     u.search = '';
     let pathname = u.pathname.toLowerCase();
@@ -64,19 +44,31 @@ export function normalizeUrl(url: string, base?: string): string {
   }
 }
 
+export async function queueTask(url: string, email: string, priority: number = 0) {
+  const cleanUrl = normalizeUrl(url);
+  if (cleanUrl === 'invalid-target') throw new Error('Invalid URL');
+  
+  await pool.query(
+    `INSERT INTO public.scan_queue (url, status, priority, user_email, created_at) 
+     VALUES ($1, 'pending', $2, $3, NOW()) 
+     ON CONFLICT (url) 
+     DO UPDATE SET status = 'pending', priority = $2, user_email = $3, created_at = NOW();`,
+    [cleanUrl, priority, email]
+  );
+  return cleanUrl;
+}
+
+export async function getTaskStatus(url: string) {
+  const cleanUrl = normalizeUrl(url);
+  const res = await pool.query('SELECT status, user_email FROM public.scan_queue WHERE url = $1', [cleanUrl]);
+  return res.rows[0] || null;
+}
+
 export async function saveAuditResults(domain: string, url: string, violations: Violation[], scanType: ScanType = 'basic') {
   if (!violations || violations.length === 0) return { success: true };
-
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    
-    const documentDetectedOnSite = violations.some(v => 
-      v.verification_status === 'verified' && 
-      !v.issue_type.toLowerCase().includes('missing') &&
-      v.confidence_score > 0.6
-    );
-
     const query = `
       INSERT INTO site_violations (
         domain, url, page_url, category, issue_type, severity, 
@@ -86,63 +78,22 @@ export async function saveAuditResults(domain: string, url: string, violations: 
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), $17, $18, $19)
     `;
-
     for (const v of violations) {
-      let finalIssueType = v.issue_type;
-      let finalDescription = v.description;
-      let finalSeverity = v.severity;
-      
-      const isMissingStatus = finalIssueType.toLowerCase().includes('missing');
-
-      if (isMissingStatus && documentDetectedOnSite) {
-        finalIssueType = "CRITICAL INCOMPLETENESS";
-        finalDescription = `The document was discovered via targeted deep-dive but is legally invalid due to lack of accessibility in the primary footer (Violation of Art. 12 GDPR).`;
-        finalSeverity = 'high';
-      }
-
-      const standardLiability = "Administrative penalties up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR). High risk of immediate ad account suspension (Meta/Google).";
-      const standardImpact = "Business Risk: Immediate loss of marketing ROI as Google/Meta require valid compliance signals to execute advertising campaigns.";
-      
-      let liability = v.potential_fine;
-      if (!liability || liability === 'null' || String(liability).toLowerCase() === 'null') {
-        liability = standardLiability;
-      }
-
-      let impact = sanitize(v.business_impact, standardImpact);
-      if (impact === 'null' || impact.length < 5) impact = standardImpact;
-
-      let remediation = v.recommendation || '';
-      if (remediation && !remediation.startsWith('ACTION:')) {
-        remediation = `ACTION: INSERT THIS TEXT -> ${remediation}`;
-      }
-
       await client.query(query, [
-        sanitize(domain),
-        sanitize(normalizeUrl(url)),
-        sanitize(url), 
-        v.category,
-        sanitize(finalIssueType),
-        finalSeverity,
-        sanitize(v.evidence_html || url),
-        sanitize(v.evidence_quote, "Verified via bot.humango.app."),
-        v.confidence_score || 0.8,
-        v.verification_status || 'verified',
-        sanitize(finalDescription), 
-        sanitize(v.explanation || finalDescription), 
-        sanitize(v.law_name, "GDPR Article 13"),
-        sanitize(remediation),
-        scanType,
-        v.report_type,
-        sanitize(liability),
+        sanitize(domain), sanitize(normalizeUrl(url)), sanitize(url), v.category,
+        sanitize(v.issue_type), v.severity, sanitize(v.evidence_html || url),
+        sanitize(v.evidence_quote, "Verified via bot.humango.app."), v.confidence_score || 0.8,
+        v.verification_status || 'verified', sanitize(v.description), sanitize(v.explanation || v.description),
+        sanitize(v.law_name, "GDPR Article 13"), sanitize(v.recommendation), scanType, v.report_type,
+        sanitize(v.potential_fine || "Fines up to €20M"), 
         v.verification_method || (scanType === 'deep' ? 'Dynamic Emulation' : 'Static Analysis'),
-        sanitize(impact)
+        sanitize(v.business_impact, "Business Risk: Loss of advertising access.")
       ]);
     }
     await client.query('COMMIT');
     return { success: true };
   } catch (error: any) {
     await client.query('ROLLBACK');
-    console.error('[DB V32.0 CRITICAL SAVE ERROR]', error.stack);
     return { success: false, error };
   } finally {
     client.release();
@@ -167,20 +118,11 @@ export async function getBotStatus(): Promise<boolean> {
   }
 }
 
-export async function setBotStatus(isActive: boolean) {
-  try {
-    await pool.query('UPDATE bot_settings SET is_active = $1, updated_at = NOW() WHERE id = 1', [isActive]);
-    return { success: true };
-  } catch (error) {
-    return { success: false };
-  }
-}
-
 export async function getNextQueueItem() {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const query = "SELECT id, url, depth FROM scan_queue WHERE status = 'pending' ORDER BY priority DESC, id ASC LIMIT 1 FOR UPDATE SKIP LOCKED";
+    const query = "SELECT id, url, depth, user_email FROM scan_queue WHERE status = 'pending' ORDER BY priority DESC, id ASC LIMIT 1 FOR UPDATE SKIP LOCKED";
     const result = await client.query(query);
     const task = result.rows[0];
     if (task) {
@@ -197,68 +139,42 @@ export async function getNextQueueItem() {
 }
 
 export async function updateQueueStatus(id: number, status: 'completed' | 'failed') {
-  try {
-    await pool.query('UPDATE scan_queue SET status = $1 WHERE id = $2', [status, id]);
-  } catch (error) {}
+  await pool.query('UPDATE scan_queue SET status = $1 WHERE id = $2', [status, id]);
 }
 
 export async function getStats() {
-  try {
-    const pagesRes = await pool.query('SELECT COUNT(*) as count FROM audit_logs');
-    const issuesRes = await pool.query('SELECT COUNT(*) as total FROM site_violations');
-    const recentIssues = await getViolations(10);
-    return {
-      pagesScanned: Number(pagesRes.rows[0]?.count) || 0,
-      issuesFound: Number(issuesRes.rows[0]?.total) || 0,
-      recentIssues: recentIssues
-    };
-  } catch (error) {
-    return { pagesScanned: 0, issuesFound: 0, recentIssues: [] };
-  }
+  const pagesRes = await pool.query('SELECT COUNT(*) as count FROM audit_logs');
+  const issuesRes = await pool.query('SELECT COUNT(*) as total FROM site_violations');
+  const recentIssues = await getViolations(10);
+  return {
+    pagesScanned: Number(pagesRes.rows[0]?.count) || 0,
+    issuesFound: Number(issuesRes.rows[0]?.total) || 0,
+    recentIssues: recentIssues
+  };
 }
 
 export async function getViolations(limit = 100) {
-  try {
-    const res = await pool.query(`
-      SELECT 
-        id, domain, issue_type as type, severity as level, created_at as date, 
-        description as summary, explanation as description,
-        fine_amount, law_name, page_url as url, evidence_html, evidence_quote, 
-        confidence_score, verification_status, report_type, verification_method, business_impact, recommendation
-      FROM site_violations ORDER BY created_at DESC LIMIT $1
-    `, [limit]);
-    return res.rows || [];
-  } catch (error) {
-    return [];
-  }
+  const res = await pool.query(`
+    SELECT 
+      id, domain, issue_type as type, severity as level, created_at as date, 
+      description as summary, explanation as description,
+      fine_amount, law_name, page_url as url, evidence_html, evidence_quote, 
+      confidence_score, verification_status, report_type, verification_method, business_impact, recommendation
+    FROM site_violations ORDER BY created_at DESC LIMIT $1
+  `, [limit]);
+  return res.rows || [];
 }
 
 export async function saveAuditLog(domain: string, statusCode: number, errorMessage: string | null) {
-  try {
-    await pool.query('INSERT INTO audit_logs (domain, status_code, error_message, created_at) VALUES ($1, $2, $3, NOW())', [sanitize(domain), statusCode, sanitize(errorMessage)]);
-  } catch (error) {}
-}
-
-export async function saveValidationLog(url: string, iteration: number, status: string, findings: any[], confidence: number) {
-  try {
-    const domain = new URL(url).hostname;
-    await pool.query(
-      'INSERT INTO validation_logs (domain, url, attempt, status, findings, confidence_score, timestamp) VALUES ($1, $2, $3, $4, $5, $6, NOW())',
-      [sanitize(domain), sanitize(url), iteration, status, JSON.stringify(findings), confidence]
-    );
-  } catch (e) {}
+  await pool.query('INSERT INTO audit_logs (domain, status_code, error_message, created_at) VALUES ($1, $2, $3, NOW())', [sanitize(domain), statusCode, sanitize(errorMessage)]);
 }
 
 export async function testConnection() {
-  let client;
+  const client = await pool.connect();
   try {
-    client = await pool.connect();
     await client.query('SELECT 1');
     return true;
-  } catch (error: any) {
-    console.error('[DB Handshake Failure]', error.message);
-    throw error;
   } finally {
-    if (client) client.release();
+    client.release();
   }
 }

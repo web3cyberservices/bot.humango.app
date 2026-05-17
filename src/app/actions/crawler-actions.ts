@@ -1,53 +1,39 @@
 
 'use server';
 
-import { runCrawlTask } from '@/lib/crawler/crawler';
-import { revalidatePath } from 'next/cache';
-import { saveBotEvent } from '@/lib/db';
+import { queueTask, getTaskStatus } from '@/lib/db';
 import { z } from 'zod';
 
 const StartScanSchema = z.object({
   url: z.string().url(),
-  email: z.string().email().optional()
+  email: z.string().email()
 });
 
-export async function startCrawlAction(rawUrl: string, rawEmail?: string) {
-  // Security Gate: Strict Zod Validation at the Server Action level
+export async function startCrawlAction(rawUrl: string, rawEmail: string) {
   const validation = StartScanSchema.safeParse({ url: rawUrl, email: rawEmail });
-  
   if (!validation.success) {
     return { status: 'failed', reason: 'Invalid target URL format or email address.' };
   }
 
   const { url, email } = validation.data;
   
-  // Additional security check for protocol and domain
   try {
-    const parsedUrl = new URL(url);
-    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-      return { status: 'failed', reason: 'Forbidden protocol.' };
-    }
-  } catch (e) {
-    return { status: 'failed', reason: 'Malformed URL.' };
-  }
-
-  const result = await runCrawlTask(url);
-  
-  revalidatePath('/admin');
-  
-  if (result.status === 'success' && email) {
-    const domain = new URL(url).hostname;
-    await saveBotEvent(
-      'SUCCESS', 
-      `Audit Dispatched: Detailed PDF report queued for delivery to ${email} for node: ${domain}`
-    );
-    
-    return {
-      ...result,
-      emailSent: true,
-      recipient: email
+    const cleanUrl = await queueTask(url, email, 10); // Priority 10 for user requests
+    return { 
+      status: 'success', 
+      url: cleanUrl,
+      message: 'Audit added to priority queue. Bot is processing...' 
     };
+  } catch (e: any) {
+    return { status: 'failed', reason: e.message };
   }
-  
-  return result;
+}
+
+export async function checkAuditStatus(url: string) {
+  try {
+    const status = await getTaskStatus(url);
+    return { success: true, status: status?.status || 'unknown' };
+  } catch (e) {
+    return { success: false };
+  }
 }
