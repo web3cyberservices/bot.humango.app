@@ -1,4 +1,6 @@
 
+'use server';
+
 import { runCrawlTask } from './crawler';
 import { 
   getBotStatus, 
@@ -12,7 +14,6 @@ import { isUrlAllowed } from '@/config/robots-rules';
 import { logger } from '../logger';
 import { sendAuditEmail } from '../email';
 
-const DEFAULT_SLEEP = settings.scanIntervalMs || 5000; 
 const IDLE_WAIT = 15000;    
 
 async function sleep(ms: number) {
@@ -60,15 +61,21 @@ async function runWorker(workerId: number) {
         const result = await runCrawlTask(task.url);
         
         if (result.status === 'success' && userEmail) {
-          logger.info(`[Worker ${workerId}] Scan complete for ${domain}. Generating PDF and Sending Email...`);
-          // We trigger the email sending which will fetch the PDF via internal call or shared util
-          await sendAuditEmail(domain, userEmail);
+          logger.info(`[Worker ${workerId}] Scan complete for ${domain}. Generating PDF and Sending Email to ${userEmail}...`);
+          const emailSent = await sendAuditEmail(domain, userEmail);
+          
+          if (!emailSent) {
+            logger.error(`[Worker ${workerId}] Failed to send report email for ${domain}`);
+            // We still mark as completed or failed based on your preference
+          }
         }
 
         await updateQueueStatus(task.id, 'completed');
+        await saveBotEvent('SUCCESS', `Audit completed and status updated for ${domain}`);
       } catch (taskError: any) {
         logger.error(`[Worker ${workerId}] Task error for ${domain}: ${taskError.message}`);
         await updateQueueStatus(task.id, 'failed');
+        await saveBotEvent('ERROR', `Audit failed for ${domain}: ${taskError.message}`);
       }
 
       await sleep(1000);
