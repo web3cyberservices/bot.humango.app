@@ -26,7 +26,8 @@ import {
   CheckCircle2,
   Cpu,
   Fingerprint,
-  ArrowRight
+  ArrowRight,
+  AlertCircle
 } from "lucide-react";
 
 export default function Home() {
@@ -34,7 +35,8 @@ export default function Home() {
   const [email, setEmail] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [scanStatus, setScanStatus] = useState<'idle' | 'queued' | 'processing' | 'completed' | 'failed'>('idle');
-  const [targetDomain, setTargetDomain] = useState('');
+  const [pollingUrl, setPollingUrl] = useState('');
+  const [displayDomain, setDisplayDomain] = useState('');
   const { toast } = useToast();
 
   const handleScan = async (e: React.FormEvent) => {
@@ -46,12 +48,19 @@ export default function Home() {
 
     setIsScanning(true);
     setScanStatus('queued');
-    const domain = new URL(url.startsWith('http') ? url : `https://${url}`).hostname;
-    setTargetDomain(domain);
+    
+    // Extract hostname just for visual display
+    try {
+      const host = new URL(url.startsWith('http') ? url : `https://${url}`).hostname;
+      setDisplayDomain(host);
+    } catch (e) {
+      setDisplayDomain(url);
+    }
 
     try {
       const result = await startCrawlAction(url, email);
-      if (result.status === 'success') {
+      if (result.status === 'success' && result.url) {
+        setPollingUrl(result.url); // Use the exact normalized URL from the DB
         toast({ title: "Audit Queued", description: "Your request is now in the priority audit queue." });
       } else {
         toast({ variant: "destructive", title: "Audit Failed", description: result.reason || "Could not queue the scan." });
@@ -59,7 +68,7 @@ export default function Home() {
         setScanStatus('failed');
       }
     } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "An unexpected error occurred." });
+      toast({ variant: "destructive", title: "Error", description: "An unexpected error occurred while starting the audit." });
       setIsScanning(false);
       setScanStatus('failed');
     }
@@ -67,27 +76,29 @@ export default function Home() {
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (isScanning && (scanStatus === 'queued' || scanStatus === 'processing')) {
+    if (isScanning && pollingUrl && (scanStatus === 'queued' || scanStatus === 'processing')) {
       interval = setInterval(async () => {
-        const res = await checkAuditStatus(targetDomain);
+        const res = await checkAuditStatus(pollingUrl);
         if (res.success) {
-          if (res.status === 'completed') {
+          const currentStatus = res.status as any;
+          if (currentStatus === 'completed') {
             setScanStatus('completed');
             setIsScanning(false);
             clearInterval(interval);
             toast({ title: "Audit Finished!", description: "The PDF report has been sent to your email and is ready for download." });
-          } else if (res.status === 'failed') {
+          } else if (currentStatus === 'failed') {
             setScanStatus('failed');
             setIsScanning(false);
             clearInterval(interval);
-          } else {
-            setScanStatus(res.status as any);
+            toast({ variant: "destructive", title: "Audit Failed", description: "The bot encountered an error scanning this site. Please try again later." });
+          } else if (currentStatus !== scanStatus) {
+            setScanStatus(currentStatus);
           }
         }
       }, 4000);
     }
     return () => clearInterval(interval);
-  }, [isScanning, scanStatus, targetDomain, toast]);
+  }, [isScanning, scanStatus, pollingUrl, toast]);
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-50 font-body overflow-x-hidden flex flex-col">
@@ -172,7 +183,7 @@ export default function Home() {
                       {scanStatus === 'queued' ? 'Initializing Secure Connection...' : 'AI Legal Analysis in Progress...'}
                     </h3>
                     <p className="text-xs text-slate-500 mt-2 max-w-sm">
-                      The HumangoBot is crawling {targetDomain} and mapping findings to GDPR articles. This usually takes 30-60 seconds.
+                      The HumangoBot is crawling {displayDomain} and mapping findings to GDPR articles. This usually takes 30-60 seconds.
                     </p>
                   </div>
                 </Card>
@@ -191,10 +202,22 @@ export default function Home() {
                       </div>
                     </div>
                     <Button className="bg-white text-primary hover:bg-slate-100 font-bold gap-2" asChild>
-                      <a href={`/api/admin/report-pdf?domain=${targetDomain}`} target="_blank">
+                      <a href={`/api/admin/report-pdf?domain=${new URL(pollingUrl).hostname}`} target="_blank">
                         <Download className="w-4 h-4" /> Download PDF
                       </a>
                     </Button>
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            {scanStatus === 'failed' && !isScanning && (
+              <div className="animate-in zoom-in duration-500">
+                <Card className="bg-rose-500/10 border-rose-500/20 p-6 flex items-center gap-4">
+                  <AlertCircle className="w-8 h-8 text-rose-500" />
+                  <div>
+                    <h4 className="font-bold text-white text-lg">Audit Failed</h4>
+                    <p className="text-sm text-slate-400">The scan for {displayDomain} could not be completed. Please check the URL and try again.</p>
                   </div>
                 </Card>
               </div>

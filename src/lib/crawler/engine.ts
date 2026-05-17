@@ -24,6 +24,9 @@ async function runWorker(workerId: number) {
   logger.info(`[Worker ${workerId}] V33.0 Priority Engine Active.`);
   
   while (true) {
+    let currentTaskId: number | null = null;
+    let currentDomain: string = 'unknown';
+
     try {
       const active = await getBotStatus();
       if (!active) {
@@ -37,52 +40,61 @@ async function runWorker(workerId: number) {
         continue;
       }
 
+      currentTaskId = task.id;
       const urlStr = task.url;
       const userEmail = task.user_email;
-      let domain = '';
+      
       try {
         const url = new URL(urlStr);
-        domain = url.hostname.toLowerCase();
+        currentDomain = url.hostname.toLowerCase();
       } catch (e: any) {
+        logger.error(`[Worker ${workerId}] Invalid URL in task: ${urlStr}`);
         await updateQueueStatus(task.id, 'failed');
         continue;
       }
       
       const robotsCheck = await isUrlAllowed(urlStr);
       if (!robotsCheck.allowed) {
+        logger.warn(`[Worker ${workerId}] URL blocked by robots.txt: ${urlStr}`);
         await updateQueueStatus(task.id, 'failed');
         continue;
       }
 
-      logger.info(`[Worker ${workerId}] Starting prioritized audit: ${domain}`);
-      await saveBotEvent('START', `Compliance Scan [Worker ${workerId}]: ${domain}`);
+      logger.info(`[Worker ${workerId}] Starting prioritized audit: ${currentDomain}`);
+      await saveBotEvent('START', `Compliance Scan [Worker ${workerId}]: ${currentDomain}`);
       
-      try {
-        const result = await runCrawlTask(task.url);
-        
-        if (result.status === 'success' && userEmail) {
-          logger.info(`[Worker ${workerId}] Scan complete for ${domain}. Generating PDF and Sending Email to ${userEmail}...`);
-          const emailSent = await sendAuditEmail(domain, userEmail);
-          
-          if (!emailSent) {
-            logger.error(`[Worker ${workerId}] Failed to send report email for ${domain}`);
-            // We still mark as completed or failed based on your preference
+      // Perform the crawl
+      const result = await runCrawlTask(task.url);
+      
+      if (result.status === 'success') {
+        if (userEmail) {
+          logger.info(`[Worker ${workerId}] Scan complete for ${currentDomain}. Sending Email to ${userEmail}...`);
+          try {
+            const emailSent = await sendAuditEmail(currentDomain, userEmail);
+            if (!emailSent) {
+              logger.error(`[Worker ${workerId}] Email delivery failed for ${currentDomain}, but scan succeeded.`);
+            }
+          } catch (emailErr: any) {
+            logger.error(`[Worker ${workerId}] Error in sendAuditEmail: ${emailErr.message}`);
           }
         }
-
         await updateQueueStatus(task.id, 'completed');
-        await saveBotEvent('SUCCESS', `Audit completed and status updated for ${domain}`);
-      } catch (taskError: any) {
-        logger.error(`[Worker ${workerId}] Task error for ${domain}: ${taskError.message}`);
+        await saveBotEvent('SUCCESS', `Audit completed successfully for ${currentDomain}`);
+      } else {
+        logger.error(`[Worker ${workerId}] Crawl failed for ${currentDomain}: ${result.reason}`);
         await updateQueueStatus(task.id, 'failed');
-        await saveBotEvent('ERROR', `Audit failed for ${domain}: ${taskError.message}`);
+        await saveBotEvent('ERROR', `Audit failed for ${currentDomain}: ${result.reason}`);
       }
 
-      await sleep(1000);
     } catch (error: any) {
       logger.error(`[Worker ${workerId}] Engine Loop Error: ${error.message}`);
+      if (currentTaskId) {
+        await updateQueueStatus(currentTaskId, 'failed').catch(() => {});
+      }
       await sleep(10000);
     }
+    
+    await sleep(1000);
   }
 }
 
