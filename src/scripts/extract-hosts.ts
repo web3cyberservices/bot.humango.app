@@ -6,9 +6,9 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 /**
- * @fileOverview HUMANGO GERMAN TARGET EXTRACTOR V3.6
- * Специализированный экстрактор для немецкого сегмента (GelbeSeiten).
- * Использует высокоточные селекторы для извлечения только корпоративных сайтов.
+ * @fileOverview HUMANGO GERMAN TARGET EXTRACTOR V3.7
+ * Метод: Глубокая фильтрация внешних хостов (Blacklist Method).
+ * Собирает все ссылки и отсеивает ненужные домены.
  */
 
 const pool = new Pool({
@@ -16,15 +16,39 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
+// Список доменов-паразитов, которые мы гарантированно не хотим сканировать
+const BLACKLIST = [
+  'gelbeseiten.de',
+  'google.',
+  'facebook.com',
+  'instagram.com',
+  'twitter.com',
+  'x.com',
+  'linkedin.com',
+  'pinterest.',
+  'tiktok.com',
+  'youtube.com',
+  'apple.com',
+  'android.com',
+  'dastelefonbuch.de',
+  'dasoertliche.de',
+  'timmone.de',
+  'goyellow.de',
+  'sundon.de',
+  'w-medien.de',
+  'surveymonkey.',
+  'maps.google'
+];
+
 async function runAutonomousExtractor() {
   console.log('==================================================');
-  console.log('   HUMANGO GERMAN TARGET EXTRACTOR V3.6           ');
-  console.log('   Target: GelbeSeiten Targeted Business Class    ');
+  console.log('   HUMANGO GERMAN TARGET EXTRACTOR V3.7           ');
+  console.log('   Method: Deep External Host Filtering (Puppeteer)');
   console.log('==================================================');
 
   const dbClient = await pool.connect();
   
-  // Запуск браузера через Puppeteer (уже в проекте)
+  // Запуск браузера (используем уже установленный puppeteer)
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
@@ -42,63 +66,46 @@ async function runAutonomousExtractor() {
       console.log(`[GelbeSeiten] Сканируем страницу ${i}: ${catalogUrl}`);
       
       try {
-        await page.goto(catalogUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        // Ждем полной загрузки сети, чтобы выловить все JS-ссылки
+        await page.goto(catalogUrl, { waitUntil: 'networkidle0', timeout: 60000 });
         
         // Небольшая задержка для подгрузки элементов
-        await new Promise(r => setTimeout(r, 3000));
+        await new Promise(r => setTimeout(r, 2000));
 
-        // Ювелирный сбор ссылок через оценку контекста кнопок
-        const companySites = await page.evaluate(() => {
-          const elements = Array.from(document.querySelectorAll('a[href*="http"]'));
-          
-          return elements
-            .map(el => {
-              const anchor = el as HTMLAnchorElement;
-              const href = anchor.href;
-              const text = anchor.textContent?.toLowerCase() || '';
-              const html = anchor.innerHTML.toLowerCase();
-              
-              // Нацеливаемся строго на маркеры официальных сайтов
-              const isOfficialLink = 
-                text.includes('webseite') || 
-                text.includes('homepage') || 
-                html.includes('it-icon-homepage') || 
-                html.includes('gs_btn');
-                
-              if (isOfficialLink) {
-                return href;
-              }
-              return null;
-            })
-            .filter((href): href is string => {
-              if (!href) return false;
-              try {
-                const url = new URL(href);
-                const domain = url.hostname.toLowerCase();
-                
-                // Черный список: исключаем соцсети, сам каталог и рекламные сети
-                const forbidden = [
-                  'gelbeseiten', 'google', 'facebook', 'instagram', 'twitter', 
-                  'linkedin', 'youtube', 'tiktok', 'pinterest', 'apple', 
-                  'microsoft', 'bing', 'timmone', 'link.', 'yelp', 'ebay'
-                ];
-                
-                return !forbidden.some(d => domain.includes(d)) && domain.includes('.');
-              } catch {
-                return false;
-              }
-            });
+        // Вытаскиваем абсолютно все http/https ссылки со страницы
+        const allLinks = await page.evaluate(() => {
+          return Array.from(document.querySelectorAll('a[href*="http"]'))
+            .map(a => (a as HTMLAnchorElement).href);
         });
 
-        const uniquePageSites = [...new Set(companySites)];
+        // Фильтруем ссылки через наш Блэклист и нормализуем до корня
+        const filteredSites = allLinks
+          .filter(href => {
+            if (!href) return false;
+            try {
+              const url = new URL(href);
+              const hostname = url.hostname.toLowerCase();
+              // Если хост содержит хотя бы одно слово из блэклиста — удаляем его
+              return !BLACKLIST.some(badDomain => hostname.includes(badDomain));
+            } catch {
+              return false;
+            }
+          })
+          .map(href => {
+            try {
+              return new URL(href).origin.toLowerCase();
+            } catch {
+              return null;
+            }
+          })
+          .filter((u): u is string => u !== null && u.startsWith('http'));
+
+        const uniquePageSites = [...new Set(filteredSites)];
         console.log(`  -> Найдено потенциальных бизнес-сайтов: ${uniquePageSites.length}`);
 
         let addedCount = 0;
-        for (const siteUrl of uniquePageSites) {
+        for (const cleanUrl of uniquePageSites) {
           try {
-            const urlObj = new URL(siteUrl);
-            const cleanUrl = `${urlObj.protocol}//${urlObj.hostname}`.toLowerCase();
-            
             // Добавляем в очередь сканирования
             const res = await dbClient.query(
               `INSERT INTO public.scan_queue (url, status, priority) 
@@ -108,7 +115,7 @@ async function runAutonomousExtractor() {
             );
             
             if (res.rowCount && res.rowCount > 0) {
-              console.log(`     [+] Добавлен новый хост: ${cleanUrl}`);
+              console.log(`     [+] Добавлен в очередь: ${cleanUrl}`);
               addedCount++;
             }
           } catch (e) {}
@@ -120,7 +127,7 @@ async function runAutonomousExtractor() {
       }
       
       // Политкорректная пауза между страницами
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, 1500));
     }
   } catch (err: any) {
     console.error('[Critical Error]:', err.message);
@@ -129,7 +136,7 @@ async function runAutonomousExtractor() {
     dbClient.release();
     await pool.end();
     console.log('==================================================');
-    console.log('[Extractor] Сессия сбора данных завершена.');
+    console.log('[Extractor] Сессия завершена. Очередь наполнена.');
   }
 }
 
