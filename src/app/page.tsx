@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -49,12 +48,13 @@ export default function Home() {
     setIsScanning(true);
     setScanStatus('queued');
     
+    let targetHost = url;
     try {
       const normalizedInput = url.startsWith('http') ? url : `https://${url}`;
-      const host = new URL(normalizedInput).hostname;
-      setDisplayDomain(host);
+      targetHost = new URL(normalizedInput).hostname.toLowerCase();
+      setDisplayDomain(targetHost);
     } catch (e) {
-      setDisplayDomain(url);
+      setDisplayDomain(url.toLowerCase());
     }
 
     try {
@@ -88,12 +88,12 @@ export default function Home() {
               setScanStatus('completed');
               setIsScanning(false);
               clearInterval(interval);
-              toast({ title: "Audit Finished!", description: "The PDF report has been sent to your email and is ready for download." });
+              toast({ title: "Audit Finished!", description: "The report is ready for download." });
             } else if (currentStatus === 'failed') {
               setScanStatus('failed');
               setIsScanning(false);
               clearInterval(interval);
-              toast({ variant: "destructive", title: "Audit Failed", description: "The bot encountered an error scanning this site. Please try again later." });
+              toast({ variant: "destructive", title: "Audit Failed", description: "An error occurred during scanning." });
             } else if (currentStatus !== scanStatus) {
               setScanStatus(currentStatus);
             }
@@ -142,7 +142,7 @@ export default function Home() {
               </h1>
               <p className="text-lg text-slate-400 max-w-xl leading-relaxed">
                 Identify systemic compliance failures and <span className="text-white font-medium">GDPR liability</span>. 
-                Our bot will scan your site, analyze it with AI, and deliver a legal PDF to your inbox.
+                Our bot will scan your site, analyze it with AI, and deliver a legal PDF report.
               </p>
             </div>
 
@@ -154,7 +154,7 @@ export default function Home() {
                     <div className="flex-1 flex flex-col bg-white/5 rounded-xl border border-white/5">
                       <div className="flex items-center w-full px-4">
                         <Globe className="w-4 h-4 text-slate-500" />
-                        <Input type="url" placeholder="target-domain.com" value={url} onChange={(e) => setUrl(e.target.value)} className="bg-transparent border-none focus-visible:ring-0 text-white h-11 text-sm" required />
+                        <Input type="text" placeholder="domain.com" value={url} onChange={(e) => setUrl(e.target.value)} className="bg-transparent border-none focus-visible:ring-0 text-white h-11 text-sm" required />
                       </div>
                     </div>
                     <div className="flex-1 flex flex-col bg-white/5 rounded-xl border border-white/5">
@@ -204,7 +204,7 @@ export default function Home() {
                       <CheckCircle2 className="w-8 h-8 text-emerald-500" />
                       <div>
                         <h4 className="font-bold text-white text-lg">Audit Complete</h4>
-                        <p className="text-sm text-slate-400">Detailed report sent to <strong>{email}</strong></p>
+                        <p className="text-sm text-slate-400">The report for <strong>{displayDomain}</strong> is ready.</p>
                       </div>
                     </div>
                     <Button className="bg-white text-primary hover:bg-slate-100 font-bold gap-2" asChild>
@@ -223,7 +223,7 @@ export default function Home() {
                   <AlertCircle className="w-8 h-8 text-rose-500" />
                   <div>
                     <h4 className="font-bold text-white text-lg">Audit Failed</h4>
-                    <p className="text-sm text-slate-400">The scan for {displayDomain} could not be completed. Please check the URL and try again.</p>
+                    <p className="text-sm text-slate-400">The scan for {displayDomain} could not be completed. Please check the URL.</p>
                   </div>
                 </Card>
               </div>
@@ -262,7 +262,6 @@ export default function Home() {
                       <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Operator Identity</p>
                       <p className="text-sm font-bold text-white">Humango Limited</p>
                       <p className="text-[11px] text-slate-400 mt-1">182-184 High Street North, London, E6 2JA</p>
-                      <p className="text-[10px] font-mono text-primary mt-1">Co. No: 16750477</p>
                     </div>
                   </div>
                   <div className="h-px bg-white/5" />
