@@ -3,11 +3,11 @@ import * as cheerio from 'cheerio';
 import { Violation, ComplianceReport, VerificationMethod } from '@/types';
 
 /**
- * @fileOverview Automated Legal Fixer V30.0 - Semantic Intent Discovery.
+ * @fileOverview Automated Legal Fixer V31.0 - Semantic Link Intelligence.
  * 
- * - Rule: Focus on Link Text (Anchor), not URL Path.
- * - Rule: Multilingual Support (EN, DE, IT, FR, ES, PL).
- * - Rule: Content Verification via LLM.
+ * - Rule: Identify links by Anchor Text across multiple languages.
+ * - Rule: Focus on Footer area for transparency checks.
+ * - Rule: Avoid false positives based on URL structure.
  */
 
 const LIABILITY_CRITICAL = "Fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR). High risk of immediate regulatory intervention and ad account suspension.";
@@ -47,7 +47,6 @@ const JURISDICTION_CONFIG: Record<string, JurisdictionProfile> = {
   }
 };
 
-// Расширенный словарь для семантического поиска ссылок
 const DOC_KEYWORDS: Record<string, RegExp[]> = {
   privacy: [
     /privacy/i, /datenschutz/i, /confidentialit/i, /privacidad/i, /rodo/i, 
@@ -81,8 +80,8 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
   const links: Record<string, string | null> = { impressum: null, privacy: null, terms: null };
   const allDiscoveredLinks: string[] = [];
 
-  // ШАГ 1: УМНЫЙ СБОР ССЫЛОК ИЗ ПОДВАЛА (FOOTER)
-  // Ищем ссылки во всем документе, но отдаем приоритет подвалу
+  // SEMANTIC ANCHOR ANALYSIS (NAV SCOUT V31.0)
+  // Look for any link with anchor text matching legal keywords, prioritising footers
   $('a').each((_, el) => {
     const text = $(el).text().trim().toLowerCase();
     const href = $(el).attr('href') || '';
@@ -90,38 +89,36 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
 
     allDiscoveredLinks.push(href);
 
-    // Семантический анализ анкора (текста ссылки)
     if (DOC_KEYWORDS.privacy.some(k => k.test(text))) {
-        if (!links.privacy || text.length < 30) links.privacy = href;
+      if (!links.privacy || text.length < 30) links.privacy = href;
     }
     if (DOC_KEYWORDS.impressum.some(k => k.test(text))) {
-        if (!links.impressum || text.length < 30) links.impressum = href;
+      if (!links.impressum || text.length < 30) links.impressum = href;
     }
     if (DOC_KEYWORDS.terms.some(k => k.test(text))) {
-        if (!links.terms || text.length < 30) links.terms = href;
+      if (!links.terms || text.length < 30) links.terms = href;
     }
   });
 
   const violationMap = new Map<string, Violation>();
-  const fullHtmlLower = html.toLowerCase();
-  const bodyText = $('body').text();
+  const bodyText = $('body').text().toLowerCase();
 
-  // Базовые признаки присутствия юридического контента (для быстрой оценки)
-  const identityFound = profile.entitySuffixes.some(s => s.test(fullHtmlLower));
+  // Basic identity markers for the audit summary
+  const identityFound = profile.entitySuffixes.some(s => s.test(bodyText));
   
-  // Если ссылок вообще нет - это критическая ошибка (прозрачность)
+  // If NO legal footer links are discovered semantically, that is a critical transparency failure.
   if (!links.privacy && !links.impressum) {
     violationMap.set('Art. 12-Missing', {
       category: 'Privacy',
       report_type: 'SaaS',
-      issue_type: 'MISSING LEGAL FOOTER',
+      issue_type: 'MISSING LEGAL DISCLOSURES',
       severity: 'critical',
       evidence_html: url,
-      description: `No legal disclosure links (Privacy, Impressum, or Terms) were semantically identified in the site structure. Mandatory transparency requirements under Art. 12 GDPR are not met.`,
-      business_impact: 'Business Risk: Critical infrastructure failure. Advertising platforms (Meta/Google) will suspend accounts due to lack of mandatory compliance signals.',
+      description: `No semantic legal disclosure links (Privacy, Impressum, or Terms) were identified in the site architecture. This violates mandatory transparency requirements under Art. 12 GDPR.`,
+      business_impact: 'Business Risk: Critical compliance failure. Advertising platforms (Meta/Google) often suspend accounts when mandatory legal links are missing or inaccessible.',
       law_name: 'Art. 12 GDPR',
       potential_fine: LIABILITY_CRITICAL,
-      explanation: 'Commercial websites must provide easy access to legal information from any page, typically via a footer.',
+      explanation: 'Statutory law requires that legal documents be accessible from any page, usually via a clearly labeled footer.',
       recommendation: `ACTION: INSERT THIS HTML -> "<footer class=\"legal-footer\"><a href=\"/privacy\">Privacy Policy</a> | <a href=\"/legal\">Legal Notice</a></footer>"`,
       verification_method
     });

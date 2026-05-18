@@ -148,7 +148,7 @@ export async function generatePdfReport(domain: string): Promise<Buffer | null> 
                 <span class="label">POTENTIAL LIABILITY</span>
                 <div style="color:#ef4444; font-weight:700;">${DOMPurify.sanitize(v.fine_amount || "Up to €20M")}</div>
                 <span class="label">CORRECTIVE ACTION</span>
-                <div class="action-box">${DOMPurify.sanitize(v.recommendation || 'Action required.')}</div>
+                <div class="action-box">${DOMPurify.sanitize(v.recommendation || 'Action required.').replace(/'/g, '"')}</div>
               </div>
             </div>
           `).join('')}
