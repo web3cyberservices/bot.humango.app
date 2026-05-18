@@ -41,7 +41,8 @@ import {
   Scale,
   Layers,
   Info,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Users
 } from "lucide-react";
 
 interface DetectedIssue {
@@ -57,6 +58,9 @@ interface DetectedIssue {
   url?: string;
   evidence_html?: string;
   report_type: 'SaaS' | 'Manual';
+  assignedTo?: string;
+  managerName?: string;
+  assignedAt?: any;
 }
 
 interface SystemLog {
@@ -87,19 +91,16 @@ export default function AdminDashboard() {
   });
 
   useEffect(() => {
-    // Determine authentication state on client mount
     const isAuth = typeof document !== 'undefined' && document.cookie.includes('admin_authenticated=true');
     setIsAuthenticated(isAuth);
   }, []);
 
   const fetchData = useCallback(async () => {
-    // Only attempt fetch if authenticated and we are in the browser
     if (typeof document === 'undefined' || !document.cookie.includes('admin_authenticated=true')) return;
     
     setIsRefreshing(true);
     try {
       const timestamp = Date.now();
-      // Use allSettled to prevent one failing endpoint from breaking the loop
       const responses = await Promise.allSettled([
         fetch(`/api/admin/control?t=${timestamp}`, { cache: 'no-store' }),
         fetch(`/api/admin/stats?t=${timestamp}`, { cache: 'no-store' }),
@@ -128,7 +129,6 @@ export default function AdminDashboard() {
         setSystemLogs(logsData.logs || []);
       }
     } catch (err) {
-      // Quietly log errors to prevent [object Event] overlay spam
       console.warn("Dashboard sync warning:", err);
     } finally {
       setIsRefreshing(false);
@@ -234,6 +234,9 @@ export default function AdminDashboard() {
         <nav className="flex-1 p-4 space-y-2">
           <Button variant="secondary" className="w-full justify-start gap-3 bg-primary/10 text-primary"><LayoutDashboard className="w-4 h-4" /> Dashboard</Button>
           <Button variant="ghost" onClick={fetchFullHistory} className="w-full justify-start gap-3 text-slate-400"><AlertTriangle className="w-4 h-4" /> All Violations</Button>
+          <Button variant="ghost" asChild className="w-full justify-start gap-3 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10">
+            <Link href="/manager"><Users className="w-4 h-4" /> Manager CRM</Link>
+          </Button>
           <Button variant="ghost" onClick={handleExportCSV} className="w-full justify-start gap-3 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10">
             <FileSpreadsheet className="w-4 h-4" /> Export Report (Excel)
           </Button>
@@ -277,11 +280,7 @@ export default function AdminDashboard() {
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
             <Card className="bg-white/[0.03] border-white/10">
               <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 py-4">
-                <CardTitle className="text-sm font-bold flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-500" /> Recent Incidents</CardTitle>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="ghost" className="h-8 text-[10px]" onClick={handleExportCSV}>Export</Button>
-                  <Button size="sm" variant="ghost" className="h-8 text-[10px]" onClick={fetchFullHistory}>History</Button>
-                </div>
+                <CardTitle className="text-sm font-bold flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-500" /> Recent Incidents & CRM Status</CardTitle>
               </CardHeader>
               <CardContent className="p-0 max-h-[450px] overflow-y-auto">
                 <Table>
@@ -289,7 +288,7 @@ export default function AdminDashboard() {
                     <TableRow className="border-white/5">
                       <TableHead className="text-[9px]">DOMAIN</TableHead>
                       <TableHead className="text-[9px]">DIAGNOSTICS</TableHead>
-                      <TableHead className="text-[9px]">SEVERITY</TableHead>
+                      <TableHead className="text-[9px]">CRM STATUS</TableHead>
                       <TableHead className="text-right text-[9px]">TIME</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -299,10 +298,19 @@ export default function AdminDashboard() {
                         <TableCell className="text-xs font-medium">{issue.domain}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className={`text-[8px] ${issue.report_type === 'SaaS' ? 'border-blue-500 text-blue-500 bg-blue-500/5' : 'border-purple-500 text-purple-500 bg-purple-500/5'}`}>
-                            {issue.report_type === 'SaaS' ? 'NAV-SCOUT/LEX-ANALYZER' : 'MANUAL'}
+                            {issue.report_type === 'SaaS' ? 'NAV-SCOUT' : 'MANUAL'}
                           </Badge>
                         </TableCell>
-                        <TableCell><Badge variant="outline" className={`text-[8px] ${issue.level === 'critical' ? 'text-rose-500' : 'text-amber-500'}`}>{issue.level}</Badge></TableCell>
+                        <TableCell>
+                          {issue.assignedTo ? (
+                            <div className="flex flex-col gap-0.5">
+                              <Badge className="bg-emerald-500/10 text-emerald-400 text-[7px] border-emerald-500/20">В работе: {issue.managerName}</Badge>
+                              {issue.assignedAt && <span className="text-[7px] text-slate-500">{new Date(issue.assignedAt).toLocaleTimeString()}</span>}
+                            </div>
+                          ) : (
+                            <Badge variant="secondary" className="text-[7px] bg-slate-500/10 text-slate-500">Свободно</Badge>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right text-[9px] font-mono text-slate-500">{new Date(issue.date).toLocaleTimeString()}</TableCell>
                       </TableRow>
                     ))}
@@ -346,8 +354,8 @@ export default function AdminDashboard() {
                           <div>
                             <span className="font-bold text-base">{domain}</span>
                             <div className="flex gap-2 mt-0.5">
-                              <Badge className="bg-blue-500/10 text-blue-400 text-[8px]">{issues.filter(i => i.report_type === 'SaaS').length} Automated Module</Badge>
-                              <Badge className="bg-purple-500/10 text-purple-400 text-[8px]">{issues.filter(i => i.report_type === 'Manual').length} Manual Module</Badge>
+                              <Badge className="bg-blue-500/10 text-blue-400 text-[8px]">{issues.filter(i => i.report_type === 'SaaS').length} Automated</Badge>
+                              {issues[0]?.assignedTo && <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px]">In Work: {issues[0].managerName}</Badge>}
                             </div>
                           </div>
                         </div>
@@ -359,7 +367,7 @@ export default function AdminDashboard() {
                           <div key={issue.id} className="relative pl-6 border-l-2 border-primary/20 py-2">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
-                                <Badge variant="secondary" className="text-[8px]">{issue.report_type === 'SaaS' ? 'NAV-SCOUT / LEX-ANALYZER' : 'Manual Intervention Required'}</Badge>
+                                <Badge variant="secondary" className="text-[8px]">{issue.report_type === 'SaaS' ? 'NAV-SCOUT' : 'MANUAL'}</Badge>
                                 <span className="text-xs font-bold text-white uppercase">{issue.type}</span>
                                 <Badge className={issue.level === 'critical' ? 'bg-rose-500' : 'bg-amber-500'} text-xs>{issue.level}</Badge>
                               </div>
@@ -371,21 +379,10 @@ export default function AdminDashboard() {
                                   <p className="text-[9px] text-primary font-bold mb-1 uppercase tracking-widest"><Info className="w-3 h-3 inline mr-1" /> Diagnostic Summary:</p>
                                   <p className="text-xs text-slate-300">{issue.description}</p>
                                 </div>
-                                <div>
-                                  <p className="text-[9px] text-emerald-500 font-bold mb-1 uppercase tracking-widest"><Scale className="w-3 h-3 inline mr-1" /> Legal Ground:</p>
-                                  <p className="text-xs text-slate-400 italic">"{issue.summary}"</p>
-                                  <p className="text-[9px] text-slate-500 mt-2 font-mono">Reference: {issue.law_name}</p>
-                                </div>
                               </div>
                               <div className="p-3 bg-black/40 rounded-lg font-mono">
                                 <p className="text-[9px] text-slate-500 mb-1 uppercase">Target URL:</p>
                                 <a href={issue.url} target="_blank" className="text-[10px] text-emerald-400 hover:underline break-all">{issue.url}</a>
-                                {issue.evidence_html && issue.evidence_html.startsWith('data:') && (
-                                  <div className="mt-3">
-                                    <p className="text-[9px] text-slate-500 mb-2 uppercase">Diagnostic Capture:</p>
-                                    <img src={issue.evidence_html} className="rounded border border-white/10 w-full opacity-80 hover:opacity-100 transition-opacity cursor-zoom-in" alt="evidence" />
-                                  </div>
-                                )}
                               </div>
                             </div>
                           </div>
