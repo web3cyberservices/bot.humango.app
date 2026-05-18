@@ -69,9 +69,8 @@ async function handleAuditDelivery(domain: string, userEmail: string) {
     const errorMsg = error.message || 'Unknown SMTP error';
     logger.error(`[Worker Delivery Error] Domain: ${domain} | Error: ${errorMsg}`);
     
-    // Если это ошибка авторизации, логируем её отдельно для администратора
     if (errorMsg.includes('535') || errorMsg.includes('BadCredentials')) {
-      await saveBotEvent('ERROR', `SMTP AUTH FAILED: Check Google App Password for ${process.env.SMTP_USER}. Error: ${errorMsg}`);
+      await saveBotEvent('ERROR', `SMTP AUTH FAILED: Invalid App Password for ${process.env.SMTP_USER}.`);
     } else {
       await saveBotEvent('ERROR', `Email delivery failed for ${domain}: ${errorMsg}`);
     }
@@ -125,9 +124,6 @@ async function runWorker(workerId: number) {
       
       if (result.status === 'success') {
         const deliverySuccess = await handleAuditDelivery(currentDomain, userEmail);
-        
-        // Помечаем задачу как завершенную, даже если почта не ушла (чтобы не зацикливаться)
-        // Но логируем ошибку доставки выше.
         await updateQueueStatus(task.id, 'completed');
         
         if (deliverySuccess) {
@@ -153,13 +149,12 @@ export async function startEngine() {
   try {
     await testConnection();
     
-    // Проверка связи с SMTP сервером при старте с расширенным логированием
     transporter.verify((error, success) => {
       if (error) {
         logger.error(`[SMTP] Verification failed: ${error.message}`);
-        saveBotEvent('ERROR', `SMTP VERIFICATION FAILED: ${error.message}. Check App Password.`);
+        saveBotEvent('ERROR', `SMTP VERIFICATION FAILED: ${error.message}.`);
       } else {
-        logger.info(`[SMTP] Server ${process.env.SMTP_HOST} is ready`);
+        logger.info(`[SMTP] Server is ready`);
         saveBotEvent('SUCCESS', `SMTP Server connected for ${process.env.SMTP_USER}`);
       }
     });
