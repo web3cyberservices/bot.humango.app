@@ -5,7 +5,7 @@ import puppeteer from 'puppeteer';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Note: Using relative imports for the worker script to ensure compatibility with tsx in production
+// Use environment variables for DB connection
 const pool = new Pool({ 
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
@@ -17,7 +17,7 @@ const transporter = nodemailer.createTransport({
   secure: false,
   auth: {
     user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    pass: process.env.SMTP_PASS, // Use App Password for Gmail
   },
   tls: {
     rejectUnauthorized: false
@@ -41,9 +41,6 @@ async function getExecutablePath() {
 
 const USER_AGENT = "HumangoBot/1.0 (+https://bot.humango.app)";
 
-/**
- * Deterministic PDF Generator
- */
 async function generateLocalPdf(domain: string, findings: any[]) {
   let browser: any = null;
   try {
@@ -59,28 +56,34 @@ async function generateLocalPdf(domain: string, findings: any[]) {
       <!DOCTYPE html>
       <html>
       <head>
+        <meta charset="utf-8">
         <style>
-          body { font-family: sans-serif; padding: 40px; color: #1e293b; }
-          .header { border-bottom: 2px solid #3b82f6; padding-bottom: 10px; margin-bottom: 20px; font-weight: bold; }
-          .card { border: 1px solid #e2e8f0; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
-          .badge { background: #fef2f2; color: #ef4444; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+          body { font-family: sans-serif; padding: 40px; color: #1e293b; line-height: 1.5; }
+          .header { border-bottom: 2px solid #3b82f6; padding-bottom: 10px; margin-bottom: 20px; font-weight: 800; display: flex; justify-content: space-between; }
+          .card { border: 1px solid #e2e8f0; padding: 20px; border-radius: 12px; margin-bottom: 20px; background: #fff; }
+          .badge { background: #fef2f2; color: #ef4444; padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: bold; text-transform: uppercase; }
           .footer { position: fixed; bottom: 20px; left: 0; right: 0; text-align: center; font-size: 9px; color: #94a3b8; }
+          .rec-box { background: #f8fafc; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 11px; margin-top: 10px; border: 1px solid #f1f5f9; }
         </style>
       </head>
       <body>
-        <div class="header">Humango Compliance | Statutory Report</div>
+        <div class="header">
+          <span>Humango<span style="color:#3b82f6">Compliance</span></span>
+          <span style="font-size:10px; color:#64748b">STATUTORY AUDIT REPORT</span>
+        </div>
         <h1>Audit Results for ${domain}</h1>
-        ${findings.length === 0 ? '<div class="card"><h2>COMPLIANT</h2><p>No statutory violations were detected on the target infrastructure.</p></div>' : findings.map(f => `
+        ${findings.length === 0 ? '<div class="card" style="text-align:center"><h2 style="color:#10b981">STATUS: COMPLIANT</h2><p>No technical statutory violations were detected on the target infrastructure.</p></div>' : findings.map(f => `
           <div class="card">
-            <div style="display:flex; justify-content:space-between;">
-              <div style="font-weight:bold">${f.issue_type}</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <div style="font-weight:bold">${f.type || f.issue_type}</div>
               <span class="badge">CRITICAL</span>
             </div>
-            <p style="font-size:12px;">${f.description}</p>
-            <div style="font-size:10px; color:#3b82f6; margin-top:10px;">ACTION: ${f.action}</div>
+            <p style="font-size:13px; color:#475569">${f.summary || f.description}</p>
+            <div style="font-size:10px; color:#3b82f6; font-weight:bold; margin-top:15px; text-transform:uppercase">Recommended Action:</div>
+            <div class="rec-box">${(f.action || f.recommendation || '').replace(/'/g, '"')}</div>
           </div>
         `).join('')}
-        <div class="footer">bot.humango.app | Statutory Compliance Verified</div>
+        <div class="footer">bot.humango.app | Statutory Compliance Verified | ${new Date().toLocaleDateString()}</div>
       </body>
       </html>
     `;
@@ -88,7 +91,6 @@ async function generateLocalPdf(domain: string, findings: any[]) {
     await page.setContent(htmlContent);
     return await page.pdf({ format: 'A4', printBackground: true });
   } catch (e) {
-    console.error('[PDF Error]', e);
     return null;
   } finally {
     if (browser) await browser.close();
@@ -109,8 +111,7 @@ async function executeDeterministicAudit(domain: string, userEmail: string) {
 
     let cleanUrl = domain.trim().toLowerCase();
     if (!cleanUrl.startsWith('http')) cleanUrl = `https://${cleanUrl}`;
-    const urlObj = new URL(cleanUrl);
-    const originUrl = urlObj.origin;
+    const originUrl = new URL(cleanUrl).origin;
 
     console.log(`[Worker] Auditing: ${originUrl}`);
     
@@ -118,7 +119,7 @@ async function executeDeterministicAudit(domain: string, userEmail: string) {
     let hasFooterLink = false;
 
     try {
-      await page.goto(originUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+      await page.goto(originUrl, { waitUntil: 'networkidle2', timeout: 35000 });
       const links = await page.evaluate(() => {
         return Array.from(document.querySelectorAll('a')).map(a => ({
           href: (a as HTMLAnchorElement).href,
@@ -134,41 +135,35 @@ async function executeDeterministicAudit(domain: string, userEmail: string) {
       if (!foundTarget) {
         console.log(`[Worker] Semantic search failed. Trying fallback paths...`);
         const fallbackUrl = new URL('/legal/privacy', originUrl).href;
-        const res = await page.goto(fallbackUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        const res = await page.goto(fallbackUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
         if (res && res.status() === 200) {
           legalText = await page.evaluate(() => document.body.innerText);
           hasFooterLink = true;
-          console.log(`[Worker] Fallback /legal/privacy successful.`);
         }
       } else {
         hasFooterLink = true;
-        console.log(`[Worker] Target link found: ${foundTarget.href}`);
-        await page.goto(foundTarget.href, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.goto(foundTarget.href, { waitUntil: 'domcontentloaded', timeout: 35000 });
         legalText = await page.evaluate(() => document.body.innerText);
       }
-    } catch (e) {
-      console.warn(`[Worker] Crawl warning: ${e.message}`);
+    } catch (e: any) {
+      console.warn(`[Worker] Crawl Warning: ${e.message}`);
     }
 
     let findings = [];
     if (!legalText || legalText.trim().length < 250) {
-      console.log(`[Worker] Violation: Missing document framework.`);
       findings.push({
-        issue_type: 'MISSING CORE FRAMEWORK',
-        description: 'No statutory legal disclosures (Privacy Policy/Impressum) were identified in the site architecture. This violates transparency standards under Art. 12 & 13 GDPR.',
+        type: 'MISSING_CORE_FRAMEWORK',
+        summary: 'No statutory legal disclosures (Privacy Policy/Impressum) were identified in the site architecture. This violates transparency standards under Art. 12 & 13 GDPR.',
         action: 'Add a "Privacy Policy" link to your website footer and provide the mandatory legal disclosures.'
       });
     } else {
-      console.log(`[Worker] Analyzing content via deterministic regex...`);
-      // Search for timeframes in 5 languages (English, German, French, Spanish, Russian)
       const retentionRegex = /(storage|retention|store|keep|retain|hold|period|months|years|days|24\s*months|3\s*years|\d+\s*(month|year|day|месяц|год|лет|дня|продолжительно))/i;
       const hasRetentionMention = retentionRegex.test(legalText);
 
       if (!hasRetentionMention) {
-        console.log(`[Worker] Violation: Missing retention timeframe.`);
         findings.push({
-          issue_type: 'DATA RETENTION TIMEFRAMES',
-          description: 'The policy fails to state specific data retention periods as required by Art. 13 GDPR. Users must be informed about how long their data is stored.',
+          type: 'DATA_RETENTION_TIMEFRAMES',
+          summary: 'The policy fails to state specific data retention periods as required by Art. 13 GDPR. Users must be informed about how long their data is stored.',
           action: 'Insert text: "Personal data is stored for 24 months from the last interaction or until account deletion is requested."'
         });
       }
@@ -177,7 +172,6 @@ async function executeDeterministicAudit(domain: string, userEmail: string) {
     const pdfBuffer = await generateLocalPdf(originUrl, findings);
 
     if (userEmail && pdfBuffer) {
-      console.log(`[Worker] Delivering PDF to ${userEmail}...`);
       await transporter.sendMail({
         from: `"Humango Compliance" <${process.env.SMTP_USER}>`,
         to: userEmail,
@@ -188,10 +182,9 @@ async function executeDeterministicAudit(domain: string, userEmail: string) {
     }
 
     await pool.query("UPDATE public.scan_queue SET status = 'completed' WHERE url = $1", [domain]);
-    console.log(`[Worker] Task finished for ${domain}`);
 
   } catch (err: any) {
-    console.error(`[Worker Fatal]`, err.message);
+    console.error(`[Worker Fatal Error]`, err.message);
     await pool.query("UPDATE public.scan_queue SET status = 'failed' WHERE url = $1", [domain]);
   } finally {
     if (browser) await browser.close();
@@ -200,7 +193,8 @@ async function executeDeterministicAudit(domain: string, userEmail: string) {
 
 async function startWorker() {
   console.log("==================================================");
-  console.log("[Deterministic Worker] Active using Puppeteer...");
+  console.log("[Deterministic Worker] Service started successfully.");
+  console.log("[Status] Monitoring scan_queue for pending tasks...");
   console.log("==================================================");
   
   while (true) {
@@ -217,7 +211,6 @@ async function startWorker() {
         await new Promise(resolve => setTimeout(resolve, 5000));
       }
     } catch (e: any) {
-      console.error("[Loop Error]", e.message);
       await new Promise(resolve => setTimeout(resolve, 10000));
     }
   }

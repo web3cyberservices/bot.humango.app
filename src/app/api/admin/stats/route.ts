@@ -4,11 +4,9 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-/**
- * Stable Stats API - Prevents TypeError on dashboard load
- */
 export async function GET() {
   try {
+    // Return stable mock stats to ensure frontend works while engine is processing
     return NextResponse.json({
       pagesScanned: 1240,
       issuesFound: 86,
@@ -20,7 +18,7 @@ export async function GET() {
         'Expires': '0',
       }
     });
-  } catch (error: any) {
+  } catch (error) {
     return NextResponse.json({ error: 'Internal system error' }, { status: 500 });
   }
 }

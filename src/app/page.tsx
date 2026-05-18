@@ -6,12 +6,12 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { startCrawlAction, checkAuditStatus } from '@/app/actions/crawler-actions';
 import { 
-  Mail, Globe, Terminal, ShieldCheck, Zap, Loader2, CheckCircle2, Download, AlertCircle, ArrowRight, ShieldAlert, Cpu, Activity, FileSearch, Code
+  Mail, Globe, Terminal, ShieldCheck, Zap, Loader2, CheckCircle2, Download, ArrowRight, ShieldAlert, Cpu, Activity, FileSearch, Code
 } from "lucide-react";
 
 export default function Home() {
@@ -70,8 +70,8 @@ export default function Home() {
 
       <header className="border-b border-white/5 bg-[#020617]/50 backdrop-blur-xl sticky top-0 z-50">
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3 group cursor-default">
-            <div className="bg-white/5 p-1.5 rounded-lg border border-white/10 group-hover:border-primary/50 transition-colors">
+          <div className="flex items-center gap-3">
+            <div className="bg-white/5 p-1.5 rounded-lg border border-white/10">
               <Image src="/logo.png" alt="Humango Logo" width={24} height={24} priority />
             </div>
             <span className="font-bold text-lg tracking-tight">Humango<span className="text-primary">Compliance</span></span>
@@ -82,11 +82,11 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1">
         <section className="container mx-auto px-6 pt-16 pb-24 text-center">
           <div className="max-w-4xl mx-auto space-y-8">
             <Badge variant="outline" className="py-1.5 px-4 border-primary/20 bg-primary/5 text-primary text-[10px] font-bold uppercase tracking-[0.2em] animate-in fade-in slide-in-from-top-4 duration-1000">
-              Statutory Compliance Engine v5.3
+              Statutory Compliance Engine v5.9
             </Badge>
             <h1 className="text-5xl md:text-7xl font-extrabold tracking-tighter leading-[0.9] text-white">
               Professional Web <br />
@@ -95,7 +95,7 @@ export default function Home() {
               </span>
             </h1>
             <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed font-light">
-              Identify GDPR liabilities, missing legal disclosures, and technical risks in real-time. Automated diagnostic reports for global web infrastructure.
+              Automated detection of GDPR liabilities, missing legal disclosures, and technical risks in real-time. Verified reports for global web infrastructure.
             </p>
 
             <div className="pt-8 max-w-2xl mx-auto">
@@ -192,7 +192,7 @@ export default function Home() {
               <div className="p-6 bg-white/[0.02] border border-white/5 rounded-2xl space-y-4 font-mono text-xs">
                 <div className="flex justify-between items-center border-b border-white/5 pb-2">
                   <span className="text-slate-500 uppercase">User-Agent Identity</span>
-                  <span className="text-primary">HumangoBot/1.0</span>
+                  <span className="text-primary">HumangoBot/1.0 (+https://bot.humango.app)</span>
                 </div>
                 <div className="flex justify-between items-center border-b border-white/5 pb-2">
                   <span className="text-slate-500 uppercase">Static IP Node</span>
@@ -221,7 +221,7 @@ export default function Home() {
                     <Code className="w-3 h-3" /> Node: 116.203.3.75
                   </span>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-4">
                   <p className="text-2xl font-bold text-white">Compliance Verdict</p>
                   <p className="text-sm text-slate-400">Our engine maps your site against EU and UK statutory requirements in real-time.</p>
                 </div>

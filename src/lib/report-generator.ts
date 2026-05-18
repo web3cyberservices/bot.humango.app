@@ -2,7 +2,6 @@
 import { pool } from './db';
 import puppeteer from 'puppeteer';
 import fs from 'fs';
-import path from 'path';
 
 const CHROME_PATHS = [
   '/usr/bin/google-chrome',
@@ -15,12 +14,11 @@ const CHROME_PATHS = [
 export async function generatePdfReport(domain: string, providedFindings?: any[]): Promise<Buffer | null> {
   let browser: any = null;
   try {
-    const DOMPurify = (await import('isomorphic-dompurify')).default;
-    const safeDomain = DOMPurify.sanitize(domain.toLowerCase().replace(/^https?:\/\//, '').split('/')[0]);
+    const safeDomain = domain.toLowerCase().replace(/^https?:\/\//, '').split('/')[0].replace(/[^a-z0-9.]/gi, '');
     
     let findings = providedFindings || [];
 
-    if (findings.length === 0) {
+    if (findings.length === 0 && !providedFindings) {
       const res = await pool.query(`
         SELECT issue_type, severity, description, law_name, recommendation 
         FROM site_violations 
@@ -30,16 +28,10 @@ export async function generatePdfReport(domain: string, providedFindings?: any[]
       findings = res.rows;
     }
 
-    // Logic filter: If core framework is missing, ignore sub-issues to prevent logical contradiction
-    if (findings.some((f: any) => (f.issue_type || '').toUpperCase().includes('MISSING CORE FRAMEWORK'))) {
-      findings = findings.filter((f: any) => (f.issue_type || '').toUpperCase().includes('MISSING CORE FRAMEWORK'));
+    // Logic: If core framework is missing, filter out other secondary issues
+    if (findings.some((f: any) => (f.type || f.issue_type || '').toUpperCase().includes('MISSING_CORE_FRAMEWORK'))) {
+      findings = findings.filter((f: any) => (f.type || f.issue_type || '').toUpperCase().includes('MISSING_CORE_FRAMEWORK'));
     }
-
-    // Force double quotes for recommendations for cleanliness
-    findings = findings.map((v: any) => ({
-      ...v,
-      recommendation: (v.recommendation || v.action || '').replace(/[']/g, '"')
-    }));
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -73,12 +65,12 @@ export async function generatePdfReport(domain: string, providedFindings?: any[]
         ` : findings.map((v: any) => `
           <div class="card">
             <div style="display:flex; justify-content:space-between; margin-bottom: 10px;">
-              <div style="font-weight:bold;">${v.issue_type || v.type}</div>
+              <div style="font-weight:bold;">${v.type || v.issue_type}</div>
               <span class="severity-badge">CRITICAL</span>
             </div>
-            <p style="font-size:13px;">${v.description || v.summary}</p>
-            <div style="font-size:10px; font-weight:bold; color:#3b82f6; margin-bottom:5px;">RECOMMENDED ACTION:</div>
-            <div class="recommendation-box">${v.recommendation || v.action}</div>
+            <p style="font-size:13px;">${v.summary || v.description}</p>
+            <div style="font-size:10px; font-weight:bold; color:#3b82f6; margin-bottom:5px; text-transform:uppercase">Recommended Action:</div>
+            <div class="recommendation-box">${(v.action || v.recommendation || '').replace(/'/g, '"')}</div>
           </div>
         `).join('')}
 
@@ -93,14 +85,13 @@ export async function generatePdfReport(domain: string, providedFindings?: any[]
     browser = await puppeteer.launch({ 
       executablePath: executablePath || undefined, 
       headless: true, 
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] 
+      args: ['--no-sandbox', '--disable-setuid-sandbox'] 
     });
     
     const page = await browser.newPage();
     await page.setContent(htmlContent);
     return await page.pdf({ format: 'A4', printBackground: true });
   } catch (error) {
-    console.error('PDF Generation Error:', error);
     return null;
   } finally {
     if (browser) await browser.close();

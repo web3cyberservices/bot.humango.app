@@ -46,7 +46,6 @@ export async function getTaskStatus(url: string) {
 }
 
 export async function saveAuditResults(domain: string, url: string, violations: any[], scanType: string = 'basic') {
-  // Logic to prevent inconsistent data (Missing core framework vs other errors)
   let filteredViolations = violations;
   if (violations.some(v => v.issue_type === 'MISSING CORE FRAMEWORK')) {
     filteredViolations = violations.filter(v => v.issue_type === 'MISSING CORE FRAMEWORK');
@@ -66,7 +65,7 @@ export async function saveAuditResults(domain: string, url: string, violations: 
         [
           sanitize(domain), sanitize(url), sanitize(url), v.category || 'Privacy', 
           v.issue_type, v.severity || 'critical', sanitize(url), 
-          sanitize(v.description), sanitize(v.law_name), 
+          sanitize(v.description || v.summary), sanitize(v.law_name), 
           sanitize(v.recommendation || v.action), scanType, 
           v.report_type || 'SaaS', sanitize(v.business_impact), sanitize(v.explanation || v.description)
         ]
@@ -96,7 +95,6 @@ export async function setBotStatus(isActive: boolean) {
     await pool.query('UPDATE public.bot_settings SET is_active = $1, updated_at = NOW() WHERE id = 1', [isActive]);
     return { success: true };
   } catch (error) {
-    console.error('Failed to set bot status:', error);
     return { success: false };
   }
 }
