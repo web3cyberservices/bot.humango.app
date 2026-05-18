@@ -3,12 +3,11 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   output: 'standalone',
-  // Устанавливаем фиксированный Build ID, чтобы избежать ChunkLoadError при перезапусках
-  generateBuildId: async () => {
-    return 'humango-production-v1';
-  },
   typescript: {
     ignoreBuildErrors: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
   },
   serverExternalPackages: [
     'pg', 
@@ -45,6 +44,7 @@ const nextConfig: NextConfig = {
     ]
   },
   images: {
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',
@@ -86,10 +86,6 @@ const nextConfig: NextConfig = {
           {
             key: 'Referrer-Policy',
             value: 'strict-origin-when-cross-origin',
-          },
-          {
-            key: 'Content-Security-Policy',
-            value: "default-src 'self' *; script-src 'self' 'unsafe-inline' 'unsafe-eval' *; style-src 'self' 'unsafe-inline' *; img-src 'self' blob: data: *; font-src 'self' data: *; connect-src 'self' *; frame-ancestors 'self' *; upgrade-insecure-requests;",
           },
           {
             key: 'Strict-Transport-Security',

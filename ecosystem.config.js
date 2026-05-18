@@ -25,7 +25,6 @@ module.exports = {
         SMTP_HOST: 'smtp.gmail.com',
         SMTP_PORT: 587,
         SMTP_USER: 'abuse@humango.app',
-        // Новый пароль приложения Google
         SMTP_PASS: 'mdmf tszb ttct zxpt' 
       }
     }
