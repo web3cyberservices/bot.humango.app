@@ -33,7 +33,7 @@ export function normalizeUrl(url: string, base?: string): string {
   try {
     let target = url.trim();
     
-    // If we have a base and target is a relative path, join them properly
+    // If we have a base and target is a relative path, join them properly using URL object
     if (base) {
       const baseUrl = base.startsWith('http') ? base : `https://${base}`;
       const u = new URL(target, baseUrl);

@@ -12,38 +12,44 @@ const CHROME_PATHS = [
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 ];
 
-export async function generatePdfReport(domain: string): Promise<Buffer | null> {
+export async function generatePdfReport(domain: string, providedFindings?: any[]): Promise<Buffer | null> {
   let browser: any = null;
   try {
     const DOMPurify = (await import('isomorphic-dompurify')).default;
     const safeDomain = DOMPurify.sanitize(domain.toLowerCase().replace(/^https?:\/\//, '').split('/')[0]);
     const otherDomain = safeDomain.startsWith('www.') ? safeDomain.replace('www.', '') : `www.${safeDomain}`;
 
-    const res = await pool.query(`
-      SELECT 
-        issue_type, page_url, severity, category, description, business_impact,
-        fine_amount, law_name, recommendation, explanation, report_type,
-        verification_method, created_at
-      FROM site_violations 
-      WHERE domain = $1 OR domain = $2
-      ORDER BY 
-        CASE severity 
-          WHEN 'critical' THEN 1 
-          WHEN 'high' THEN 2 
-          WHEN 'medium' THEN 3 
-          ELSE 4 
-        END ASC,
-        created_at ASC
-    `, [safeDomain, otherDomain]);
+    let rawFindings = providedFindings;
 
-    const scanCheck = await pool.query('SELECT created_at FROM audit_logs WHERE domain = $1 OR domain = $2 LIMIT 1', [safeDomain, otherDomain]);
-    
-    if (res.rows.length === 0 && scanCheck.rows.length === 0) {
-      return null;
+    if (!rawFindings) {
+      const res = await pool.query(`
+        SELECT 
+          issue_type, page_url, severity, category, description, business_impact,
+          fine_amount, law_name, recommendation, explanation, report_type,
+          verification_method, created_at
+        FROM site_violations 
+        WHERE domain = $1 OR domain = $2
+        ORDER BY 
+          CASE severity 
+            WHEN 'critical' THEN 1 
+            WHEN 'high' THEN 2 
+            WHEN 'medium' THEN 3 
+            ELSE 4 
+          END ASC,
+          created_at ASC
+      `, [safeDomain, otherDomain]);
+      rawFindings = res.rows;
+    }
+
+    if (!rawFindings || rawFindings.length === 0) {
+      // Check if audit was performed at all
+      const scanCheck = await pool.query('SELECT created_at FROM audit_logs WHERE domain = $1 OR domain = $2 LIMIT 1', [safeDomain, otherDomain]);
+      if (scanCheck.rows.length === 0 && (!providedFindings || providedFindings.length === 0)) {
+        return null;
+      }
     }
 
     // LOGICAL SAFEGUARD: If the core framework is missing, discard all other content-based hallucinations
-    let rawFindings = res.rows;
     const hasMissingFramework = rawFindings.some(r => 
       r.issue_type?.toUpperCase().includes('MISSING CORE FRAMEWORK') || 
       r.issue_type?.toUpperCase().includes('MISSING LEGAL DISCLOSURES')
