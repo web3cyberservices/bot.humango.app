@@ -1,3 +1,4 @@
+
 import { scrapeUrl } from '@/lib/scraper';
 import { parseHtmlContent } from '@/lib/parser';
 import { isUrlAllowed } from '@/config/robots-rules';
@@ -10,8 +11,8 @@ import { performance } from 'perf_hooks';
 const urlSchema = z.string().url();
 
 /**
- * The Loop Architecture (V22.0)
- * Crawler -> Verifier -> Re-Tasker -> Finalizer
+ * The Loop Architecture (V23.0) - Semantic Deep Dive
+ * Crawler -> Semantic Parser -> Candidate Follower -> Verifier
  */
 export async function runCrawlTask(seedUrl: string, iteration: number = 1): Promise<CrawlResult> {
   const startTime = performance.now();
@@ -30,7 +31,7 @@ export async function runCrawlTask(seedUrl: string, iteration: number = 1): Prom
       return { url: initialNormalized, timestamp, status: 'blocked', issuesFound: 0, scanType: 'basic', reason: robotsCheck.reason };
     }
 
-    // PHASE 1: COLLECTION
+    // PHASE 1: COLLECTION (HOME PAGE)
     await saveBotEvent('SUCCESS', `Audit Loop Start: ${initialNormalized} (Iteration ${iteration})`);
     const scrape = await scrapeUrl(initialNormalized);
     if (scrape.status === 'fail') {
@@ -46,10 +47,42 @@ export async function runCrawlTask(seedUrl: string, iteration: number = 1): Prom
       isDeep
     );
 
-    // PHASE 2: VERIFICATION
+    // PHASE 2: SEMANTIC DEEP DIVE
+    // If we didn't find critical docs on home page, but found potential links, follow them.
+    let finalViolations: Violation[] = parsed.violations;
+    const legalLinks = parsed.meta.legal_links;
+    
+    // We only dive deeper if we are on the first iteration and missing core docs
+    if (iteration === 1) {
+      const candidates = Object.entries(legalLinks).filter(([_, href]) => !!href);
+      
+      for (const [type, href] of candidates) {
+          const deepUrl = normalizeUrl(href!, initialNormalized);
+          if (deepUrl === initialNormalized) continue;
+
+          await saveBotEvent('SUCCESS', `Semantic Discovery: Found ${type} candidate at ${deepUrl}. Diving...`);
+          
+          try {
+            const deepScrape = await scrapeUrl(deepUrl);
+            if (deepScrape.status === 'success') {
+                const deepParsed = parseHtmlContent(deepScrape.html, deepUrl, deepScrape.rawHeaders, deepScrape.screenshot, deepScrape.method === 'puppeteer');
+                // If deep page has actual legal content, we remove the "Missing" violation from home page
+                if (deepScrape.html.length > 1000 && /pursuant to|compliance|article|gdpr|law/i.test(deepScrape.html)) {
+                    finalViolations = finalViolations.filter(v => !v.issue_type.includes('MISSING') || !v.issue_type.includes(type.toUpperCase()));
+                    // Merge any violations found on the actual legal page (like missing retention)
+                    finalViolations = mergeFindings(finalViolations, deepParsed.violations);
+                }
+            }
+          } catch (e) {
+            console.error(`[Crawler] Deep dive failed for ${deepUrl}`, e);
+          }
+      }
+    }
+
+    // PHASE 3: AI VERIFICATION
     let validationResult;
     try {
-      validationResult = await verifyIntegrity(scrape.html, parsed.violations);
+      validationResult = await verifyIntegrity(scrape.html, finalViolations);
     } catch (vErr) {
       console.error('[CrawlTask] Critical error in verification phase:', vErr);
       validationResult = {
@@ -59,60 +92,17 @@ export async function runCrawlTask(seedUrl: string, iteration: number = 1): Prom
       };
     }
     
-    // Log the validation attempt
-    await saveValidationLog(
-      initialNormalized, 
-      iteration, 
-      validationResult.integrity_status, 
-      validationResult.validated_findings,
-      validationResult.overall_confidence
-    );
-
-    // PHASE 3: RE-TASKING / REFINEMENT - FORCE MAPPING OF ALL FIELDS
-    let finalViolations: Violation[] = parsed.violations.map(v => {
-      const vMatch = validationResult.validated_findings.find(vf => vf.issue_type === v.issue_type);
-      return {
-        ...v,
-        confidence_score: vMatch?.confidence_score ?? 0.8,
-        evidence_quote: vMatch?.evidence_quote || "Verified via Senior Auditor Static Diagnostic V21.4.",
-        business_impact: vMatch?.business_impact || v.business_impact || 'Regulatory non-compliance escalates financial and operational risks.',
-        potential_fine: vMatch?.potential_fine || v.potential_fine,
-        recommendation: vMatch?.recommendation || v.recommendation,
-        verification_status: vMatch?.verification_status || 'verified',
-        is_hallucination: vMatch?.is_hallucination ?? false
-      };
-    }).filter(v => !v.is_hallucination && v.confidence_score > 0);
-
-    // Check if we need to deep-dive for missing facts
-    const needsRefinement = iteration < 2 && (
-      validationResult.overall_confidence < 0.9 || 
-      validationResult.integrity_status === 'incomplete'
-    );
-
-    if (needsRefinement) {
-      const legalLinks = parsed.meta.legal_links;
-      const targetUrl = legalLinks.impressum || legalLinks.privacy;
-      
-      if (targetUrl) {
-        const deepUrl = normalizeUrl(targetUrl, initialNormalized);
-        await saveBotEvent('SUCCESS', `Confidence Low [${validationResult.overall_confidence}]. Triggering Targeted Deep Dive: ${deepUrl}`);
-        
-        try {
-          const deepResult = await runCrawlTask(deepUrl, iteration + 1);
-          if (deepResult.status === 'success' && deepResult.violations) {
-            finalViolations = mergeFindings(finalViolations, deepResult.violations);
-          }
-        } catch (deepErr) {
-          console.error('[CrawlTask] Deep dive iteration failed:', deepErr);
-        }
-      }
-    }
+    await saveValidationLog(initialNormalized, iteration, validationResult.integrity_status, validationResult.validated_findings, validationResult.overall_confidence);
 
     // PHASE 4: FINALIZATION
     const domain = new URL(initialNormalized).hostname;
     await saveAuditLog(domain, 200, null);
     
-    const verifiedFindings = finalViolations.filter(v => v.confidence_score >= 0.5);
+    const verifiedFindings = finalViolations.filter(v => {
+        const vMatch = validationResult.validated_findings.find(vf => vf.issue_type === v.issue_type);
+        return (vMatch?.confidence_score ?? 0.8) >= 0.5;
+    });
+
     await saveAuditResults(domain, initialNormalized, verifiedFindings, iteration > 1 ? 'deep' : 'basic');
     
     const total_ms = Math.round(performance.now() - startTime);
@@ -149,15 +139,12 @@ export async function runCrawlTask(seedUrl: string, iteration: number = 1): Prom
 
 function mergeFindings(base: Violation[], refined: Violation[]): Violation[] {
   const merged = new Map<string, Violation>();
-  
   base.forEach(v => merged.set(v.issue_type, v));
-  
   refined.forEach(v => {
     const existing = merged.get(v.issue_type);
-    if (!existing || v.confidence_score > existing.confidence_score) {
+    if (!existing || v.confidence_score > (existing.confidence_score || 0)) {
       merged.set(v.issue_type, v);
     }
   });
-  
   return Array.from(merged.values());
 }

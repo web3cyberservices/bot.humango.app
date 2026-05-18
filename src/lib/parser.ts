@@ -3,11 +3,11 @@ import * as cheerio from 'cheerio';
 import { Violation, ComplianceReport, VerificationMethod } from '@/types';
 
 /**
- * @fileOverview Automated Legal Fixer V28.0 - Statutory Diagnostic Engine.
+ * @fileOverview Automated Legal Fixer V29.0 - Semantic Diagnostic Engine.
  * 
- * - Rule: Human-Friendly definitions (DPO, Official Company Identity).
- * - Rule: Zero-Advice Fixes (Copy-paste ready HTML/Text snippets).
- * - Rule: Logic-Gate support for Missing vs Incomplete.
+ * - Rule: Anchor-Text Analysis (Semantic discovery instead of path-based).
+ * - Rule: Multilingual Support (DE, EN, FR, ES, PL).
+ * - Rule: Content Verification (Looking for legal markers inside the page).
  */
 
 const LIABILITY_CRITICAL = "Fines up to €20,000,000 or 4% of global annual turnover (Art. 83 GDPR). High risk of immediate regulatory intervention and ad account suspension.";
@@ -48,8 +48,20 @@ const JURISDICTION_CONFIG: Record<string, JurisdictionProfile> = {
 };
 
 const DOC_KEYWORDS: Record<string, RegExp[]> = {
-  privacy: [/privacy/i, /datenschutz/i, /confidentialit/i, /privacidad/i, /rodo/i],
-  impressum: [/impressum/i, /legal notice/i, /mentions l/i, /aviso legal/i]
+  privacy: [
+    /privacy/i, /datenschutz/i, /confidentialit/i, /privacidad/i, /rodo/i, 
+    /data protection/i, /protection des données/i, /polityka prywatności/i,
+    /cookie/i, /kekse/i, /how we use data/i, /обработка данных/i
+  ],
+  impressum: [
+    /impressum/i, /legal notice/i, /mentions l/i, /aviso legal/i, 
+    /site notice/i, /identification/i, /anbieterkennzeichnung/i,
+    /contact/i, /контакты/i, /о компании/i
+  ],
+  terms: [
+    /terms/i, /conditions/i, /agb/i, /cgv/i, /usage/i, /service/i,
+    /nutzungsbedingungen/i, /tos/i, /t&c/i, /условия/i, /соглашение/i
+  ]
 };
 
 export function parseHtmlContent(html: string, url: string, headers: any = {}, screenshot?: string, isPuppeteer: boolean = false, userInputCountry?: string): {
@@ -65,16 +77,36 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
   const tld = domain.split('.').pop()?.toUpperCase();
   const profile = JURISDICTION_CONFIG[userInputCountry?.toUpperCase() || tld || ''] || JURISDICTION_CONFIG.DEFAULT;
 
-  const links: Record<string, string | null> = { impressum: null, privacy: null };
+  const links: Record<string, string | null> = { impressum: null, privacy: null, terms: null };
+  const allDiscoveredLinks: string[] = [];
+
+  // SEMANTIC ANCHOR ANALYSIS
   $('a').each((_, el) => {
     const text = $(el).text().trim().toLowerCase();
     const href = $(el).attr('href') || '';
-    if (DOC_KEYWORDS.privacy.some(k => k.test(text))) links.privacy = href;
-    if (DOC_KEYWORDS.impressum.some(k => k.test(text))) links.impressum = href;
+    if (!href || href.startsWith('javascript:') || href.startsWith('#')) return;
+
+    allDiscoveredLinks.push(href);
+
+    // Prioritize links in footers or headers if possible, but scan all
+    if (DOC_KEYWORDS.privacy.some(k => k.test(text))) {
+        if (!links.privacy || text.length < 20) links.privacy = href;
+    }
+    if (DOC_KEYWORDS.impressum.some(k => k.test(text))) {
+        if (!links.impressum || text.length < 20) links.impressum = href;
+    }
+    if (DOC_KEYWORDS.terms.some(k => k.test(text))) {
+        if (!links.terms || text.length < 20) links.terms = href;
+    }
   });
 
   const violationMap = new Map<string, Violation>();
   const fullHtmlLower = html.toLowerCase();
+  const policyBody = $('body').text();
+
+  // CONTENT-BASED VERIFICATION (Heuristics)
+  const hasLegalMarkers = /pursuant to|in accordance with|section|article|turnover|liability|intellectual property|disclaimer|copyright/i.test(policyBody);
+  const isDocAccessible = links.privacy || links.impressum;
 
   const identityFound = profile.entitySuffixes.some(s => s.test(fullHtmlLower));
   
@@ -85,17 +117,15 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
       issue_type: 'MISSING CORE FRAMEWORK',
       severity: 'critical',
       evidence_html: url,
-      description: `The law requires you to display a Privacy Policy document clearly on your site. No such resource was detected.`,
+      description: `No Privacy Policy link was semantically identified in the site structure. Mandatory disclosures under Art. 13 are missing or inaccessible.`,
       business_impact: 'Business Risk: Immediate loss of marketing ROI as Meta and Google advertising platforms require valid compliance signals to run campaigns.',
       law_name: profile.law,
       potential_fine: LIABILITY_CRITICAL,
-      explanation: 'You must inform users of site ownership and data usage before collection starts.',
-      recommendation: `ACTION: INSERT THIS HTML -> Add a link to your website footer: <a href="/privacy">Privacy Policy</a>. Then create a page at /privacy and insert your legal disclosures.`,
+      explanation: 'You must inform users of site ownership and data usage before collection starts. Failure to provide an accessible link is a direct violation.',
+      recommendation: `ACTION: INSERT THIS HTML -> Add a clear link to your footer: <a href="/privacy">Privacy Policy</a>`,
       verification_method
     });
-  } else {
-    const policyBody = $('body').text();
-    if (!/retention|storage|storing/i.test(policyBody)) {
+  } else if (hasLegalMarkers && !/retention|storage|storing/i.test(policyBody)) {
        violationMap.set('Art. 13-Retention', {
         category: 'Privacy',
         report_type: 'SaaS',
@@ -103,14 +133,13 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
         severity: 'high',
         evidence_html: links.privacy,
         description: `Your policy fails to state exactly how long you store user data. This is a mandatory transparency requirement under Art. 13.`,
-        business_impact: 'Business Risk: Direct vulnerability to regulatory audits and Art. 17 data erasure lawsuits. High risk of immediate ad account suspension.',
+        business_impact: 'Business Risk: Direct vulnerability to regulatory audits and Art. 17 data erasure lawsuits.',
         law_name: 'Art. 13(2)(a) GDPR',
         potential_fine: LIABILITY_HIGH,
         explanation: 'You must state how long you keep user data or the specific criteria used to decide that timeframe.',
-        recommendation: `ACTION: INSERT THIS TEXT -> 'Data Retention: ${domain} stores your personal data for a period of 24 months from the date of your last interaction or until you request account deletion.'`,
+        recommendation: `ACTION: INSERT THIS TEXT -> 'Data Retention: ${domain} stores your personal data for a period of 24 months from the date of your last interaction.'`,
         verification_method
       });
-    }
   }
 
   if (!identityFound && !violationMap.has('Art. 13-Missing')) {
@@ -120,12 +149,12 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
       issue_type: 'MISSING OFFICIAL COMPANY IDENTITY',
       severity: 'high',
       evidence_html: url,
-      description: 'The law requires you to display your registered company name and physical address for commercial accountability.',
-      business_impact: 'Business Risk: Significant loss of B2B trust and potential payment gateway (Stripe/PayPal) account suspension due to lack of verified identity.',
+      description: 'The site fails to display a registered company name or legal entity suffix (e.g., GmbH, Ltd).',
+      business_impact: 'Business Risk: Significant loss of B2B trust and potential payment gateway account suspension.',
       law_name: 'Art. 13(1)(a) GDPR',
       potential_fine: LIABILITY_HIGH,
       explanation: 'Statutory rules require a physical address and registered company name for all commercial entities operating in the EU.',
-      recommendation: `ACTION: INSERT THIS TEXT -> Add this to your footer: 'Data Controller: [Your Registered Company Name], Address: [Your Legal Business Address], Email: support@${domain}'`,
+      recommendation: `ACTION: INSERT THIS TEXT -> Add this to your footer: 'Data Controller: [Your Company Name], Email: legal@${domain}'`,
       verification_method
     });
   }
@@ -135,7 +164,7 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
 
   return {
     violations,
-    discoveredLinks: [],
+    discoveredLinks: allDiscoveredLinks,
     meta: { hasCMP: false, legal_links: links },
     compliance_report: {
       score,
@@ -144,8 +173,12 @@ export function parseHtmlContent(html: string, url: string, headers: any = {}, s
       jurisdiction: profile.name,
       top_risks: violations.slice(0, 3).map(v => v.issue_type),
       validation_status: 'incomplete',
-      nav_scout: { found_links: [], missing_critical: [], discovery_score: 100 },
-      lex_analyzer: { has_vat_id: true, has_contact_info: true, has_mandatory_terms: true, content_truncated: false, missing_clusters: [] },
+      nav_scout: { 
+          found_links: Object.values(links).filter(Boolean) as string[], 
+          missing_critical: Object.entries(links).filter(([_, v]) => !v).map(([k]) => k),
+          discovery_score: score 
+      },
+      lex_analyzer: { has_vat_id: true, has_contact_info: identityFound, has_mandatory_terms: !!links.terms, content_truncated: false, missing_clusters: [] },
       cmp_detect: { detected_provider: null, is_active: false }
     }
   };
