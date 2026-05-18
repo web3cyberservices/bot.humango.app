@@ -119,7 +119,7 @@ export default function ManagerDashboard() {
       <header className="h-16 border-b border-white/5 bg-[#0b1120]/50 backdrop-blur-xl sticky top-0 z-50 px-8 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Image src="/logo.png" alt="Logo" width={24} height={24} />
-          <span className="font-bold text-lg">Manager <span className="text-primary">CRM</span></span>
+          <span className="font-bold text-lg">Manager CRM</span>
         </div>
         <div className="flex items-center gap-4">
           <Badge variant="outline" className="text-[10px] text-slate-500 border-white/10 uppercase font-mono tracking-widest">{session?.email}</Badge>
@@ -129,7 +129,6 @@ export default function ManagerDashboard() {
       </header>
 
       <main className="flex-1 p-8 space-y-12 max-w-7xl mx-auto w-full">
-        {/* BLOCK 1: Available Tasks (Most Critical First) */}
         <Card className="bg-white/[0.03] border-white/10 shadow-2xl overflow-hidden">
           <CardHeader className="border-b border-white/5 pb-4 bg-emerald-500/5">
             <CardTitle className="text-sm font-bold flex items-center gap-2">
@@ -175,7 +174,6 @@ export default function ManagerDashboard() {
           </CardContent>
         </Card>
 
-        {/* BLOCK 2: My Current Tasks */}
         <Card className="bg-white/[0.03] border-white/10 shadow-2xl overflow-hidden">
           <CardHeader className="border-b border-white/5 pb-4 bg-primary/5">
             <CardTitle className="text-sm font-bold flex items-center gap-2">
@@ -212,7 +210,7 @@ export default function ManagerDashboard() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button size="sm" variant="ghost" className="h-7 text-[10px] gap-2">Открыть CRM <ChevronRight className="w-3 h-3" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-[10px] gap-2">Открыть карточку <ChevronRight className="w-3 h-3" /></Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -222,11 +220,9 @@ export default function ManagerDashboard() {
         </Card>
       </main>
 
-      {/* BLOCK 3: Detailed CRM Card Modal */}
       <Dialog open={!!selectedTask} onOpenChange={() => setSelectedTask(null)}>
         <DialogContent className="bg-[#0b1120] border-white/10 text-slate-50 max-w-4xl p-0 overflow-hidden">
           <div className="flex h-[600px]">
-            {/* Left Sidebar: Info */}
             <div className="w-1/3 border-r border-white/5 p-6 space-y-8 bg-white/[0.01]">
               <DialogHeader>
                 <DialogTitle className="text-xl font-bold truncate">{selectedTask?.url?.replace(/^https?:\/\//, '')}</DialogTitle>
@@ -267,7 +263,6 @@ export default function ManagerDashboard() {
               )}
             </div>
 
-            {/* Right Side: Contacts & Actions */}
             <div className="flex-1 p-8 space-y-8 overflow-y-auto">
               <div className="grid grid-cols-2 gap-4">
                 <Button variant="outline" className="h-16 flex-col gap-1 border-white/10 hover:bg-white/5" onClick={() => toast({ title: "VoIP Интеграция", description: "Функция вызова временно недоступна." })}>

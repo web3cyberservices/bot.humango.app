@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 
 /**
- * @fileOverview Professional PDF Report Generator V4.0
+ * Professional PDF Report Generator
  * Features: Duplicate filtering, Corporate Header, Strict Page Logic.
  */
 

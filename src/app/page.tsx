@@ -85,7 +85,7 @@ export default function Home() {
       <main className="flex-1">
         <section className="container mx-auto px-6 pt-16 pb-24 text-center">
           <div className="max-w-4xl mx-auto space-y-8">
-            <Badge variant="outline" className="py-1.5 px-4 border-primary/20 bg-primary/5 text-primary text-[10px] font-bold uppercase tracking-[0.2em] animate-in fade-in slide-in-from-top-4 duration-1000">
+            <Badge variant="outline" className="py-1.5 px-4 border-primary/20 bg-primary/5 text-primary text-[10px] font-bold uppercase tracking-[0.2em]">
               Statutory Compliance Engine
             </Badge>
             <h1 className="text-5xl md:text-7xl font-extrabold tracking-tighter leading-[0.9] text-white">
