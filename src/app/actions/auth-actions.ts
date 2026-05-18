@@ -20,9 +20,10 @@ export async function loginAction(formData: FormData) {
   }
 
   try {
+    // Важно: Ищем точно так же, как записываем в сиде
     const res = await pool.query(
       "SELECT id, email, name FROM public.users WHERE email = $1 AND password = $2",
-      [email, password]
+      [email.toLowerCase().trim(), password]
     );
 
     if (res.rows.length === 0) {
@@ -32,7 +33,6 @@ export async function loginAction(formData: FormData) {
     const user = res.rows[0];
     const cookieStore = await cookies();
     
-    // Устанавливаем куку сессии
     cookieStore.set('admin_authenticated', 'true', {
       path: '/',
       maxAge: 86400,
@@ -41,14 +41,13 @@ export async function loginAction(formData: FormData) {
       secure: process.env.NODE_ENV === 'production'
     });
 
-    // Сохраняем данные пользователя в куку (для упрощения без JWT)
     cookieStore.set('manager_id', user.id.toString(), { path: '/' });
     cookieStore.set('manager_email', user.email, { path: '/' });
 
     return { success: true };
-  } catch (error) {
-    console.error('Login error:', error);
-    return { success: false, error: "Системная ошибка при входе" };
+  } catch (error: any) {
+    console.error('Login database error:', error.message);
+    return { success: false, error: "Системная ошибка базы данных" };
   }
 }
 
