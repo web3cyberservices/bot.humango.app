@@ -6,16 +6,16 @@ import { z } from 'genkit';
 import { Violation } from '@/types';
 
 /**
- * @fileOverview Validator V31.0 Semantic Verification
+ * @fileOverview Validator V32.0 - Semantic Legal Analysis
  * 
- * - RULE: Content-based detection. Ignore URLs, focus on text meaning.
- * - RULE: Verify if the page is a valid legal document (Privacy/Terms).
- * - RULE: No advice. Output copy-paste ready HTML/Text snippets.
+ * - RULE: Content-based detection. URL paths are ignored.
+ * - ROLE: European Compliance Lawyer.
+ * - RULE: No False Positives for custom naming.
  */
 
 const ValidationInputSchema = z.object({
-  html: z.string().describe("The raw HTML content extracted from the target page."),
-  findings: z.array(z.any()).describe("The preliminary violations detected by the static parser."),
+  html: z.string().describe("The text content extracted from potential legal pages."),
+  findings: z.array(z.any()).describe("Preliminary issues found by the crawler."),
   domain: z.string().describe("The target domain being audited."),
 });
 
@@ -27,7 +27,7 @@ const ValidationOutputSchema = z.object({
     is_hallucination: z.boolean(),
     verification_status: z.enum(['verified', 'insufficient_data', 'rejected']),
     business_impact: z.string().describe("Pain Point: e.g., 'Google/Meta ad account suspension'"),
-    recommendation: z.string().describe("Mandatory format: 'ACTION: INSERT THIS TEXT -> \"[Professional Legal Clause]\"'"),
+    recommendation: z.string().describe("Format: 'ACTION: INSERT THIS TEXT -> \"[Clause]\"'"),
     law_name: z.string(),
     potential_fine: z.string(),
   })),
@@ -40,33 +40,39 @@ const verifyIntegrityPrompt = ai.definePrompt({
   input: { schema: ValidationInputSchema },
   output: { schema: ValidationOutputSchema },
   config: { temperature: 0.1 }, 
-  prompt: `### ROLE: SEMANTIC LEGAL ANALYST
-Analyze the provided HTML context to verify statutory compliance. 
+  prompt: `Ты — опытный европейский комплаенс-юрист, аудирующий сайты на соответствие GDPR. 
+Твоя главная задача — найти реальные нарушения, но НЕ придираться к техническим путям (URL) или кастомным названиям страниц, если закон в целом соблюден.
 
-### CORE DIRECTIVE:
-Do NOT rely on URL paths (like /privacy). Analyze the TEXT content to see if a document exists and is legally valid.
-A valid legal document MUST contain formal markers like "In accordance with", "Controller", "Art. 13", "Right to access", or "Limitation of liability".
+ПРАВИЛА АНАЛИЗА:
+1. ИГНОРИРУЙ НАЗВАНИЕ ССЫЛКИ: Если документ находится по адресу типа /legal-info, /datenschutz, /terms-and-conditions или /pages/privacy-policy — это НЕ является нарушением. Если ссылка доступна с главной страницы, критерий прозрачности (Art. 12 GDPR) выполнен.
+2. ФОКУСИРУЙСЯ НА КОНТЕНТЕ: Твоя задача — проверять, присутствует ли обязательная юридическая информация внутри предоставленного текста, НЕВАЖНО, на какой именно странице сайта она расположена.
 
-### OUTPUT RULES:
-- If a document is found in the text but is missing a specific clause (e.g. retention), flag it as a GAP, not as MISSING.
-- All recommendations MUST start with "ACTION: INSERT THIS TEXT ->" and follow with the text in DOUBLE QUOTES.
-- Fines must be authoritative (e.g. "Up to €20M or 4% of turnover").
+КРИТЕРИИ ВЫДАТЫ НАРУШЕНИЯ (Только если этого действительно НЕТ в тексте):
+- Если на главной странице сайта вообще нет ни одной ссылки, связанной с Privacy/Legal/Datenschutz/Terms (полное отсутствие юридического подвала).
+- Если в тексте документов полностью отсутствует упоминание сроков хранения данных (Data Retention) (Art. 13(2)(a)).
+- Если на сайте собираются данные (есть формы ввода), но нет явного уведомления о том, кто является оператором (владельцем) данных (Art. 13(1)(a)).
 
 DOMAIN: {{{domain}}}
 
-CONTEXT:
+HTML CONTENT FROM DISCOVERED LEGAL PAGES:
 {{{html}}}
 
-PRELIMINARY FINDINGS:
+PRELIMINARY FINDINGS TO VALIDATE:
 {{#each findings}}
-- Law: {{{law_name}}} | Issue: {{{description}}}
-{{/each}}`,
+- {{{issue_type}}}: {{{description}}}
+{{/each}}
+
+ФОРМАТ ОТВЕТА:
+Если нарушения реальные (информации нет вообще) — сформируй блоки в JSON. 
+Если информация присутствует, но просто расположена на кастомной странице — установи verification_status: "rejected" (означает, что нарушение не подтвердилось).
+Все рекомендации ДОЛЖНЫ начинаться с "ACTION: INSERT THIS TEXT ->" и содержать текст в двойных кавычках.`,
 });
 
 export async function verifyIntegrity(html: string, findings: Violation[]) {
   try {
     const domain = findings[0]?.domain || "this site";
-    const truncatedHtml = html.substring(0, 15000); 
+    // Анализируем до 25к символов для глубокой проверки контента
+    const truncatedHtml = html.substring(0, 25000); 
     
     const { output } = await verifyIntegrityPrompt({ 
       html: truncatedHtml, 
@@ -74,21 +80,29 @@ export async function verifyIntegrity(html: string, findings: Violation[]) {
       domain
     });
     
-    if (!output || !output.validated_findings) throw new Error('Validator V31.0 Failure');
-    return output;
+    if (!output) throw new Error('Validator Failure');
+    
+    // Фильтруем отклоненные нарушения (где ИИ нашел контент на кастомных страницах)
+    const activeFindings = output.validated_findings.filter(f => f.verification_status === 'verified');
+
+    return {
+      ...output,
+      validated_findings: activeFindings,
+      integrity_status: activeFindings.length === 0 ? 'verified' : output.integrity_status
+    };
   } catch (error: any) {
-    console.warn('[Validator V31.0] AI fallback triggered.', error.message);
+    console.warn('[Validator] AI fallback.', error.message);
     return {
       validated_findings: findings.map(f => ({
         issue_type: f.issue_type,
         confidence_score: 0.8,
         is_hallucination: false,
         verification_status: 'verified' as const,
-        business_impact: f.business_impact || "Business Risk: Immediate loss of marketing ROI.",
-        recommendation: f.recommendation || `ACTION: INSERT THIS TEXT -> "Data Controller: [Your Company Name], Email: legal@${domain}"`,
-        law_name: f.law_name || "GDPR Article 13",
-        potential_fine: "Administrative fines up to €20,000,000 or 4% of global annual turnover.",
-        evidence_quote: "Verified via semantic discovery."
+        business_impact: f.business_impact || "Business Risk: Loss of advertising access.",
+        recommendation: f.recommendation || `ACTION: INSERT THIS TEXT -> "Data Controller: [Company Name], Email: legal@${domain}"`,
+        law_name: f.law_name || "GDPR Art. 13",
+        potential_fine: "Up to €20,000,000 or 4% of annual turnover.",
+        evidence_quote: "Verified via semantic analysis."
       })),
       overall_confidence: 0.8,
       integrity_status: 'incomplete' as const
