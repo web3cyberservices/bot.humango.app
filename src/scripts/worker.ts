@@ -62,9 +62,25 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
     
     let legalText = '';
     let foundUrl = originUrl;
+    let contacts = { emails: [] as string[], phones: [] as string[], other: [] as string[] };
 
     try {
       await page.goto(originUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+      
+      // Contact Extraction Logic
+      const extracted = await page.evaluate(() => {
+        const bodyText = document.body.innerText;
+        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+        const phoneRegex = /(?:\+?\d{1,3}[ -]?)?\(?\d{3}\)?[ -]?\d{3}[ -]?\d{4}/g;
+        
+        return {
+          emails: Array.from(new Set(bodyText.match(emailRegex) || [])),
+          phones: Array.from(new Set(bodyText.match(phoneRegex) || []))
+        };
+      });
+      contacts.emails = extracted.emails;
+      contacts.phones = extracted.phones;
+
       const links = await page.evaluate(() => {
         return Array.from(document.querySelectorAll('a')).map(a => ({
           href: (a as HTMLAnchorElement).href,
@@ -78,7 +94,6 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
       );
 
       if (!foundTarget) {
-        console.log(`[Worker] No links found on home. Trying direct fallback...`);
         const fallbackUrl = new URL('/legal/privacy', originUrl).href;
         const res = await page.goto(fallbackUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
         if (res && res.status() === 200) {
@@ -86,7 +101,6 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
           foundUrl = fallbackUrl;
         }
       } else {
-        console.log(`[Worker] Found doc link: ${foundTarget.href}`);
         await page.goto(foundTarget.href, { waitUntil: 'domcontentloaded', timeout: 35000 });
         legalText = await page.evaluate(() => document.body.innerText);
         foundUrl = foundTarget.href;
@@ -97,36 +111,33 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
 
     let findings = [];
 
-    // Audit 1: Missing document
+    // Audit logic...
     if (!legalText || legalText.trim().length < 400) {
       findings.push({
         category: 'GDPR',
         issue_type: 'MISSING_CORE_FRAMEWORK',
         severity: 'critical',
-        description: 'No statutory legal disclosures (Privacy Policy/Impressum) were identified in the site architecture. This violates transparency standards under Art. 12 & 13 GDPR.',
+        description: 'No statutory legal disclosures identified.',
         law_name: 'Art. 13 GDPR',
-        business_impact: 'High risk of ad account suspension and regulatory fines.',
-        recommendation: 'ACTION: INSERT THIS HTML -> "<footer class=\\"legal-footer\\"><a href=\\"/privacy\\">Privacy Policy</a></footer>"'
+        business_impact: 'High risk.',
+        recommendation: 'ACTION: INSERT PRIVACY FOOTER.'
       });
     } else {
-      // Audit 2: Data Retention check
-      const retentionRegex = /(storage|retention|store|keep|retain|hold|period|months|years|days|24\s*months|3\s*years|\d+\s*(month|year|day|месяц|год|лет|дня|продолжительно))/i;
-      const hasRetention = retentionRegex.test(legalText);
-
-      if (!hasRetention) {
+      const retentionRegex = /(storage|retention|store|keep|retain|period|months|years|days|24\s*months|3\s*years)/i;
+      if (!retentionRegex.test(legalText)) {
         findings.push({
           category: 'Privacy',
-          issue_type: 'DATA_RETENTION_TIMEFRAMES',
+          issue_type: 'DATA_RETENTION_MISSING',
           severity: 'high',
-          description: 'The policy fails to state specific data retention periods as required by Art. 13 GDPR. Users must be informed about how long their data is stored.',
+          description: 'Fail to state data retention periods.',
           law_name: 'Art. 13(2)(a) GDPR',
-          business_impact: 'Non-compliance with transparency duties leads to vulnerability in data erasure lawsuits.',
-          recommendation: 'ACTION: INSERT THIS TEXT -> "Data is stored for 24 months from the last interaction."'
+          business_impact: 'Transparency failure.',
+          recommendation: 'ACTION: INSERT RETENTION CLAUSE.'
         });
       }
     }
 
-    // SAVE VIOLATIONS TO PG
+    // Save Violations
     for (const finding of findings) {
       await pool.query(
         `INSERT INTO public.site_violations (
@@ -136,23 +147,32 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
       );
     }
 
-    const pdfBuffer = await generatePdfReport(domainName, findings);
+    // UPDATE QUEUE with CRM metadata
+    await pool.query(
+      `UPDATE public.scan_queue 
+       SET status = 'completed', 
+           violations_count = $1, 
+           contacts = $2,
+           crm_status = 'free'
+       WHERE id = $3`,
+      [findings.length, JSON.stringify(contacts), taskId]
+    );
 
-    if (userEmail && pdfBuffer) {
-      try {
-        await transporter.sendMail({
-          from: `"Humango Compliance" <${process.env.SMTP_USER}>`,
-          to: userEmail,
-          subject: `Statutory Compliance Audit Report for ${domainName}`,
-          text: `Hello,\n\nYour automated statutory compliance audit for ${domainName} is complete. Please find the detailed PDF report attached.\n\nBest regards,\nHumango Team`,
-          attachments: [{ filename: `Humango_Audit_${domainName}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
-        });
-      } catch (mailErr) {
-        console.error("[Worker] Mail Error:", mailErr);
-      }
+    // Auditor Route: If no contacts found, mark for special audit
+    if (contacts.emails.length === 0 && contacts.phones.length === 0) {
+      await pool.query("UPDATE scan_queue SET status = 'to_auditor' WHERE id = $1", [taskId]);
     }
 
-    await pool.query("UPDATE public.scan_queue SET status = 'completed' WHERE id = $1", [taskId]);
+    const pdfBuffer = await generatePdfReport(domainName, findings);
+    if (userEmail && pdfBuffer) {
+      await transporter.sendMail({
+        from: `"Humango Compliance" <${process.env.SMTP_USER}>`,
+        to: userEmail,
+        subject: `Audit Report for ${domainName}`,
+        text: `Your audit for ${domainName} is complete.`,
+        attachments: [{ filename: `Humango_Audit_${domainName}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
+      });
+    }
 
   } catch (err: any) {
     console.error(`[Worker Fatal Error]`, err.message);
@@ -164,7 +184,7 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
 
 async function startWorker() {
   console.log("==================================================");
-  console.log("[Deterministic Worker] CRM-ready service started.");
+  console.log("[CRM-Worker V37] Service active.");
   console.log("==================================================");
   
   while (true) {

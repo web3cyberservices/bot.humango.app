@@ -34,8 +34,8 @@ export function normalizeUrl(url: string, base?: string): string {
 export async function queueTask(url: string, email: string, priority: number = 0) {
   const cleanUrl = normalizeUrl(url);
   await pool.query(
-    `INSERT INTO public.scan_queue (url, status, priority, user_email, created_at) 
-     VALUES ($1, 'pending', $2, $3, NOW()) 
+    `INSERT INTO public.scan_queue (url, status, priority, user_email, created_at, crm_status) 
+     VALUES ($1, 'pending', $2, $3, NOW(), 'free') 
      ON CONFLICT (url) DO UPDATE SET status = 'pending', priority = $2, user_email = $3;`,
     [cleanUrl, priority, email]
   );
@@ -70,14 +70,13 @@ export async function getBotEvents(limit: number = 50) {
 export async function getViolations(limit: number = 100) {
   const res = await pool.query(`
     SELECT 
-      q.id, q.url as domain, q.url, q.status,
+      q.id, q.url as domain, q.url, q.status, q.crm_status,
       q.assigned_to as "assignedTo", q.manager_name as "managerName", q.assigned_at as "assignedAt",
-      (SELECT count(*) FROM public.site_violations v WHERE v.domain = replace(replace(q.url, 'https://', ''), 'http://', '')) as violation_count
+      q.violations_count as violation_count
     FROM public.scan_queue q
     ORDER BY q.created_at DESC LIMIT $1
   `, [limit]);
   
-  // Mapping to match the expected UI structure for "Recent Incidents"
   return res.rows.map(row => ({
     id: row.id,
     domain: row.domain.replace(/^https?:\/\//, ''),
@@ -90,7 +89,8 @@ export async function getViolations(limit: number = 100) {
     assignedTo: row.assignedTo,
     managerName: row.managerName,
     assignedAt: row.assignedAt,
-    status: row.status
+    status: row.status,
+    crm_status: row.crm_status
   }));
 }
 
@@ -107,7 +107,7 @@ export async function getManagersStats() {
     SELECT 
       manager_name as name, 
       count(*) as task_count,
-      count(*) FILTER (WHERE status = 'done') as completed_count
+      count(*) FILTER (WHERE status = 'done' OR status = 'completed') as completed_count
     FROM public.scan_queue 
     WHERE assigned_to IS NOT NULL 
     GROUP BY manager_name

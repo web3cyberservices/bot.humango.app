@@ -1,49 +1,48 @@
 
 'use server';
 
-import { pool, getManagersStats, updateTaskStatus } from '@/lib/db';
+import { pool, getManagersStats } from '@/lib/db';
 import { getSession } from './auth-actions';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 
-const AssignTaskSchema = z.object({
-  taskId: z.string(),
-});
+/**
+ * @fileOverview CRM Server Actions V37.0 - Atomic Locking & Funnel Logic
+ */
 
-export async function assignTaskToManager(formData: FormData) {
+export async function takeTaskInWork(taskId: number) {
   const session = await getSession();
-  if (!session) {
-    throw new Error('Unauthorized: No active management session');
-  }
-
-  const taskId = parseInt(formData.get('taskId') as string);
-  const managerId = session.id;
-  const managerEmail = session.email;
+  if (!session) throw new Error("Unauthorized");
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // Atomic lock
+    // ATOMIC LOCK: SELECT FOR UPDATE
     const checkRes = await client.query(
-      'SELECT assigned_to, status FROM public.scan_queue WHERE id = $1 FOR UPDATE',
+      'SELECT crm_status, assigned_to FROM public.scan_queue WHERE id = $1 FOR UPDATE',
       [taskId]
     );
 
     if (checkRes.rows.length === 0) {
-      throw new Error('Задача не найдена');
+      throw new Error("Задача не найдена");
     }
 
     const task = checkRes.rows[0];
-    if (task.assigned_to) {
-      throw new Error('Ошибка: Задача уже занята другим сотрудником');
+    if (task.crm_status === 'in_work' || task.assigned_to !== null) {
+      return { success: false, error: "Эта задача уже занята другим менеджером" };
     }
 
+    // Assign to current manager
     await client.query(
       `UPDATE public.scan_queue 
-       SET status = 'in_work', assigned_to = $1, manager_name = $2, assigned_at = NOW() 
+       SET crm_status = 'in_work', 
+           status = 'in_work', 
+           assigned_to = $1, 
+           manager_name = $2, 
+           assigned_at = NOW() 
        WHERE id = $3`,
-      [managerId, managerEmail, taskId]
+      [session.id, session.email, taskId]
     );
 
     await client.query('COMMIT');
@@ -58,22 +57,26 @@ export async function assignTaskToManager(formData: FormData) {
   }
 }
 
-export async function updateTaskStatusAction(taskId: number, status: 'in_work' | 'done') {
+export async function updateTaskStatusAction(taskId: number, status: string) {
   const session = await getSession();
-  if (!session) throw new Error('Unauthorized');
+  if (!session) throw new Error("Unauthorized");
 
   try {
-    // Verify ownership
+    // Verify ownership before updating
     const check = await pool.query(
       'SELECT assigned_to FROM public.scan_queue WHERE id = $1',
       [taskId]
     );
-    
-    if (check.rows[0]?.assigned_to !== session.id) {
-      throw new Error('Access denied: Task owned by another manager');
+
+    if (parseInt(check.rows[0]?.assigned_to) !== parseInt(session.id)) {
+      throw new Error("Access denied: You don't own this task.");
     }
 
-    await updateTaskStatus(taskId, status);
+    await pool.query(
+      'UPDATE public.scan_queue SET status = $1 WHERE id = $2',
+      [status, taskId]
+    );
+
     revalidatePath('/manager');
     revalidatePath('/admin');
     return { success: true };
@@ -88,23 +91,29 @@ export async function getManagerStatsAction() {
   return await getManagersStats();
 }
 
-export async function getManagerTasks() {
-  const session = await getSession();
-  if (!session) return [];
-  
-  const res = await pool.query(
-    'SELECT * FROM public.scan_queue WHERE assigned_to = $1 ORDER BY assigned_at DESC',
-    [session.id]
-  );
-  return res.rows;
-}
-
 export async function getAvailableTasks() {
   const session = await getSession();
   if (!session) return [];
 
+  // Logic: free AND completed AND violations > 0
+  // Sorted by violations_count DESC (Most critical first)
+  const res = await pool.query(`
+    SELECT * FROM public.scan_queue 
+    WHERE crm_status = 'free' 
+      AND status IN ('completed', 'failed') 
+      AND (violations_count > 0)
+    ORDER BY violations_count DESC, created_at DESC
+  `);
+  return res.rows;
+}
+
+export async function getMyTasks() {
+  const session = await getSession();
+  if (!session) return [];
+
   const res = await pool.query(
-    "SELECT * FROM public.scan_queue WHERE assigned_to IS NULL AND status IN ('completed', 'failed') ORDER BY created_at DESC"
+    'SELECT * FROM public.scan_queue WHERE assigned_to = $1 ORDER BY assigned_at DESC',
+    [session.id]
   );
   return res.rows;
 }

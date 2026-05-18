@@ -13,10 +13,10 @@ async function migrate() {
   const client = await pool.connect();
   try {
     console.log('==================================================');
-    console.log('   HUMANGO COMPLIANCE DATABASE MIGRATOR V36.0     ');
+    console.log('   HUMANGO COMPLIANCE DATABASE MIGRATOR V37.0     ');
     console.log('==================================================');
     
-    // Создаем таблицу пользователей
+    // Users table
     await client.query(`
       CREATE TABLE IF NOT EXISTS public.users (
         id SERIAL PRIMARY KEY,
@@ -27,7 +27,7 @@ async function migrate() {
       );
     `);
 
-    // Создаем настройки бота
+    // Bot settings
     await client.query(`
       CREATE TABLE IF NOT EXISTS public.bot_settings (
         id int DEFAULT 1 PRIMARY KEY, 
@@ -39,7 +39,7 @@ async function migrate() {
       ON CONFLICT (id) DO NOTHING;
     `);
 
-    // Создаем очередь сканирования
+    // Enhanced Scan Queue for CRM
     await client.query(`
       CREATE TABLE IF NOT EXISTS public.scan_queue (
         id SERIAL PRIMARY KEY, 
@@ -47,19 +47,28 @@ async function migrate() {
         status varchar(20) DEFAULT 'pending', 
         priority int DEFAULT 0, 
         user_email varchar(255),
-        assigned_to varchar(255),
+        assigned_to int,
         manager_name varchar(255),
         assigned_at timestamp,
-        created_at timestamp DEFAULT NOW()
+        created_at timestamp DEFAULT NOW(),
+        crm_status varchar(20) DEFAULT 'free',
+        violations_count int DEFAULT 0,
+        contacts jsonb DEFAULT '{"emails": [], "phones": [], "other": []}',
+        auto_message_sent boolean DEFAULT false,
+        auto_message_sent_at timestamp
       );
     `);
 
-    // Добавляем колонки CRM если их нет
+    // Ensure all CRM columns exist (for existing tables)
     const columns = [
-      { name: 'assigned_to', type: 'varchar(255)' },
+      { name: 'assigned_to', type: 'int' },
       { name: 'manager_name', type: 'varchar(255)' },
       { name: 'assigned_at', type: 'timestamp' },
-      { name: 'user_email', type: 'varchar(255)' }
+      { name: 'crm_status', type: "varchar(20) DEFAULT 'free'" },
+      { name: 'violations_count', type: 'int DEFAULT 0' },
+      { name: 'contacts', type: "jsonb DEFAULT '{\"emails\": [], \"phones\": [], \"other\": []}'" },
+      { name: 'auto_message_sent', type: 'boolean DEFAULT false' },
+      { name: 'auto_message_sent_at', type: 'timestamp' }
     ];
 
     for (const col of columns) {
@@ -73,7 +82,7 @@ async function migrate() {
       `);
     }
 
-    // Создаем таблицу нарушений
+    // Violations table
     await client.query(`
       CREATE TABLE IF NOT EXISTS public.site_violations (
         id SERIAL PRIMARY KEY,
@@ -92,7 +101,7 @@ async function migrate() {
       );
     `);
 
-    // Создаем таблицу логов
+    // Events table
     await client.query(`
       CREATE TABLE IF NOT EXISTS public.bot_events (
         id SERIAL PRIMARY KEY, 
@@ -102,7 +111,7 @@ async function migrate() {
       );
     `);
     
-    console.log('[Migration] SUCCESS: Database schema is up to date.');
+    console.log('[Migration] SUCCESS: Database schema is optimized for CRM V37.0.');
   } catch (err: any) {
     console.error('[Migration] ERROR:', err.message);
   } finally {

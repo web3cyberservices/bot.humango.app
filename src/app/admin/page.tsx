@@ -12,6 +12,13 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { getManagerStatsAction } from '@/app/actions/crm-actions';
 import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { 
   Dialog,
   DialogContent,
   DialogHeader,
@@ -36,14 +43,13 @@ import {
   LogOut, 
   Terminal as TerminalIcon, 
   AlertTriangle,
-  Zap,
   Globe,
   Layers,
-  Info,
   FileSpreadsheet,
   Users,
   CheckCircle2,
-  Clock
+  Clock,
+  Filter
 } from "lucide-react";
 
 interface DetectedIssue {
@@ -54,14 +60,12 @@ interface DetectedIssue {
   date: string;
   summary: string;
   description: string;
-  fine_amount?: string;
-  law_name?: string;
-  url?: string;
   report_type: 'SaaS' | 'Manual';
-  assignedTo?: string;
+  assignedTo?: any;
   managerName?: string;
   assignedAt?: any;
   status?: string;
+  crm_status?: string;
 }
 
 interface ManagerStat {
@@ -81,6 +85,7 @@ export default function AdminDashboard() {
   const [showIssuesDialog, setShowIssuesDialog] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [lastSync, setLastSync] = useState<string>("");
+  const [filterManager, setFilterManager] = useState<string>("all");
   const { toast } = useToast();
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -164,6 +169,11 @@ export default function AdminDashboard() {
     window.open('/api/admin/export', '_blank');
   };
 
+  const filteredRecentIssues = useMemo(() => {
+    if (filterManager === "all") return recentIssues;
+    return recentIssues.filter(issue => issue.managerName === filterManager);
+  }, [recentIssues, filterManager]);
+
   const groupedViolations = useMemo(() => {
     const groups: Record<string, DetectedIssue[]> = {};
     allViolations.forEach(issue => {
@@ -214,8 +224,7 @@ export default function AdminDashboard() {
             <Link href="/manager"><Users className="w-4 h-4" /> Manager CRM</Link>
           </Button>
           <Button variant="ghost" onClick={handleExportCSV} className="w-full justify-start gap-3 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10">
-            <FileSpreadsheet className="w-4 h-4" /> Export Report
-          </Button>
+            <FileSpreadsheet className="w-4 h-4" /> Export Report</Button>
         </nav>
         <div className="p-4 border-t border-white/5">
           <Button onClick={() => { setIsAuthenticated(false); document.cookie = "admin_authenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"; }} variant="ghost" className="w-full justify-start gap-3 text-rose-400"><LogOut className="w-4 h-4" /> Logout</Button>
@@ -225,7 +234,7 @@ export default function AdminDashboard() {
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-16 border-b border-white/5 flex items-center justify-between px-8 bg-[#0b1120]/50 backdrop-blur-xl">
           <div className="flex items-center gap-4">
-            <Badge variant="outline" className="text-primary border-primary/20">Enterprise Engine v3.0</Badge>
+            <Badge variant="outline" className="text-primary border-primary/20">Enterprise Engine v37</Badge>
             {lastSync && <span className="text-[10px] text-slate-500 font-mono tracking-widest uppercase">Last Sync: {lastSync}</span>}
           </div>
           <div className="flex items-center gap-4 bg-white/5 px-4 py-1.5 rounded-full border border-white/10">
@@ -249,44 +258,63 @@ export default function AdminDashboard() {
               <CardContent><div className={`text-3xl font-bold ${isActive ? 'text-emerald-500' : 'text-rose-500'}`}>{isActive ? 'ACTIVE' : 'PAUSED'}</div></CardContent>
             </Card>
             <Card className="bg-white/[0.03] border-white/10">
-              <CardHeader className="pb-2"><CardTitle className="text-[10px] text-slate-500 uppercase tracking-widest">Team Activity</CardTitle></CardHeader>
-              <CardContent><div className="text-3xl font-bold text-blue-400">{managerStats.length} Managers</div></CardContent>
+              <CardHeader className="pb-2"><CardTitle className="text-[10px] text-slate-500 uppercase tracking-widest">Active Managers</CardTitle></CardHeader>
+              <CardContent><div className="text-3xl font-bold text-blue-400">{managerStats.length} Staff</div></CardContent>
             </Card>
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
             <Card className="xl:col-span-2 bg-white/[0.03] border-white/10">
               <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 py-4">
-                <CardTitle className="text-sm font-bold flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-500" /> Recent Incidents & CRM Status</CardTitle>
+                <CardTitle className="text-sm font-bold flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-500" /> Recent Incidents & CRM Control</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Filter className="w-3 h-3 text-slate-500" />
+                  <Select value={filterManager} onValueChange={setFilterManager}>
+                    <SelectTrigger className="w-[180px] h-8 bg-white/5 border-white/10 text-[10px]">
+                      <SelectValue placeholder="Filter by Manager" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#0b1120] border-white/10 text-white">
+                      <SelectItem value="all">All Managers</SelectItem>
+                      {managerStats.map(m => (
+                        <SelectItem key={m.name} value={m.name}>{m.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardHeader>
               <CardContent className="p-0 max-h-[500px] overflow-y-auto">
                 <Table>
                   <TableHeader className="bg-[#0b1120] sticky top-0 z-10">
                     <TableRow className="border-white/5">
                       <TableHead className="text-[9px]">DOMAIN</TableHead>
-                      <TableHead className="text-[9px]">CRM STATUS</TableHead>
+                      <TableHead className="text-[9px]">CONTROL CRM</TableHead>
                       <TableHead className="text-[9px]">PROGRESS</TableHead>
                       <TableHead className="text-right text-[9px]">SINCE</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {recentIssues.length === 0 ? <TableRow><TableCell colSpan={4} className="text-center py-12 text-slate-500 text-xs">Waiting for incoming audits...</TableCell></TableRow> : recentIssues.map((issue) => (
+                    {filteredRecentIssues.length === 0 ? <TableRow><TableCell colSpan={4} className="text-center py-12 text-slate-500 text-xs">No active audits matching filter...</TableCell></TableRow> : filteredRecentIssues.map((issue) => (
                       <TableRow key={issue.id} className="border-white/5 hover:bg-white/[0.02] transition-colors group">
                         <TableCell className="text-xs font-medium">{issue.domain}</TableCell>
                         <TableCell>
                           {issue.assignedTo ? (
                             <div className="flex flex-col gap-0.5">
-                              <Badge className="bg-emerald-500/10 text-emerald-400 text-[7px] border-emerald-500/20 max-w-fit">{issue.managerName}</Badge>
+                              <Badge className="bg-emerald-500/10 text-emerald-400 text-[8px] border-emerald-500/20 max-w-fit">
+                                В работе у: {issue.managerName}
+                              </Badge>
+                              <span className="text-[7px] text-slate-600 font-mono">
+                                Locked: {new Date(issue.assignedAt).toLocaleTimeString()}
+                              </span>
                             </div>
                           ) : (
-                            <Badge variant="secondary" className="text-[7px] bg-slate-500/10 text-slate-500">Available</Badge>
+                            <Badge variant="secondary" className="text-[7px] bg-slate-500/10 text-slate-500">Свободно</Badge>
                           )}
                         </TableCell>
                         <TableCell>
                            {issue.status === 'done' ? (
                              <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[7px] gap-1"><CheckCircle2 className="w-2.5 h-2.5" /> COMPLETED</Badge>
                            ) : issue.assignedTo ? (
-                             <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[7px] gap-1"><Clock className="w-2.5 h-2.5" /> IN WORK</Badge>
+                             <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[7px] gap-1"><Clock className="w-2.5 h-2.5" /> {issue.status?.toUpperCase()}</Badge>
                            ) : (
                              <Badge variant="outline" className="text-[7px] text-slate-600 border-slate-800">PENDING</Badge>
                            )}
@@ -308,14 +336,14 @@ export default function AdminDashboard() {
                   {managerStats.length === 0 ? (
                     <p className="text-center py-8 text-xs text-slate-500">No managers active</p>
                   ) : managerStats.map((mgr, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5">
+                    <div key={i} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5 group hover:border-primary/20 transition-all">
                       <div className="space-y-1">
                         <p className="text-xs font-bold text-white">{mgr.name}</p>
-                        <p className="text-[9px] text-slate-500 uppercase tracking-tighter">Active Tasks: {mgr.task_count}</p>
+                        <p className="text-[9px] text-slate-500 uppercase tracking-tighter">Locked Tasks: {mgr.task_count}</p>
                       </div>
                       <div className="text-right">
                         <div className="text-lg font-bold text-emerald-500">{mgr.completed_count}</div>
-                        <p className="text-[8px] text-slate-600 uppercase font-bold">Done</p>
+                        <p className="text-[8px] text-slate-600 uppercase font-bold">Closed</p>
                       </div>
                     </div>
                   ))}
@@ -324,7 +352,7 @@ export default function AdminDashboard() {
 
               <div className="bg-[#0b1120] rounded-xl border border-white/10 p-6 font-mono text-[10px] h-[250px] flex flex-col shadow-2xl">
                 <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-4">
-                  <div className="flex items-center gap-3"><TerminalIcon className="w-4 h-4 text-primary" /><span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Logs</span></div>
+                  <div className="flex items-center gap-3"><TerminalIcon className="w-4 h-4 text-primary" /><span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Live Logs</span></div>
                   {isActive && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
                 </div>
                 <div className="flex-1 overflow-y-auto space-y-1.5 text-slate-400">
