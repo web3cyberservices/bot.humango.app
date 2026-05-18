@@ -39,6 +39,7 @@ async function getExecutablePath() {
 }
 
 const USER_AGENT = "HumangoBot/1.0 (+https://bot.humango.app)";
+const FINE_GDPR = "Administrative fines up to €20,000,000 or 4% of global annual turnover under Art. 83 GDPR.";
 
 async function executeDeterministicAudit(taskId: number, domainUrl: string, userEmail: string) {
   let browser: any = null;
@@ -62,7 +63,6 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
     const page = await browser.newPage();
     await page.setUserAgent(USER_AGENT);
 
-    // 1. Шпионаж за сетью (Network Interception)
     await page.setRequestInterception(true);
     page.on('request', request => {
       networkUrls.push(request.url().toLowerCase());
@@ -75,12 +75,11 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
     const originUrl = urlObj.origin;
     const domainName = urlObj.hostname;
 
-    console.log(`[Compliance Engine] Auditing: ${originUrl}`);
+    console.log(`[Compliance Engine] Deep Auditing: ${originUrl}`);
     
-    // 2. Загрузка без кликов по баннерам (No Interaction Policy)
     await page.goto(originUrl, { waitUntil: 'networkidle2', timeout: 35000 });
     
-    // 3. ПРОВЕРКА ТРЕКЕРОВ (Network Sniffing)
+    // 1. TRACKING ANALYSIS
     const hasGoogleAnalytics = networkUrls.some(url => url.includes('google-analytics.com') || url.includes('analytics.google'));
     const hasFacebookPixel = networkUrls.some(url => url.includes('connect.facebook.net') || url.includes('facebook.com/tr'));
 
@@ -91,12 +90,13 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
         severity: 'critical',
         description: 'Marketing tracking traffic (Google Analytics or Meta Pixel) was detected firing immediately upon page load without prior user consent.',
         law_name: 'Art. 6 & Art. 7 GDPR',
-        business_impact: 'Critical risk of heavy regulatory fines. European authorities strictly forbid firing advertising or analytical scripts before the user explicitly clicks "Accept" on a cookie banner.',
-        recommendation: 'ACTION: Configure your tag manager or cookie consent plug-in to block the initialization of Google Analytics and Meta Pixel scripts until the user fires a valid consent event.'
+        potential_fine: FINE_GDPR,
+        business_impact: 'Critical risk of heavy regulatory fines. European authorities strictly forbid firing advertising scripts before explicit consent.',
+        recommendation: 'ACTION: Configure your consent tool to block Google/Meta scripts until the user clicks "Accept".'
       });
     }
 
-    // 4. ПРОВЕРКА GOOGLE FONTS (Munich Court Compliance)
+    // 2. GOOGLE FONTS
     const hasGoogleFontsDirect = networkUrls.some(url => url.includes('fonts.googleapis.com') || url.includes('fonts.gstatic.com'));
     if (hasGoogleFontsDirect) {
       finalFindings.push({
@@ -105,12 +105,13 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
         severity: 'high',
         description: 'The website loads Google Fonts directly from Google servers in the USA, transmitting user IP addresses without consent.',
         law_name: 'Art. 6(1)(a) GDPR & Munich Regional Court Ruling',
-        business_impact: 'High risk of litigation in Germany (Abmahnung). IP addresses are considered personal data and cannot be sent to US servers without prior consent.',
-        recommendation: 'ACTION: Download fonts locally to your server and serve them via @font-face from your project folder to prevent external data transmission.'
+        potential_fine: "Up to €250,000 per violation or detention (Munich Court Standard).",
+        business_impact: 'High risk of litigation in Germany (Abmahnung). IP addresses are personal data.',
+        recommendation: 'ACTION: Self-host fonts on your server and remove external Google API requests.'
       });
     }
 
-    // 5. ПРОВЕРКА КУКИ (Cookie Inspection)
+    // 3. COOKIE INSPECTION
     const activeCookies = await page.cookies();
     const trackingMarkers = ['_ga', '_gid', '_fbp', '_fr', 'ads', 'metrics'];
     const illegalCookies = activeCookies.filter(c => trackingMarkers.some(m => c.name.toLowerCase().includes(m)));
@@ -120,14 +121,15 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
         category: 'Privacy',
         issue_type: 'COOKIE_CONSENT_VIOLATION',
         severity: 'critical',
-        description: `The website placed ${illegalCookies.length} non-essential tracking/marketing cookies into the user's browser storage prior to any explicit interaction with the consent banner.`,
+        description: `The website placed ${illegalCookies.length} tracking/marketing cookies into the user's browser prior to interaction with the consent banner.`,
         law_name: 'ePrivacy Directive & Art. 7 GDPR',
-        business_impact: 'Direct non-compliance with the Planet49 EU court ruling. High vulnerability during routine data protection audits.',
-        recommendation: 'ACTION: Implement a hard-blocking cookie mechanism. All analytical and tracking cookies must be withheld from the browser storage until affirmative consent is given.'
+        potential_fine: FINE_GDPR,
+        business_impact: 'Direct non-compliance with the Planet49 EU court ruling.',
+        recommendation: 'ACTION: Implement a hard-blocking mechanism for all non-essential cookies.'
       });
     }
 
-    // 6. СБОР КОНТАКТОВ ДЛЯ CRM
+    // 4. CONTENT & CONTACTS
     const extracted = await page.evaluate(() => {
       const text = document.body.innerText;
       const emails = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
@@ -135,7 +137,6 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
       return { emails: [...new Set(emails)], phones: [...new Set(phones)] };
     });
 
-    // 7. ПОИСК ЛЕГАЛЬНЫХ ССЫЛОК И ТЕКСТА
     const links = await page.evaluate(() => {
       return Array.from(document.querySelectorAll('a')).map(a => ({
         href: a.href,
@@ -155,7 +156,7 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
       } catch (e) {}
     }
 
-    // 8. ПРОВЕРКА IMPRESSUM (§ 5 DDG)
+    // 5. IMPRESSUM COMPLIANCE
     if (domainName.endsWith('.de') || impressumLink) {
       const impressumKeywords = ['handelsregister', 'registernummer', 'ihk', 'steuer-identifikationsnummer', 'vst-id'];
       const hasGermanCompliance = impressumKeywords.some(kw => legalText.toLowerCase().includes(kw));
@@ -165,22 +166,23 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
           category: 'Legal',
           issue_type: 'GERMAN_IMPRESSUM_INCOMPLETE',
           severity: 'high',
-          description: 'The Impressum appears to be missing mandatory German regulatory details (Handelsregister or VAT ID).',
+          description: 'The Impressum is missing mandatory German regulatory details (Handelsregister or VAT ID).',
           law_name: '§ 5 DDG (Digitale-Dienste-Gesetz)',
-          business_impact: 'High risk of "Abmahnung" (legal warnings) from competitors or specialized law firms in Germany.',
-          recommendation: 'ACTION: Add your official registration details, VAT ID (USt-IdNr), and the responsible regulatory authority (IHK) to your legal notice.'
+          potential_fine: "Up to €50,000 for missing mandatory business disclosures.",
+          business_impact: 'High risk of "Abmahnung" (legal warnings) from German competitors.',
+          recommendation: 'ACTION: Add official registration details, VAT ID, and regulatory authority (IHK) to your Legal Notice.'
         });
       }
     }
 
-    // 9. СОХРАНЕНИЕ И ЗАВЕРШЕНИЕ
+    // 6. SAVE & NOTIFY
     await pool.query("DELETE FROM public.site_violations WHERE domain = $1", [domainName]);
     for (const f of finalFindings) {
       await pool.query(
         `INSERT INTO public.site_violations (
-          domain, url, page_url, category, issue_type, severity, description, law_name, recommendation, business_impact, report_type, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
-        [domainName, originUrl, cleanUrl, f.category, f.issue_type, f.severity, f.description, f.law_name, f.recommendation, f.business_impact, 'SaaS']
+          domain, url, page_url, category, issue_type, severity, description, law_name, recommendation, business_impact, potential_fine, report_type, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())`,
+        [domainName, originUrl, cleanUrl, f.category, f.issue_type, f.severity, f.description, f.law_name, f.recommendation, f.business_impact, f.potential_fine, 'SaaS']
       );
     }
 
@@ -194,14 +196,14 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
       [finalFindings.length, JSON.stringify(extracted), taskId]
     );
 
-    // 10. ГЕНЕРАЦИЯ PDF И ОТПРАВКА
+    // GENERATE PDF
     const pdfBuffer = await generatePdfReport(domainName, finalFindings);
     if (userEmail && pdfBuffer) {
       await transporter.sendMail({
         from: `"Humango Compliance" <${process.env.SMTP_USER}>`,
         to: userEmail,
         subject: `Statutory Audit Complete: ${domainName}`,
-        text: `The automated compliance audit for ${domainName} is complete. Total violations identified: ${finalFindings.length}.\n\nPlease find your detailed PDF report attached.`,
+        text: `Your automated compliance audit for ${domainName} is complete. Total violations identified: ${finalFindings.length}.\n\nPlease find the detailed PDF diagnostic attached.`,
         attachments: [{ 
           filename: `Humango_Audit_${domainName}.pdf`, 
           content: pdfBuffer, 
@@ -220,7 +222,7 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
 
 async function startWorker() {
   console.log("==================================================");
-  console.log("   HUMANGO CRM : COMPLIANCE AUDIT ENGINE          ");
+  console.log("   HUMANGO CRM : DETERMINISTIC COMPLIANCE ENGINE  ");
   console.log("==================================================");
   
   while (true) {

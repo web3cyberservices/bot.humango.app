@@ -18,15 +18,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Valid domain required' }, { status: 400 });
   }
 
-  // Normalize domain: strip protocol, paths, and lowercase it
   const domain = validation.data
     .toLowerCase()
     .replace(/^https?:\/\//, '')
-    .split('/')[0]
-    .split(':')[0]; // Remove port if present
+    .split('/')[0];
 
   try {
-    // 1. Check if the audit exists and is completed
+    // 1. Check if the audit exists
     const queueCheck = await pool.query(
       "SELECT status FROM public.scan_queue WHERE url ILIKE $1",
       [`%${domain}%`]
@@ -36,15 +34,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Audit not requested for this domain.' }, { status: 404 });
     }
 
-    // 2. Fetch all violations for this domain
+    // 2. Fetch ALL findings from the database to ensure rich PDF content
     const violationsRes = await pool.query(
-      "SELECT issue_type, category, severity, description, law_name, recommendation FROM public.site_violations WHERE domain = $1",
+      `SELECT issue_type, category, severity, description, law_name, recommendation, business_impact, potential_fine 
+       FROM public.site_violations WHERE domain = $1`,
       [domain]
     );
 
     const findings = violationsRes.rows;
 
-    // 3. Generate PDF (it will show 'Compliant' if findings is empty)
+    // 3. Generate PDF (unified design)
     const pdfBuffer = await generatePdfReport(domain, findings);
     
     if (!pdfBuffer) {
