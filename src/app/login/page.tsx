@@ -2,43 +2,39 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useFirebase } from '@/components/providers/firebase-provider';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { loginAction } from '@/app/actions/auth-actions';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import Image from 'next/image';
 import Link from 'next/link';
-import { Lock } from 'lucide-react';
+import { Lock, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const { auth } = useFirebase();
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!auth) return;
+    setLoading(true);
 
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      // Устанавливаем куку для совместимости с существующей Middleware
-      // Это критически важно для доступа в /manager и Server Actions
-      document.cookie = "admin_authenticated=true; path=/; max-age=86400; SameSite=Strict";
-      toast({ title: "Успешный вход", description: "Перенаправление в панель управления..." });
-      
-      // Перенаправляем в CRM менеджера
+    const formData = new FormData(e.currentTarget);
+    const result = await loginAction(formData);
+
+    if (result.success) {
+      toast({ title: "Успешный вход", description: "Добро пожаловать в терминал." });
       router.push('/manager');
-    } catch (error: any) {
+      router.refresh();
+    } else {
       toast({ 
         variant: "destructive", 
         title: "Ошибка входа", 
-        description: "Неверный email или пароль." 
+        description: result.error || "Неверный email или пароль." 
       });
+      setLoading(false);
     }
   };
 
@@ -47,33 +43,34 @@ export default function LoginPage() {
       <Card className="w-full max-w-md bg-white/[0.03] border-white/10 backdrop-blur-xl shadow-2xl p-8 space-y-8">
         <div className="flex flex-col items-center text-center space-y-4">
           <Image src="/logo.png" alt="Logo" width={64} height={64} priority />
-          <h1 className="text-2xl font-bold tracking-tight">Вход в систему</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Вход в терминал</h1>
         </div>
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Email</label>
             <Input 
+              name="email"
               type="email" 
-              placeholder="admin@humango.app" 
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="bg-white/5 border-white/10 h-12"
+              placeholder="abuse@humango.app" 
+              className="bg-white/5 border-white/10 h-12 text-white"
               required
+              disabled={loading}
             />
           </div>
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Пароль</label>
             <Input 
+              name="password"
               type="password" 
               placeholder="••••••••" 
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="bg-white/5 border-white/10 h-12"
+              className="bg-white/5 border-white/10 h-12 text-white"
               required
+              disabled={loading}
             />
           </div>
-          <Button type="submit" className="w-full h-12 bg-primary mt-4 font-bold">
-            <Lock className="w-4 h-4 mr-2" /> Войти в терминал
+          <Button type="submit" disabled={loading} className="w-full h-12 bg-primary mt-4 font-bold">
+            {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
+            {loading ? "Авторизация..." : "Войти"}
           </Button>
         </form>
         <div className="text-center">

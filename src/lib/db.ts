@@ -90,6 +90,18 @@ export async function saveViolation(data: any) {
   );
 }
 
+export async function saveValidationLog(url: string, iteration: number, status: string, findings: any[], confidence: number) {
+  // Optional logging for audit history
+}
+
+export async function saveAuditLog(domain: string, status: number, error: string | null) {
+  // System audit log
+}
+
+export async function saveAuditResults(domain: string, url: string, findings: any[], type: string) {
+  // Save results
+}
+
 export async function testConnection() {
   const client = await pool.connect();
   try { await client.query('SELECT 1'); return true; } finally { client.release(); }

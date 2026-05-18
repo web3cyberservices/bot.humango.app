@@ -18,11 +18,19 @@ async function migrate() {
   const client = await pool.connect();
   try {
     console.log('==================================================');
-    console.log('   HUMANGO COMPLIANCE DATABASE MIGRATOR V34.0     ');
-    console.log('   Action: Syncing CRM & Audit Tables             ');
+    console.log('   HUMANGO COMPLIANCE DATABASE MIGRATOR V35.0     ');
+    console.log('   Action: Full Sync (PostgreSQL Only)            ');
     console.log('==================================================');
     
     await client.query(`
+      CREATE TABLE IF NOT EXISTS public.users (
+        id SERIAL PRIMARY KEY,
+        email varchar(255) UNIQUE NOT NULL,
+        password varchar(255) NOT NULL,
+        name varchar(255),
+        created_at timestamp DEFAULT NOW()
+      );
+
       CREATE TABLE IF NOT EXISTS public.bot_settings (
         id int DEFAULT 1 PRIMARY KEY, 
         is_active boolean DEFAULT true, 

@@ -1,52 +1,36 @@
 
-import * as admin from 'firebase-admin';
+import { Pool } from 'pg';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-if (!admin.apps.length) {
-  try {
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      }),
-    });
-    console.log('[Seed] Firebase Admin initialized.');
-  } catch (error) {
-    console.error('[Seed] Firebase Admin init error:', error);
-    process.exit(1);
-  }
-}
-
-const auth = admin.auth();
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
 
 async function seed() {
   const email = 'abuse@humango.app';
   const password = 'Web3p00d@3';
+  const name = 'Compliance Manager';
 
-  console.log(`[Seed] Attempting to create manager: ${email}`);
+  console.log(`[Seed] Attempting to create manager in PostgreSQL: ${email}`);
 
+  const client = await pool.connect();
   try {
-    const user = await auth.getUserByEmail(email);
-    console.log('[Seed] User already exists in Firebase Auth. UID:', user.uid);
-  } catch (error: any) {
-    if (error.code === 'auth/user-not-found') {
-      const user = await auth.createUser({
-        email,
-        password,
-        emailVerified: true,
-        displayName: 'Compliance Manager',
-      });
-      console.log('[Seed] Successfully created new manager in Firebase Auth. UID:', user.uid);
-    } else {
-      console.error('[Seed] Error checking/creating user:', error);
-    }
+    await client.query(
+      `INSERT INTO public.users (email, password, name) 
+       VALUES ($1, $2, $3) 
+       ON CONFLICT (email) DO UPDATE SET password = $2, name = $3;`,
+      [email, password, name]
+    );
+    console.log('[Seed] SUCCESS: Manager created/updated in users table.');
+  } catch (error) {
+    console.error('[Seed] ERROR:', error);
+  } finally {
+    client.release();
+    await pool.end();
   }
 }
 
-seed().then(() => {
-  console.log('[Seed] Process finished.');
-  process.exit(0);
-});
+seed();
