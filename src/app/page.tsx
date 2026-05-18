@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { startCrawlAction, checkAuditStatus } from '@/app/actions/crawler-actions';
 import { 
-  Mail, Globe, Terminal, ShieldCheck, Zap, Loader2, CheckCircle2, Download, AlertCircle, ArrowRight, ShieldAlert, Cpu, Activity, FileSearch
+  Mail, Globe, Terminal, ShieldCheck, Zap, Loader2, CheckCircle2, Download, AlertCircle, ArrowRight, ShieldAlert, Cpu, Activity, FileSearch, Code
 } from "lucide-react";
 
 export default function Home() {
@@ -88,7 +88,7 @@ export default function Home() {
         <section className="container mx-auto px-6 pt-16 pb-24 text-center">
           <div className="max-w-4xl mx-auto space-y-8">
             <Badge variant="outline" className="py-1.5 px-4 border-primary/20 bg-primary/5 text-primary text-[10px] font-bold uppercase tracking-[0.2em] animate-in fade-in slide-in-from-top-4 duration-1000">
-              Statutory Compliance Engine v5.1
+              Statutory Compliance Engine v5.2
             </Badge>
             <h1 className="text-5xl md:text-7xl font-extrabold tracking-tighter leading-[0.9] text-white animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-200">
               Professional Web <br />
@@ -128,9 +128,14 @@ export default function Home() {
                   {isScanning ? 'Processing...' : 'Run Audit'}
                 </Button>
               </form>
-              <p className="text-[10px] text-slate-500 mt-4 uppercase tracking-widest font-bold">
-                * RFC 9309 Compliant. We respect robots.txt and server stability.
-              </p>
+              <div className="flex flex-col items-center gap-2 mt-4">
+                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
+                  * RFC 9309 Compliant. We respect robots.txt and server stability.
+                </p>
+                <code className="text-[9px] text-primary/60 font-mono">
+                  UA: HumangoBot/1.0 (+https://bot.humango.app)
+                </code>
+              </div>
             </div>
 
             {scanStatus === 'completed' && (
@@ -178,7 +183,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Info Section */}
+        {/* Technical Specification Section */}
         <section className="container mx-auto px-6 py-24">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <div className="space-y-8">
@@ -188,19 +193,24 @@ export default function Home() {
               <p className="text-lg text-slate-400 font-light leading-relaxed">
                 Humango Compliance provides the technical evidence required to verify digital integrity. Our bot operates statelessly, respecting privacy while identifying critical gaps.
               </p>
-              <ul className="space-y-4">
-                {[
-                  "Stateless scanning with zero cookie persistence",
-                  "Automated cross-jurisdiction legal mapping",
-                  "Action-ready remediation recommendations",
-                  "PDF Audit logs for regulatory verification"
-                ].map((text, i) => (
-                  <li key={i} className="flex items-center gap-3 text-sm text-slate-300">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    {text}
-                  </li>
-                ))}
-              </ul>
+              <div className="p-6 bg-white/[0.02] border border-white/5 rounded-2xl space-y-4 font-mono text-xs">
+                <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                  <span className="text-slate-500 uppercase">User-Agent Identity</span>
+                  <span className="text-primary">HumangoBot/1.0</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                  <span className="text-slate-500 uppercase">Static IP Node</span>
+                  <span className="text-white">116.203.3.75</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                  <span className="text-slate-500 uppercase">Protocol Standard</span>
+                  <span className="text-white">RFC 9309 (Polite)</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 uppercase">Legal Basis</span>
+                  <span className="text-emerald-500">Art. 6(1)(f) GDPR</span>
+                </div>
+              </div>
               <Button variant="ghost" className="text-primary hover:text-primary/80 p-0 font-bold group" asChild>
                 <Link href="/legal/bot-policy">
                   View Technical Policy <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -211,7 +221,9 @@ export default function Home() {
               <div className="bg-[#0b1120] rounded-[2.9rem] p-10 space-y-6">
                 <div className="flex items-center justify-between">
                   <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20">Operational</Badge>
-                  <span className="text-xs font-mono text-slate-500">Node: 116.203.3.75</span>
+                  <span className="text-xs font-mono text-slate-500 flex items-center gap-2">
+                    <Code className="w-3 h-3" /> Node: 116.203.3.75
+                  </span>
                 </div>
                 <div className="space-y-2">
                   <p className="text-2xl font-bold text-white">Compliance Verdict</p>

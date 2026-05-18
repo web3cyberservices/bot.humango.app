@@ -32,14 +32,23 @@ export async function generatePdfReport(domain: string, providedFindings?: any[]
     }
 
     // Logical Filter: Prevent contradictions
-    if (findings.some((f: any) => f.issue_type === 'MISSING CORE FRAMEWORK')) {
-      findings = findings.filter((f: any) => f.issue_type === 'MISSING CORE FRAMEWORK');
+    const hasMissingFramework = findings.some((f: any) => 
+      f.issue_type?.toUpperCase().includes('MISSING CORE FRAMEWORK') || 
+      f.type === 'MISSING_CORE_FRAMEWORK'
+    );
+
+    if (hasMissingFramework) {
+      // If document is missing, clear hallucinated content findings
+      findings = findings.filter((f: any) => 
+        f.issue_type?.toUpperCase().includes('MISSING CORE FRAMEWORK') || 
+        f.type === 'MISSING_CORE_FRAMEWORK'
+      );
     }
 
-    // Force double quotes in recommendations for consistency
+    // Force double quotes in recommendations for consistency and UI cleanliness
     findings = findings.map((v: any) => ({
       ...v,
-      recommendation: (v.recommendation || '').replace(/[']/g, '"')
+      recommendation: (v.recommendation || v.action || '').replace(/[']/g, '"')
     }));
 
     let logoBase64 = '';
@@ -96,16 +105,16 @@ export async function generatePdfReport(domain: string, providedFindings?: any[]
         ` : findings.map((v: any) => `
           <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 15px;">
-              <div style="font-size:16px; font-weight: 800; color: #0f172a;">${v.issue_type}</div>
+              <div style="font-size:16px; font-weight: 800; color: #0f172a;">${v.issue_type || v.type}</div>
               <span class="severity-badge ${v.severity?.toLowerCase() === 'critical' ? 'severity-critical' : 'severity-high'}">
                 ${v.severity?.toUpperCase() || 'HIGH RISK'}
               </span>
             </div>
-            <div style="font-size:13px; color:#475569; margin-bottom: 15px;">${v.description}</div>
-            <div style="font-size:10px; color:#94a3b8; margin-bottom: 15px;">LEGAL BASIS: ${v.law_name || 'GDPR Art. 13'}</div>
+            <div style="font-size:13px; color:#475569; margin-bottom: 15px;">${v.description || v.summary}</div>
+            <div style="font-size:10px; color:#94a3b8; margin-bottom: 15px;">LEGAL BASIS: ${v.law_name || v.basis || 'GDPR Art. 13'}</div>
             
             <div class="recommendation-label">Corrective Action Required:</div>
-            <div class="recommendation-box">${v.recommendation}</div>
+            <div class="recommendation-box">${v.recommendation || v.action}</div>
           </div>
         `).join('')}
 
@@ -128,7 +137,10 @@ export async function generatePdfReport(domain: string, providedFindings?: any[]
     return await page.pdf({ 
       format: 'A4', 
       printBackground: true,
-      margin: { top: '0px', bottom: '0px', left: '0px', right: '0px' }
+      margin: { top: '0px', bottom: '0px', left: '0px', right: '0px' },
+      displayHeaderFooter: true,
+      footerTemplate: '<div style="font-size:10px; width:100%; text-align:center; color:#94a3b8;">bot.humango.app | Statutory Compliance Verified</div>',
+      headerTemplate: '<div></div>'
     });
   } catch (error) {
     console.error('PDF Generation Error:', error);
