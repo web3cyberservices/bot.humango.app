@@ -4,15 +4,20 @@ import type { NextRequest } from 'next/server';
 
 /**
  * Middleware для защиты терминала и обработки путей.
+ * Оптимизировано для корректной работы в standalone-режиме.
  */
 export function middleware(request: NextRequest) {
   const url = request.nextUrl;
   
-  // Пропускаем все статические файлы и внутренние запросы Next.js
+  // КРИТИЧЕСКОЕ ПРАВИЛО: Никогда не перехватывать системные чанки и статику Next.js
   if (
     url.pathname.startsWith('/_next/') ||
     url.pathname.startsWith('/static/') ||
-    url.pathname.includes('.') ||
+    url.pathname.includes('/chunks/') ||
+    url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.css') ||
+    url.pathname.endsWith('.png') ||
+    url.pathname.endsWith('.jpg') ||
     url.pathname === '/favicon.ico'
   ) {
     return NextResponse.next();
@@ -39,9 +44,8 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Исключаем все системные пути Next.js и статику из обработки middleware,
-     * чтобы не вызывать 404 при загрузке чанков.
+     * Обрабатываем все пути, кроме тех, что явно исключены из middleware.
      */
-    '/((?!_next/static|_next/image|favicon.ico|logo.png|audit-scope.txt|bot-policy.txt|robots.txt).*)',
+    '/((?!api/auth|_next/static|_next/image|favicon.ico|logo.png|audit-scope.txt|robots.txt).*)',
   ],
 };

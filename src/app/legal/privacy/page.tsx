@@ -15,13 +15,13 @@ export default function PrivacyPage() {
           <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
             <Image 
               src="/logo.png" 
-              alt="HumangoBot Logo" 
+              alt="Humango Logo" 
               width={32}
               height={32}
               className="object-contain"
             />
             <span className="font-bold text-lg tracking-tight text-white">
-              HumangoBot
+              Humango
             </span>
           </Link>
           <Button variant="ghost" size="sm" asChild className="text-slate-400 hover:text-white">
@@ -35,8 +35,8 @@ export default function PrivacyPage() {
       <main className="flex-1 container mx-auto px-6 py-12 max-w-4xl">
         <div className="space-y-12">
           <div className="space-y-4">
-            <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary text-[10px] font-bold uppercase tracking-[0.2em]">
-              GDPR Compliance Framework
+            <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary text-[10px] font-bold uppercase tracking-widest px-3 py-1">
+              GDPR Compliance Framework v2.1
             </Badge>
             <h1 className="text-4xl font-extrabold tracking-tight text-white">
               Privacy Statement
@@ -52,11 +52,11 @@ export default function PrivacyPage() {
             </h2>
             <div className="space-y-4 text-slate-400 leading-relaxed">
               <p>
-                HumangoBot strictly adheres to <strong>Art. 5 GDPR</strong>. Our scanning is limited to infrastructure assessment as an external observer.
+                Humango strictly adheres to <strong>Art. 5 GDPR</strong>. Our scanning is limited to infrastructure assessment as an external observer.
               </p>
               <ul className="list-disc pl-6 space-y-4">
                 <li>
-                  <strong className="text-white">No PII Scraping:</strong> Our engine automatically ignores and redacts emails, phone numbers, and PII found in page content. We do not store any personal data of website visitors.
+                  <strong className="text-white">No PII Scraping:</strong> Our engine automatically ignores and redacts emails, phone numbers, and PII found in page content.
                 </li>
                 <li>
                   <strong className="text-white">Stateless Operations:</strong> We do not store cookies or fingerprint users. Every request is an isolated session.
@@ -92,7 +92,7 @@ export default function PrivacyPage() {
               <Scale className="w-5 h-5 text-primary" /> Legal Basis (Art. 6(1)(f) GDPR)
             </h2>
             <p className="text-slate-400 leading-relaxed">
-              Our data processing is justified under <strong>Legitimate Interest (Art. 6(1)(f) GDPR)</strong>. The purpose is the identification of technical vulnerabilities and the monitoring of digital compliance to ensure a secure and transparent internet environment.
+              Our data processing is justified under <strong>Legitimate Interest (Art. 6(1)(f) GDPR)</strong>. The purpose is the identification of technical vulnerabilities and the monitoring of digital compliance to ensure a secure internet environment.
             </p>
           </section>
 
@@ -118,8 +118,8 @@ export default function PrivacyPage() {
       </main>
 
       <footer className="py-8 px-6 border-t border-white/5 bg-[#010413]/50">
-        <div className="container mx-auto text-[9px] text-slate-500 uppercase tracking-[0.25em] font-bold text-center">
-          &copy; {new Date().getFullYear()} Humango Limited • Privacy v1.7
+        <div className="container mx-auto text-[9px] text-slate-500 uppercase tracking-widest font-bold text-center">
+          &copy; {new Date().getFullYear()} Humango Limited • Privacy v2.1
         </div>
       </footer>
     </div>

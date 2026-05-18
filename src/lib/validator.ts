@@ -46,30 +46,29 @@ const verifyIntegrityPrompt = ai.definePrompt({
 CORE MISSION: Identify real legal gaps, but DO NOT issue violations based on URL structure or custom naming conventions if the legal requirement is fulfilled.
 
 ANALYSIS RULES:
-1. IGNORE THE URL: If a document exists at /legal/privacy, /legal-info, /datenschutz, or any other path, it is NOT a violation. If it is accessible from the homepage footer, Art. 12 (Transparency) is satisfied.
-2. FOCUS ON CONTENT: Analyze the provided "HTML CONTENT POOL". If the mandatory info (e.g., Retention Periods like "24 months") is present anywhere in this pool, the finding is REJECTED.
+1. IGNORE THE URL: If a document exists at any path like /legal, /datenschutz, or /privacy-info, it is NOT a violation if it is accessible via footer.
+2. FOCUS ON CONTENT: Analyze the provided "HTML CONTENT POOL". If the mandatory info (e.g., Retention Periods like "24 months") is present anywhere, the finding is REJECTED.
 3. DATA RETENTION: Look for specific numbers (e.g., "2 years", "24 months", "365 days"). If only vague terms like "as long as needed" are found without specific criteria, it IS a violation (Art. 13(2)(a)).
 
 DOMAIN: {{{domain}}}
 
-HTML CONTENT POOL FROM ALL LEGAL PAGES:
+HTML CONTENT POOL:
 {{{html}}}
 
-PRELIMINARY FINDINGS TO VALIDATE:
+FINDINGS TO VALIDATE:
 {{#each findings}}
 - {{{issue_type}}}: {{{description}}}
 {{/each}}
 
 RESPONSE FORMAT:
-If a violation is real (info is totally missing), generate the JSON block.
-If the info exists but was just on a custom page, set verification_status: "rejected".
-ALL recommendations MUST use double quotes for the suggested text, e.g., ACTION: INSERT THIS TEXT -> "Data Protection Officer: info@example.com". NO SINGLE QUOTES.`,
+All recommendations MUST use double quotes ONLY. 
+Example: ACTION: INSERT THIS TEXT -> "Data Controller: info@example.com". 
+NEVER use single quotes like '...'.`,
 });
 
 export async function verifyIntegrity(html: string, findings: Violation[]) {
   try {
     const domain = findings[0]?.domain || "this site";
-    // Analyze up to 25k characters of aggregated legal content for a deep dive
     const truncatedHtml = html.substring(0, 25000); 
     
     const { output } = await verifyIntegrityPrompt({ 
@@ -80,7 +79,6 @@ export async function verifyIntegrity(html: string, findings: Violation[]) {
     
     if (!output) throw new Error('Validator Failure');
     
-    // Filter out findings that AI rejected because it found the content on custom pages
     const activeFindings = output.validated_findings.filter(f => f.verification_status === 'verified');
 
     return {
