@@ -19,6 +19,7 @@ export async function startCrawlAction(rawUrl: string, rawEmail: string) {
   const cleanUrl = normalizeUrl(url);
   
   try {
+    // Priority set to 10 for manually triggered audits from the home page
     const queuedUrl = await queueTask(cleanUrl, email, 10);
     return { 
       status: 'success', 
@@ -26,6 +27,7 @@ export async function startCrawlAction(rawUrl: string, rawEmail: string) {
       message: 'Audit added to priority queue. Processing...' 
     };
   } catch (e: any) {
+    console.error('[Action Error] startCrawlAction:', e.message);
     return { status: 'failed', reason: 'Internal system error.' };
   }
 }

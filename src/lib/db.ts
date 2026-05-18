@@ -36,7 +36,7 @@ export async function queueTask(url: string, email: string, priority: number = 0
   await pool.query(
     `INSERT INTO public.scan_queue (url, status, priority, user_email, created_at, crm_status) 
      VALUES ($1, 'pending', $2, $3, NOW(), 'free') 
-     ON CONFLICT (url) DO UPDATE SET status = 'pending', priority = $2, user_email = $3;`,
+     ON CONFLICT (url) DO UPDATE SET status = 'pending', priority = $2, user_email = $3, crm_status = 'free';`,
     [cleanUrl, priority, email]
   );
   return cleanUrl;
@@ -74,7 +74,7 @@ export async function getViolations(limit: number = 100) {
       q.assigned_to as "assignedTo", q.manager_name as "managerName", q.assigned_at as "assignedAt",
       q.violations_count as violation_count
     FROM public.scan_queue q
-    ORDER BY q.created_at DESC LIMIT $1
+    ORDER BY q.violations_count DESC, q.created_at DESC LIMIT $1
   `, [limit]);
   
   return res.rows.map(row => ({
@@ -82,7 +82,7 @@ export async function getViolations(limit: number = 100) {
     domain: row.domain.replace(/^https?:\/\//, ''),
     type: 'Audit',
     level: row.violation_count > 0 ? 'critical' : 'low',
-    date: row.assignedAt || new Date(),
+    date: row.assignedAt || row.created_at || new Date(),
     summary: `Found ${row.violation_count} violations`,
     description: `Automated scan results for ${row.domain}`,
     report_type: 'SaaS',
@@ -114,16 +114,6 @@ export async function getManagersStats() {
     ORDER BY task_count DESC
   `);
   return res.rows;
-}
-
-export async function saveViolation(data: any) {
-  const { domain, url, page_url, category, issue_type, severity, description, law_name, recommendation, business_impact, report_type } = data;
-  await pool.query(
-    `INSERT INTO public.site_violations (
-      domain, url, page_url, category, issue_type, severity, description, law_name, recommendation, business_impact, report_type, created_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
-    [domain, url, page_url, category, issue_type, severity, description, law_name, recommendation, business_impact, report_type || 'SaaS']
-  );
 }
 
 export async function testConnection() {
