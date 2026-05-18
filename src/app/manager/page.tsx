@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useFirebase } from '@/components/providers/firebase-provider';
 import { assignTaskToManager, getAvailableTasks, getManagerTasks } from '@/app/actions/crm-actions';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,19 +9,22 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Briefcase, Globe, Clock, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, Briefcase, Globe, Clock, CheckCircle2, AlertCircle, LogOut } from "lucide-react";
 import Image from 'next/image';
 import Link from 'next/link';
+import { signOut } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
 
 export default function ManagerDashboard() {
-  const { user, loading: authLoading } = useFirebase();
+  const { user, auth, loading: authLoading } = useFirebase();
   const [availableTasks, setAvailableTasks] = useState<any[]>([]);
   const [myTasks, setMyTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const { toast } = useToast();
+  const router = useRouter();
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!user) return;
     try {
       const [available, mine] = await Promise.all([
@@ -35,13 +38,21 @@ export default function ManagerDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
-    if (!authLoading && user) {
-      fetchData();
+    if (!authLoading) {
+      if (!user) {
+        // Если нет пользователя, перенаправляем на логин через 2 секунды
+        const timer = setTimeout(() => {
+          router.push('/login');
+        }, 2000);
+        return () => clearTimeout(timer);
+      } else {
+        fetchData();
+      }
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, fetchData, router]);
 
   const handleTakeTask = async (taskId: string) => {
     if (!user) return;
@@ -52,19 +63,30 @@ export default function ManagerDashboard() {
     formData.append('managerId', user.uid);
     formData.append('managerEmail', user.email || 'unknown');
 
-    const result = await assignTaskToManager(formData);
-
-    if (result.success) {
-      toast({ title: "Задача принята", description: "Сайт добавлен в ваш список работы." });
-      fetchData();
-    } else {
-      toast({ variant: "destructive", title: "Ошибка", description: result.error });
-      fetchData(); // Refresh to see if it was already taken
+    try {
+      const result = await assignTaskToManager(formData);
+      if (result.success) {
+        toast({ title: "Задача принята", description: "Сайт добавлен в ваш список работы." });
+        fetchData();
+      } else {
+        toast({ variant: "destructive", title: "Ошибка", description: result.error });
+        fetchData();
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Критическая ошибка", description: e.message });
+    } finally {
+      setProcessingId(null);
     }
-    setProcessingId(null);
   };
 
-  if (authLoading || loading) {
+  const handleLogout = async () => {
+    if (!auth) return;
+    await signOut(auth);
+    document.cookie = "admin_authenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    router.push('/login');
+  };
+
+  if (authLoading || (user && loading)) {
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-primary animate-spin" />
@@ -95,6 +117,7 @@ export default function ManagerDashboard() {
         <div className="flex items-center gap-4">
           <Badge variant="outline" className="text-[10px] text-slate-500">{user.email}</Badge>
           <Button variant="ghost" size="sm" asChild><Link href="/admin">Admin Panel</Link></Button>
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="text-rose-400"><LogOut className="w-4 h-4 mr-2" /> Выход</Button>
         </div>
       </header>
 
@@ -121,13 +144,13 @@ export default function ManagerDashboard() {
                     <TableRow><TableCell colSpan={3} className="text-center py-12 text-slate-500 text-xs">У вас пока нет активных задач</TableCell></TableRow>
                   ) : myTasks.map((task) => (
                     <TableRow key={task.id} className="border-white/5 hover:bg-white/[0.02]">
-                      <TableCell className="text-xs font-medium">{task.url.replace(/^https?:\/\//, '')}</TableCell>
+                      <TableCell className="text-xs font-medium">{task.url?.replace(/^https?:\/\//, '')}</TableCell>
                       <TableCell className="text-[10px] text-slate-500">
                         {task.assignedAt?.toDate ? task.assignedAt.toDate().toLocaleString() : 'Just now'}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button size="sm" variant="outline" className="h-7 text-[10px]" asChild>
-                          <a href={`/api/admin/report-pdf?domain=${task.url}`} target="_blank">Report</a>
+                          <a href={`/api/admin/report-pdf?domain=${task.url}`} target="_blank">PDF Report</a>
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -158,7 +181,7 @@ export default function ManagerDashboard() {
                     <TableRow><TableCell colSpan={3} className="text-center py-12 text-slate-500 text-xs">Нет свободных задач</TableCell></TableRow>
                   ) : availableTasks.map((task) => (
                     <TableRow key={task.id} className="border-white/5 hover:bg-white/[0.02]">
-                      <TableCell className="text-xs font-medium">{task.url.replace(/^https?:\/\//, '')}</TableCell>
+                      <TableCell className="text-xs font-medium">{task.url?.replace(/^https?:\/\//, '')}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-[8px] border-emerald-500/20 text-emerald-400">READY</Badge>
                       </TableCell>

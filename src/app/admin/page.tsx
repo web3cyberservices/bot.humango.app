@@ -104,10 +104,11 @@ export default function AdminDashboard() {
       const responses = await Promise.allSettled([
         fetch(`/api/admin/control?t=${timestamp}`, { cache: 'no-store' }),
         fetch(`/api/admin/stats?t=${timestamp}`, { cache: 'no-store' }),
-        fetch(`/api/admin/system-logs?t=${timestamp}`, { cache: 'no-store' })
+        fetch(`/api/admin/system-logs?t=${timestamp}`, { cache: 'no-store' }),
+        fetch(`/api/admin/violations?t=${timestamp}&limit=15`, { cache: 'no-store' })
       ]);
 
-      const [statusRes, statsRes, logsRes] = responses;
+      const [statusRes, statsRes, logsRes, violationsRes] = responses;
 
       if (statusRes.status === 'fulfilled' && statusRes.value.ok) {
         const data = await statusRes.value.json().catch(() => ({ isActive: false }));
@@ -120,8 +121,12 @@ export default function AdminDashboard() {
           pagesScanned: statsData.pagesScanned || 0, 
           issuesFound: statsData.issuesFound || 0 
         });
-        setRecentIssues(statsData.recentIssues || []);
         setLastSync(new Date().toLocaleTimeString());
+      }
+
+      if (violationsRes.status === 'fulfilled' && violationsRes.value.ok) {
+        const vData = await violationsRes.value.json().catch(() => ({ violations: [] }));
+        setRecentIssues(vData.violations || []);
       }
       
       if (logsRes.status === 'fulfilled' && logsRes.value.ok) {

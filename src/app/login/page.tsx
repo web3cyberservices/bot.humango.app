@@ -27,9 +27,12 @@ export default function LoginPage() {
     try {
       await signInWithEmailAndPassword(auth, email, password);
       // Устанавливаем куку для совместимости с существующей Middleware
-      document.cookie = "admin_authenticated=true; path=/; max-age=3600; SameSite=Strict";
+      // Это критически важно для доступа в /manager и Server Actions
+      document.cookie = "admin_authenticated=true; path=/; max-age=86400; SameSite=Strict";
       toast({ title: "Успешный вход", description: "Перенаправление в панель управления..." });
-      router.push('/admin');
+      
+      // Перенаправляем в CRM менеджера
+      router.push('/manager');
     } catch (error: any) {
       toast({ 
         variant: "destructive", 
