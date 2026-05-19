@@ -50,14 +50,15 @@ async function migrate() {
         created_at timestamp DEFAULT NOW(),
         crm_status varchar(20) DEFAULT 'free',
         violations_count int DEFAULT 0,
-        contacts jsonb DEFAULT '{"emails": [], "phones": [], "other": []}',
+        contacts jsonb DEFAULT '{"emails": [], "phones": []}',
         extracted_emails jsonb DEFAULT '[]'::jsonb,
         extracted_phones jsonb DEFAULT '[]'::jsonb,
         audit_findings jsonb DEFAULT '[]'::jsonb,
         pdf_report_path varchar(500),
         auto_message_sent boolean DEFAULT false,
         auto_message_sent_at timestamp,
-        job_type varchar(50) DEFAULT 'audit'
+        job_type varchar(50) DEFAULT 'audit',
+        closing_price decimal(12,2)
       );
     `);
 
@@ -88,7 +89,9 @@ async function migrate() {
       { name: 'violations_count', type: 'int DEFAULT 0' },
       { name: 'job_type', type: 'varchar(50) DEFAULT \'audit\'' },
       { name: 'extracted_emails', type: 'jsonb DEFAULT \'[]\'::jsonb' },
-      { name: 'extracted_phones', type: 'jsonb DEFAULT \'[]\'::jsonb' }
+      { name: 'extracted_phones', type: 'jsonb DEFAULT \'[]\'::jsonb' },
+      { name: 'closing_price', type: 'decimal(12,2)' },
+      { name: 'contacts', type: 'jsonb DEFAULT \'{"emails": [], "phones": []}\'' }
     ];
 
     for (const col of scanQueueColumns) {

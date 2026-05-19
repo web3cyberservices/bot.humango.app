@@ -40,6 +40,12 @@ const USER_AGENTS = [
   "HumangoBot/1.0 (+https://bot.humango.app)"
 ];
 
+const THIRD_PARTY_DOMAINS = [
+  'google.com', 'facebook.com', 'twitter.com', 'linkedin.com', 'instagram.com', 
+  'sentry.io', 'segment.com', 'intercom.io', 'crisp.chat', 'zendesk.com', 'drift.com',
+  'hubspot.com', 'salesforce.com', 'shopify.com', 'wordpress.org', 'gravatar.com'
+];
+
 async function getExecutablePath() {
   for (const p of CHROME_PATHS) {
     if (fs.existsSync(p)) return p;
@@ -48,9 +54,7 @@ async function getExecutablePath() {
 }
 
 const LEGAL_MARKERS = ['privacy', 'policy', 'terms', 'gdpr', 'datenschutz', 'personal data', 'information we collect', 'cookies', 'legal notice', 'impressum'];
-const FINANCE_KEYWORDS = ['credit card', 'payment', 'billing', 'transaction', 'bank', 'wallet', 'purchases', 'checkout', 'financial info'];
-const SECURE_KEYWORDS = ['stripe', 'paypal', 'pci-dss', 'secure gateway', 'braintree', 'encrypted', 'certified'];
-const RIGHTS_KEYWORDS = ['withdraw', 'right to access', 'erasure', 'right to be forgotten', 'delete account', 'access your data', 'rectification'];
+const ENTERPRISE_MARKERS = ['enterprise', 'investors', 'shareholders', 'worldwide offices', 'global presence', 'fortune 500'];
 
 async function randomDelay(min = 1000, max = 3000) {
   const ms = Math.floor(Math.random() * (max - min + 1)) + min;
@@ -58,14 +62,36 @@ async function randomDelay(min = 1000, max = 3000) {
 }
 
 async function scrapeContactsFromPage(page: puppeteer.Page) {
-  return await page.evaluate(() => {
+  return await page.evaluate((thirdPartyDomains) => {
     const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
     const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4,6}/g;
     const text = document.body.innerText;
-    const emails = [...new Set(text.match(emailRegex) || [])];
-    const phones = [...new Set(text.match(phoneRegex) || [])];
     
-    // Find interesting links
+    const getContext = (match: string, fullText: string) => {
+      const idx = fullText.indexOf(match);
+      if (idx === -1) return '';
+      const start = Math.max(0, idx - 150);
+      const end = Math.min(fullText.length, idx + match.length + 150);
+      return fullText.substring(start, end).replace(/\s+/g, ' ').trim();
+    };
+
+    const foundEmails = [...new Set(text.match(emailRegex) || [])];
+    const emailsWithContext = foundEmails
+      .filter(email => {
+        const domain = email.split('@')[1]?.toLowerCase();
+        return !thirdPartyDomains.some(d => domain.includes(d));
+      })
+      .map(email => ({
+        value: email,
+        context: getContext(email, text)
+      }));
+
+    const foundPhones = [...new Set(text.match(phoneRegex) || [])];
+    const phonesWithContext = foundPhones.map(phone => ({
+      value: phone,
+      context: getContext(phone, text)
+    }));
+    
     const links = Array.from(document.querySelectorAll('a[href]'))
       .map(a => (a as HTMLAnchorElement).href)
       .filter(href => {
@@ -73,8 +99,8 @@ async function scrapeContactsFromPage(page: puppeteer.Page) {
         return h.includes('contact') || h.includes('impressum') || h.includes('about') || h.includes('legal');
       });
 
-    return { emails, phones, deepLinks: [...new Set(links)] };
-  });
+    return { emails: emailsWithContext, phones: phonesWithContext, deepLinks: [...new Set(links)] };
+  }, THIRD_PARTY_DOMAINS);
 }
 
 async function executeDeterministicAudit(taskId: number, domainUrl: string, userEmail: string) {
@@ -82,8 +108,8 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
   const networkUrls: string[] = [];
   const finalFindings: any[] = [];
   let leadScore = 0;
-  let allExtractedEmails = new Set<string>();
-  let allExtractedPhones = new Set<string>();
+  let allExtractedEmails = new Map<string, string>();
+  let allExtractedPhones = new Map<string, string>();
   
   try {
     const executablePath = await getExecutablePath();
@@ -113,31 +139,31 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
     console.log(`[Audit Engine] Analyzing: ${domainName}`);
     await page.goto(urlObj.origin, { waitUntil: 'networkidle2', timeout: 35000 });
     
-    // Human-like behavior
     await page.mouse.wheel(0, 500);
     await randomDelay(1000, 2000);
 
     // --- CONTACT SCRAPING ---
     const initialContacts = await scrapeContactsFromPage(page);
-    initialContacts.emails.forEach(e => allExtractedEmails.add(e));
-    initialContacts.phones.forEach(p => allExtractedPhones.add(p));
+    initialContacts.emails.forEach(e => allExtractedEmails.set(e.value, e.context));
+    initialContacts.phones.forEach(p => allExtractedPhones.set(p.value, p.context));
 
-    // Deep dive for contacts if needed
-    for (const link of initialContacts.deepLinks.slice(0, 3)) {
+    for (const link of initialContacts.deepLinks.slice(0, 2)) {
       try {
         await page.goto(link, { waitUntil: 'networkidle2', timeout: 20000 });
         const deepContacts = await scrapeContactsFromPage(page);
-        deepContacts.emails.forEach(e => allExtractedEmails.add(e));
-        deepContacts.phones.forEach(p => allExtractedPhones.add(p));
+        deepContacts.emails.forEach(e => allExtractedEmails.set(e.value, e.context));
+        deepContacts.phones.forEach(p => allExtractedPhones.set(p.value, p.context));
         await randomDelay(500, 1500);
       } catch (e) {}
     }
 
     // --- COMPLIANCE AUDIT ---
-    // (Existing Audit Logic remains, optimized)
     const pageText = await page.evaluate(() => document.body.innerText.toLowerCase());
     
-    // 1. Network & Cookies
+    // Enterprise Detection Penalty
+    const isEnterprise = ENTERPRISE_MARKERS.some(m => pageText.includes(m));
+    if (isEnterprise) leadScore -= 50;
+
     const hasGoogleFonts = networkUrls.some(url => url.includes('fonts.googleapis.com') || url.includes('fonts.gstatic.com'));
     if (hasGoogleFonts) {
       leadScore += 5;
@@ -166,9 +192,8 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
       });
     }
 
-    // 2. Legal Presence
     const markerCount = LEGAL_MARKERS.filter(m => pageText.includes(m.toLowerCase())).length;
-    if (pageText.length < 400 || markerCount < 2) {
+    if (pageText.length < 500 || markerCount < 2) {
       leadScore += 100;
       finalFindings.push({
         type: 'MISSING_CORE_FRAMEWORK',
@@ -179,22 +204,11 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
         action: 'Create a dedicated /privacy page.',
         country: countryCode
       });
-    } else {
-      if (!RIGHTS_KEYWORDS.some(kw => pageText.includes(kw))) {
-        leadScore += 15;
-        finalFindings.push({
-          type: 'MISSING_GDPR_RIGHTS',
-          basis: 'Art. 15-21 GDPR',
-          summary: 'Missing mandatory clauses for data subject rights.',
-          risk: 'Liability for information failure.',
-          liability: 'GDPR Standard.',
-          action: 'Include Right to be Forgotten clauses.',
-          country: countryCode
-        });
-      }
     }
 
-    // --- SAVE TO DB ---
+    const emailsJson = Array.from(allExtractedEmails.entries()).map(([v, c]) => ({ value: v, context: c }));
+    const phonesJson = Array.from(allExtractedPhones.entries()).map(([v, c]) => ({ value: v, context: c }));
+
     await pool.query(
       `UPDATE public.scan_queue 
        SET status = 'completed', 
@@ -208,21 +222,14 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
       [
         finalFindings.length, 
         JSON.stringify(finalFindings), 
-        JSON.stringify([...allExtractedEmails]), 
-        JSON.stringify([...allExtractedPhones]), 
-        leadScore, 
+        JSON.stringify(emailsJson), 
+        JSON.stringify(phonesJson), 
+        Math.max(1, leadScore), 
         taskId
       ]
     );
 
-    // Auto-Automation for HOT leads
-    const isHot = finalFindings.some(f => f.type === 'MISSING_CORE_FRAMEWORK');
-    const firstEmail = [...allExtractedEmails][0] || userEmail;
-    if (isHot && firstEmail && firstEmail.length > 5) {
-       // Optional: Auto-sending could be disabled as per user request for manual-only
-       // But keeping for potential system capability
-       console.log(`[Worker] Detected HOT lead: ${domainName}. Contacts extracted: ${[...allExtractedEmails].join(',')}`);
-    }
+    console.log(`[Worker] Audit finished for ${domainName}. Score: ${leadScore}`);
 
   } catch (err: any) {
     console.error(`[Worker Error] Task ${taskId} failed:`, err.message);
@@ -233,7 +240,6 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
 }
 
 async function executeCatalogScrape(taskId: number, url: string) {
-  console.log(`[Worker] Scraping catalog: ${url}`);
   let browser: any = null;
   try {
     const executablePath = await getExecutablePath();
@@ -247,7 +253,7 @@ async function executeCatalogScrape(taskId: number, url: string) {
       return anchors.map(a => (a as HTMLAnchorElement).href);
     });
 
-    const blacklist = ['google.', 'facebook.', 'linkedin.', 'youtube.', 'twitter.', 'instagram.', 'yelp.'];
+    const blacklist = ['google.', 'facebook.', 'linkedin.', 'youtube.', 'twitter.', 'instagram.', 'yelp.', 'sentry.', 'hubspot.'];
     const filtered = [...new Set(links)]
       .filter(l => {
         try {
@@ -273,7 +279,6 @@ async function executeCatalogScrape(taskId: number, url: string) {
 }
 
 async function executeDorkSearch(taskId: number, dork: string) {
-  console.log(`[Worker] Dork search: ${dork}`);
   let browser: any = null;
   try {
     const executablePath = await getExecutablePath();
@@ -281,7 +286,6 @@ async function executeDorkSearch(taskId: number, dork: string) {
     const page = await browser.newPage();
     await page.setUserAgent(USER_AGENTS[0]);
     
-    // Use DuckDuckGo to avoid Google CAPTCHAs
     const searchUrl = `https://duckduckgo.com/?q=${encodeURIComponent(dork)}`;
     await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 45000 });
 
@@ -311,10 +315,8 @@ async function startWorker() {
   console.log('[Worker] Starting autonomous compliance engine...');
   while (true) {
     try {
-      // 1. Check if we need more seeds
       await checkAndFeedQueue();
 
-      // 2. Pick up a task
       const res = await pool.query(
         "SELECT id, url, user_email, job_type FROM public.scan_queue WHERE status = 'pending' ORDER BY priority DESC, created_at ASC LIMIT 1"
       );

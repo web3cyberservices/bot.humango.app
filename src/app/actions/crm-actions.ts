@@ -57,7 +57,7 @@ export async function takeTaskInWork(taskId: number) {
   }
 }
 
-export async function updateTaskStatusAction(taskId: number, status: string) {
+export async function updateTaskStatusAction(taskId: number, status: string, closingPrice?: number) {
   const session = await getSession();
   if (!session) throw new Error("Unauthorized");
 
@@ -72,10 +72,20 @@ export async function updateTaskStatusAction(taskId: number, status: string) {
       throw new Error("Access denied: You don't own this task.");
     }
 
-    await pool.query(
-      'UPDATE public.scan_queue SET status = $1 WHERE id = $2',
-      [status, taskId]
-    );
+    if (status === 'completed' || status === 'done') {
+        if (!closingPrice || closingPrice <= 0) {
+            return { success: false, error: "Для завершения заказа необходимо указать сумму сделки." };
+        }
+        await pool.query(
+            'UPDATE public.scan_queue SET status = $1, closing_price = $2 WHERE id = $3',
+            [status, closingPrice, taskId]
+        );
+    } else {
+        await pool.query(
+            'UPDATE public.scan_queue SET status = $1 WHERE id = $2',
+            [status, taskId]
+        );
+    }
 
     revalidatePath('/manager');
     revalidatePath('/admin');
@@ -95,8 +105,6 @@ export async function getAvailableTasks() {
   const session = await getSession();
   if (!session) return [];
 
-  // Logic: Priority Lead Scoring
-  // MISSING_CORE_FRAMEWORK leads have 100+ priority points
   const res = await pool.query(`
     SELECT * FROM public.scan_queue 
     WHERE crm_status = 'free' 

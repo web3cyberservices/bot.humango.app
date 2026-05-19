@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Select,
@@ -27,7 +28,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { 
   Loader2, Briefcase, Globe, Clock, CheckCircle2, LogOut, 
-  ExternalLink, Phone, Mail, ChevronRight, AlertCircle, UserCheck, ShieldAlert, User, History, TrendingUp, Copy, Zap
+  ExternalLink, Phone, Mail, ChevronRight, AlertCircle, UserCheck, ShieldAlert, User, History, TrendingUp, Copy, Zap, Eye, Download, DollarSign
 } from "lucide-react";
 import Image from 'next/image';
 import Link from 'next/link';
@@ -43,6 +44,10 @@ export default function ManagerDashboard() {
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [emailBody, setEmailBody] = useState("");
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [closingPrice, setClosingPrice] = useState<string>("");
+  const [showClosingPriceDialog, setShowClosingPriceDialog] = useState(false);
+  const [pendingStatusChange, setPendingStatusChange] = useState<{id: number, status: string} | null>(null);
+
   const { toast } = useToast();
   const router = useRouter();
 
@@ -90,7 +95,41 @@ export default function ManagerDashboard() {
     }
   };
 
+  const confirmStatusUpdate = async () => {
+    if (!pendingStatusChange) return;
+    
+    const price = parseFloat(closingPrice);
+    if (isNaN(price) || price <= 0) {
+        toast({ variant: "destructive", title: "Ошибка", description: "Введите корректную сумму сделки." });
+        return;
+    }
+
+    try {
+        const res = await updateTaskStatusAction(pendingStatusChange.id, pendingStatusChange.status, price);
+        if (res.success) {
+            toast({ title: "Статус обновлен, сделка закрыта!" });
+            setShowClosingPriceDialog(false);
+            setClosingPrice("");
+            setPendingStatusChange(null);
+            fetchData();
+            if (selectedTask?.id === pendingStatusChange.id) {
+                setSelectedTask({ ...selectedTask, status: pendingStatusChange.status, closing_price: price });
+            }
+        } else {
+            toast({ variant: "destructive", title: "Ошибка", description: res.error });
+        }
+    } catch (e: any) {
+        toast({ variant: "destructive", title: "Ошибка", description: e.message });
+    }
+  };
+
   const handleStatusChange = async (taskId: number, newStatus: string) => {
+    if (newStatus === 'completed' || newStatus === 'done') {
+        setPendingStatusChange({id: taskId, status: newStatus});
+        setShowClosingPriceDialog(true);
+        return;
+    }
+
     try {
       const res = await updateTaskStatusAction(taskId, newStatus);
       if (res.success) {
@@ -114,7 +153,7 @@ export default function ManagerDashboard() {
   };
 
   const handleSendEmail = async () => {
-    const targetEmail = selectedTask?.extracted_emails?.[0] || selectedTask?.user_email;
+    const targetEmail = selectedTask?.extracted_emails?.[0]?.value || selectedTask?.user_email;
     if (!selectedTask || !targetEmail) {
       toast({ variant: "destructive", title: "Email not found" });
       return;
@@ -251,7 +290,7 @@ export default function ManagerDashboard() {
                       <TableHead className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Домен</TableHead>
                       <TableHead className="text-[10px] uppercase font-bold tracking-widest text-slate-500 text-center">Приоритет</TableHead>
                       <TableHead className="text-[10px] uppercase font-bold tracking-widest text-slate-500 text-center">Нарушений</TableHead>
-                      <TableHead className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Обнаружено</TableHead>
+                      <TableHead className="text-[10px] uppercase font-bold tracking-widest text-slate-500 text-right">Предпросмотр</TableHead>
                       <TableHead className="text-right text-[10px] uppercase font-bold tracking-widest text-slate-500">Действие</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -274,8 +313,15 @@ export default function ManagerDashboard() {
                         <TableCell className="text-center">
                           <Badge className="bg-rose-500/20 text-rose-500 border-rose-500/20">{task.violations_count}</Badge>
                         </TableCell>
-                        <TableCell className="text-[10px] text-slate-400">
-                          {new Date(task.created_at).toLocaleString()}
+                        <TableCell className="text-right">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-8 text-[10px] gap-2 text-primary"
+                              onClick={() => setSelectedTask(task)}
+                            >
+                              <Eye className="w-3 h-3" /> Проверить отчет
+                            </Button>
                         </TableCell>
                         <TableCell className="text-right">
                           <Button 
@@ -308,13 +354,14 @@ export default function ManagerDashboard() {
                     <TableRow className="border-white/5">
                       <TableHead className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Сайт</TableHead>
                       <TableHead className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Взято</TableHead>
+                      <TableHead className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Сумма</TableHead>
                       <TableHead className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Статус</TableHead>
                       <TableHead className="text-right text-[10px] uppercase font-bold tracking-widest text-slate-500">Управление</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {myTasks.length === 0 ? (
-                      <TableRow><TableCell colSpan={4} className="text-center py-12 text-slate-500 text-xs">У вас нет активных задач</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={5} className="text-center py-12 text-slate-500 text-xs">У вас нет активных задач</TableCell></TableRow>
                     ) : myTasks.map((task) => (
                       <TableRow key={task.id} className="border-white/5 hover:bg-white/[0.01] transition-colors group cursor-pointer" onClick={() => setSelectedTask(task)}>
                         <TableCell className="text-xs font-medium text-white">
@@ -325,6 +372,9 @@ export default function ManagerDashboard() {
                         </TableCell>
                         <TableCell className="text-[10px] text-slate-400">
                           {new Date(task.assigned_at).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-[10px] font-bold text-emerald-500">
+                           {task.closing_price ? `${task.closing_price} €` : '-'}
                         </TableCell>
                         <TableCell>
                           <Badge 
@@ -369,24 +419,26 @@ export default function ManagerDashboard() {
                 </div>
               </DialogHeader>
 
-              <div className="space-y-4">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Статус</label>
-                <Select 
-                  defaultValue={selectedTask?.status} 
-                  onValueChange={(val) => handleStatusChange(selectedTask.id, val)}
-                >
-                  <SelectTrigger className="w-full bg-white/5 border-white/10 h-11 text-xs">
-                    <SelectValue placeholder="Сменить статус" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#0b1120] border-white/10 text-white">
-                    <SelectItem value="in_work">Взят в работу</SelectItem>
-                    <SelectItem value="negotiation">В переговорах</SelectItem>
-                    <SelectItem value="in_progress">В процессе</SelectItem>
-                    <SelectItem value="done">Успешно (Выполнено)</SelectItem>
-                    <SelectItem value="rejected">Отказ / Слив</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {selectedTask?.crm_status === 'in_work' && (
+                <div className="space-y-4">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Статус</label>
+                  <Select 
+                    defaultValue={selectedTask?.status} 
+                    onValueChange={(val) => handleStatusChange(selectedTask.id, val)}
+                  >
+                    <SelectTrigger className="w-full bg-white/5 border-white/10 h-11 text-xs">
+                      <SelectValue placeholder="Сменить статус" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#0b1120] border-white/10 text-white">
+                      <SelectItem value="in_work">Взят в работу</SelectItem>
+                      <SelectItem value="negotiation">В переговорах</SelectItem>
+                      <SelectItem value="in_progress">В процессе</SelectItem>
+                      <SelectItem value="done">Успешно (Выполнено)</SelectItem>
+                      <SelectItem value="rejected">Отказ / Слив</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="space-y-4">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-white/5 pb-2">Детали нарушений</h3>
@@ -415,11 +467,13 @@ export default function ManagerDashboard() {
             {/* RIGHT SIDE: Actions and Contacts */}
             <div className="flex-1 p-8 space-y-8 overflow-y-auto bg-[#020617] scrollbar-hide">
               <div className="grid grid-cols-2 gap-4">
-                <Button variant="outline" className="h-20 flex-col gap-2 border-white/10 hover:bg-white/5 transition-all" onClick={() => toast({ title: "VoIP Интеграция", description: "Функция вызова временно недоступна." })}>
-                  <Phone className="w-6 h-6 text-emerald-500" />
-                  <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">ПОЗВОНИТЬ (VOIP)</span>
+                <Button variant="outline" className="h-20 flex-col gap-2 border-white/10 hover:bg-white/5 transition-all" asChild>
+                    <a href={`/api/admin/report-pdf?domain=${selectedTask?.url}`} target="_blank">
+                        <Download className="w-6 h-6 text-emerald-500" />
+                        <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">СКАЧАТЬ ОТЧЕТ</span>
+                    </a>
                 </Button>
-                <Button className="h-20 flex-col gap-2 bg-primary hover:bg-primary/90 shadow-xl shadow-primary/20" onClick={() => openEmailModal(selectedTask)}>
+                <Button className="h-20 flex-col gap-2 bg-primary hover:bg-primary/90 shadow-xl shadow-primary/20" onClick={() => openEmailModal(selectedTask)} disabled={selectedTask?.crm_status !== 'in_work'}>
                   <Mail className="w-6 h-6 text-white" />
                   <span className="text-[10px] uppercase font-bold tracking-widest">ОТПРАВИТЬ ПИСЬМО</span>
                 </Button>
@@ -430,7 +484,7 @@ export default function ManagerDashboard() {
                   <h3 className="text-sm font-bold flex items-center gap-2 mb-4 text-slate-400"><UserCheck className="w-4 h-4" /> Контактные данные (Extract)</h3>
                   <div className="space-y-3">
                     {/* Primary Email */}
-                    <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex items-center justify-between group hover:border-primary/30 transition-all">
+                    <div className="bg-white/5 p-4 rounded-xl border border-white/10 flex items-center justify-between group hover:border-primary/30 transition-all">
                       <div className="flex flex-col">
                         <span className="text-[9px] text-slate-500 uppercase font-bold mb-1">Target Email (Seed)</span>
                         <span className="text-sm font-mono text-white">{selectedTask?.user_email || 'Email не найден'}</span>
@@ -442,26 +496,23 @@ export default function ManagerDashboard() {
                       )}
                     </div>
 
-                    {/* Extracted Emails */}
-                    {selectedTask?.extracted_emails && selectedTask.extracted_emails.length > 0 ? selectedTask.extracted_emails.map((email: string, i: number) => (
-                      <div key={i} className="bg-white/5 p-4 rounded-xl border border-white/5 flex items-center justify-between group hover:border-emerald-500/30 transition-all">
-                        <div className="flex flex-col">
-                          <span className="text-[9px] text-emerald-500 uppercase font-bold mb-1">Found on site</span>
-                          <span className="text-sm font-mono text-white">{email}</span>
+                    {/* Extracted Emails with Context */}
+                    {selectedTask?.extracted_emails && selectedTask.extracted_emails.length > 0 && selectedTask.extracted_emails.map((emailObj: any, i: number) => (
+                      <div key={i} className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-3 group hover:border-emerald-500/30 transition-all">
+                        <div className="flex items-center justify-between">
+                            <div className="flex flex-col">
+                            <span className="text-[9px] text-emerald-500 uppercase font-bold mb-1">Found on site</span>
+                            <span className="text-sm font-mono text-white">{emailObj.value}</span>
+                            </div>
+                            <Button variant="ghost" size="sm" className="h-7 text-[10px] uppercase font-bold text-slate-500 hover:text-primary" onClick={() => { navigator.clipboard.writeText(emailObj.value); toast({ title: "Скопировано" }); }}>
+                            <Copy className="w-3 h-3 mr-1" /> Copy
+                            </Button>
                         </div>
-                        <Button variant="ghost" size="sm" className="h-7 text-[10px] uppercase font-bold text-slate-500 hover:text-primary" onClick={() => { navigator.clipboard.writeText(email); toast({ title: "Скопировано" }); }}>
-                          <Copy className="w-3 h-3 mr-1" /> Copy
-                        </Button>
-                      </div>
-                    )) : selectedTask?.contacts?.emails?.map((email: string, i: number) => (
-                       <div key={i} className="bg-white/5 p-4 rounded-xl border border-white/5 flex items-center justify-between group hover:border-emerald-500/30 transition-all">
-                        <div className="flex flex-col">
-                          <span className="text-[9px] text-emerald-500 uppercase font-bold mb-1">Found on site</span>
-                          <span className="text-sm font-mono text-white">{email}</span>
-                        </div>
-                        <Button variant="ghost" size="sm" className="h-7 text-[10px] uppercase font-bold text-slate-500 hover:text-primary" onClick={() => { navigator.clipboard.writeText(email); toast({ title: "Скопировано" }); }}>
-                          <Copy className="w-3 h-3 mr-1" /> Copy
-                        </Button>
+                        {emailObj.context && (
+                            <p className="text-[10px] text-slate-500 italic bg-black/20 p-2 rounded leading-relaxed">
+                                ...{emailObj.context}...
+                            </p>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -470,23 +521,19 @@ export default function ManagerDashboard() {
                 <div>
                   <h3 className="text-sm font-bold flex items-center gap-2 mb-4 text-slate-400"><Phone className="w-4 h-4" /> Телефоны (Found on site)</h3>
                   <div className="space-y-3">
-                    {selectedTask?.extracted_phones && selectedTask.extracted_phones.length > 0 ? selectedTask.extracted_phones.map((phone: string, i: number) => (
-                      <div key={i} className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5 group hover:border-primary/30 transition-all">
-                        <span className="text-sm text-white font-mono">{phone}</span>
-                        <div className="flex gap-2">
-                          <Button variant="ghost" size="sm" className="h-7 text-[10px] hover:text-primary" onClick={() => { navigator.clipboard.writeText(phone); toast({ title: "Скопировано" }); }}>
-                             <Copy className="w-3 h-3 mr-1" /> Copy
-                          </Button>
+                    {selectedTask?.extracted_phones && selectedTask.extracted_phones.length > 0 && selectedTask.extracted_phones.map((phoneObj: any, i: number) => (
+                      <div key={i} className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-3 group hover:border-primary/30 transition-all">
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm text-white font-mono">{phoneObj.value}</span>
+                            <Button variant="ghost" size="sm" className="h-7 text-[10px] hover:text-primary" onClick={() => { navigator.clipboard.writeText(phoneObj.value); toast({ title: "Скопировано" }); }}>
+                                <Copy className="w-3 h-3 mr-1" /> Copy
+                            </Button>
                         </div>
-                      </div>
-                    )) : selectedTask?.contacts?.phones?.map((phone: string, i: number) => (
-                      <div key={i} className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5 group hover:border-primary/30 transition-all">
-                        <span className="text-sm text-white font-mono">{phone}</span>
-                        <div className="flex gap-2">
-                          <Button variant="ghost" size="sm" className="h-7 text-[10px] hover:text-primary" onClick={() => { navigator.clipboard.writeText(phone); toast({ title: "Скопировано" }); }}>
-                             <Copy className="w-3 h-3 mr-1" /> Copy
-                          </Button>
-                        </div>
+                        {phoneObj.context && (
+                            <p className="text-[10px] text-slate-500 italic bg-black/20 p-2 rounded leading-relaxed">
+                                ...{phoneObj.context}...
+                            </p>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -494,6 +541,34 @@ export default function ManagerDashboard() {
               </div>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* CLOSING PRICE DIALOG */}
+      <Dialog open={showClosingPriceDialog} onOpenChange={setShowClosingPriceDialog}>
+        <DialogContent className="bg-[#0b1120] border-white/10 text-slate-50 max-w-md p-8">
+            <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-emerald-500" /> Фиксация сделки
+                </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-6 pt-4">
+                <p className="text-sm text-slate-400">Укажите финальную сумму заказа для закрытия задачи. Это необходимо для статистики менеджера.</p>
+                <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Сумма заказа (€)</label>
+                    <Input 
+                        type="number" 
+                        placeholder="например, 500" 
+                        value={closingPrice}
+                        onChange={(e) => setClosingPrice(e.target.value)}
+                        className="bg-white/5 border-white/10 h-12 text-lg font-bold"
+                    />
+                </div>
+                <div className="flex gap-3 pt-2">
+                    <Button variant="ghost" className="flex-1" onClick={() => { setShowClosingPriceDialog(false); setPendingStatusChange(null); }}>Отмена</Button>
+                    <Button className="flex-1 bg-emerald-600 hover:bg-emerald-500 font-bold" onClick={confirmStatusUpdate}>Подтвердить</Button>
+                </div>
+            </div>
         </DialogContent>
       </Dialog>
 
@@ -511,7 +586,7 @@ export default function ManagerDashboard() {
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Получатель:</label>
                 <div className="p-3 bg-white/5 rounded-lg border border-white/10 text-sm text-slate-300 font-mono">
-                  {selectedTask?.extracted_emails?.[0] || selectedTask?.user_email || 'Email не найден'}
+                  {selectedTask?.extracted_emails?.[0]?.value || selectedTask?.user_email || 'Email не найден'}
                 </div>
               </div>
 
