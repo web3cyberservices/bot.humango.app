@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import * as nodemailer from 'nodemailer';
 import puppeteer from 'puppeteer';
 import * as fs from 'fs';
+import { generatePdfReport } from '../lib/report-generator';
 
 const pool = new Pool({ 
   connectionString: process.env.DATABASE_URL,
@@ -50,6 +51,7 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
   let browser: any = null;
   const networkUrls: string[] = [];
   const finalFindings: any[] = [];
+  let leadScore = 0;
   
   try {
     const executablePath = await getExecutablePath();
@@ -91,11 +93,12 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
     // --- 1. NETWORK & COOKIES ---
     const hasGoogleFonts = networkUrls.some(url => url.includes('fonts.googleapis.com') || url.includes('fonts.gstatic.com'));
     if (hasGoogleFonts) {
+      leadScore += 5; // Low priority
       finalFindings.push({
         type: 'GOOGLE_FONTS_PRIVACY_VIOLATION',
-        basis: 'Art. 6(1)(a) GDPR & Munich Court Precedent',
+        basis: 'Art. 6(1)(a) GDPR',
         summary: 'External Google Fonts are loaded directly from US servers, transmitting user IP addresses without consent.',
-        risk: 'High risk of automated legal warnings (Abmahnung) in German-speaking markets.',
+        risk: 'High risk of automated legal warnings (Abmahnung) in DACH region.',
         liability: 'Up to €250,000 per claim or GDPR standard fines.',
         action: 'Self-host fonts locally and remove external calls to googleapis.com.',
         country: countryCode
@@ -105,29 +108,14 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
     const hasAnalytics = networkUrls.some(url => url.includes('google-analytics.com') || url.includes('analytics.google'));
     const hasFacebook = networkUrls.some(url => url.includes('connect.facebook.net') || url.includes('facebook.com/tr'));
     if (hasAnalytics || hasFacebook) {
+      leadScore += 20;
       finalFindings.push({
         type: 'TRACKING_TRAFFIC_DETECTED',
         basis: 'Art. 5(1)(a) & Art. 6 GDPR',
         summary: 'Marketing and analytics scripts were activated automatically before any user interaction.',
-        risk: 'Critical violation of the Planet49 ruling. High risk of regulatory intervention.',
+        risk: 'Critical violation of the Planet49 ruling.',
         liability: FINE_GDPR,
-        action: 'Configure your consent banner to block all non-essential scripts until the user clicks "Accept".',
-        country: countryCode
-      });
-    }
-
-    const cookies = await page.cookies();
-    const forbiddenMarkers = ['_ga', '_gid', '_fbp', '_fr', 'ads', 'metrics'];
-    const illegalCookies = cookies.filter(c => forbiddenMarkers.some(m => c.name.toLowerCase().includes(m)));
-
-    if (illegalCookies.length > 0) {
-      finalFindings.push({
-        type: 'COOKIE_CONSENT_VIOLATION',
-        basis: 'ePrivacy Directive & Art. 7 GDPR',
-        summary: `The system detected ${illegalCookies.length} tracking cookies placed in storage prior to consent.`,
-        risk: 'Direct non-compliance with statutory data protection standards.',
-        liability: FINE_GDPR,
-        action: 'Implement a hard-blocking cookie mechanism for all analytical and tracking providers.',
+        action: 'Configure your consent banner to block all non-essential scripts until opt-in.',
         country: countryCode
       });
     }
@@ -138,55 +126,82 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
     let isValidDocument = (pageText.length > 400 && markerCount >= 2);
 
     if (!isValidDocument) {
+      leadScore += 100; // HOT LEAD - Missing Policy
       finalFindings.push({
         type: 'MISSING_CORE_FRAMEWORK',
         basis: 'Art. 13 GDPR',
         summary: 'No valid statutory legal disclosure or Privacy Policy was identified on the site.',
-        risk: 'Immediate trigger for regulatory sanctions and advertising account bans.',
+        risk: 'Immediate trigger for regulatory sanctions.',
         liability: FINE_GDPR,
-        action: 'Create a dedicated /privacy page with all mandatory disclosures and link it in the footer.',
+        action: 'Create a dedicated /privacy page and link it in the footer.',
         country: countryCode
       });
     } else {
       // --- 3. CONTENT ANALYSIS ---
       if (!RIGHTS_KEYWORDS.some(kw => pageText.includes(kw))) {
+        leadScore += 15;
         finalFindings.push({
           type: 'MISSING_GDPR_RIGHTS',
           basis: 'Art. 15-21 GDPR',
-          summary: 'The policy lacks mandatory clauses regarding user rights (Erasure, Access, Withdrawal).',
-          risk: 'High liability for failing to inform users about their statutory control over data.',
+          summary: 'The policy lacks mandatory clauses regarding user rights (Erasure, Access).',
+          risk: 'Liability for failing to inform users about data control.',
           liability: FINE_GDPR,
-          action: 'Insert explicit clauses for the "Right to be Forgotten" and "Right to Withdraw Consent".',
+          action: 'Insert explicit clauses for the "Right to be Forgotten".',
           country: countryCode
         });
       }
 
       if (FINANCE_KEYWORDS.some(kw => pageText.includes(kw)) && !SECURE_KEYWORDS.some(kw => pageText.includes(kw))) {
+        leadScore += 25;
         finalFindings.push({
           type: 'UNSECURED_FINANCIAL_DECLARATION',
           basis: 'Art. 32 GDPR',
-          summary: 'Financial processing declared without specifying security frameworks (PCI-DSS/Encryption).',
-          risk: 'Perceived lack of data security frameworks triggers high-priority audits.',
+          summary: 'Financial processing declared without specifying security frameworks.',
+          risk: 'Triggers high-priority security audits.',
           liability: FINE_GDPR,
-          action: 'State clearly that transactions are handled via PCI-DSS compliant gateways like Stripe or PayPal.',
+          action: 'Declare PCI-DSS compliance and usage of secure gateways.',
           country: countryCode
         });
       }
     }
 
-    // --- 4. SAVE RESULTS ---
+    // --- 4. SAVE RESULTS & SCORING ---
     await pool.query(
       `UPDATE public.scan_queue 
        SET status = 'completed', 
            violations_count = $1, 
            audit_findings = $2,
            contacts = $3,
-           crm_status = CASE WHEN $1 > 0 THEN 'new' ELSE 'completed' END
-       WHERE id = $4`,
-      [finalFindings.length, JSON.stringify(finalFindings), JSON.stringify(extractedContacts), taskId]
+           priority = $4,
+           crm_status = CASE WHEN $1 > 0 THEN 'free' ELSE 'completed' END
+       WHERE id = $5`,
+      [finalFindings.length, JSON.stringify(finalFindings), JSON.stringify(extractedContacts), leadScore, taskId]
     );
 
-    console.log(`[Audit Engine] Audit for ${domainName} finished with ${finalFindings.length} findings.`);
+    // --- 5. AUTO-AUTOMATION: SEND EMAIL FOR "HOT" LEADS ---
+    const isHotLead = finalFindings.some(f => f.type === 'MISSING_CORE_FRAMEWORK');
+    const targetEmail = userEmail || (extractedContacts.emails && extractedContacts.emails[0]);
+
+    if (isHotLead && targetEmail && targetEmail.length > 5) {
+      console.log(`[Auto-Pilot] Sending priority report to ${targetEmail} due to MISSING_CORE_FRAMEWORK`);
+      const pdfBuffer = await generatePdfReport(domainName, finalFindings);
+      if (pdfBuffer) {
+        await transporter.sendMail({
+          from: `"Humango Compliance" <${process.env.SMTP_USER}>`,
+          to: targetEmail,
+          subject: `Urgent: Statutory Compliance Risks Detected on ${domainName}`,
+          text: `Dear owner of ${domainName},\n\nOur automated audit engine has detected critical statutory compliance risks on your website, including the total absence of a mandatory Privacy Policy (Art. 13 GDPR).\n\nPlease find the attached audit report detailing the risks and potential liabilities.\n\nBest regards,\nHumango Compliance Team`,
+          attachments: [{
+            filename: `Humango_Audit_${domainName}.pdf`,
+            content: pdfBuffer,
+            contentType: 'application/pdf'
+          }]
+        });
+        await pool.query('UPDATE public.scan_queue SET auto_message_sent = true, auto_message_sent_at = NOW() WHERE id = $1', [taskId]);
+      }
+    }
+
+    console.log(`[Audit Engine] Audit for ${domainName} finished. Score: ${leadScore}.`);
 
   } catch (err: any) {
     console.error(`[Worker Error] Task ${taskId} (${domainUrl}) failed:`, err.message);
@@ -197,7 +212,7 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
 }
 
 async function startWorker() {
-  console.log('[Worker] Starting audit engine...');
+  console.log('[Worker] Starting prioritised audit engine...');
   while (true) {
     try {
       const res = await pool.query(

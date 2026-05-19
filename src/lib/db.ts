@@ -70,18 +70,18 @@ export async function getBotEvents(limit: number = 50) {
 export async function getViolations(limit: number = 100) {
   const res = await pool.query(`
     SELECT 
-      q.id, q.url as domain, q.url, q.status, q.crm_status,
+      q.id, q.url as domain, q.url, q.status, q.crm_status, q.priority,
       q.assigned_to as "assignedTo", q.manager_name as "managerName", q.assigned_at as "assignedAt",
       q.violations_count as violation_count, q.audit_findings, q.contacts
     FROM public.scan_queue q
-    ORDER BY q.violations_count DESC, q.created_at DESC LIMIT $1
+    ORDER BY q.priority DESC, q.violations_count DESC, q.created_at DESC LIMIT $1
   `, [limit]);
   
   return res.rows.map(row => ({
     id: row.id,
     domain: row.domain.replace(/^https?:\/\//, ''),
     type: 'Audit',
-    level: row.violation_count > 0 ? 'critical' : 'low',
+    level: row.priority > 50 ? 'critical' : row.violation_count > 0 ? 'high' : 'low',
     date: row.assignedAt || row.created_at || new Date(),
     summary: `Found ${row.violation_count} violations`,
     description: `Automated scan results for ${row.domain}`,
@@ -92,7 +92,8 @@ export async function getViolations(limit: number = 100) {
     status: row.status,
     crm_status: row.crm_status,
     audit_findings: row.audit_findings,
-    contacts: row.contacts
+    contacts: row.contacts,
+    priority: row.priority
   }));
 }
 

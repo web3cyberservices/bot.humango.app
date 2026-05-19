@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 
 /**
- * @fileOverview CRM Server Actions V37.0 - Atomic Locking & Funnel Logic
+ * @fileOverview CRM Server Actions - Atomic Locking & Lead Scoring Order
  */
 
 export async function takeTaskInWork(taskId: number) {
@@ -95,14 +95,14 @@ export async function getAvailableTasks() {
   const session = await getSession();
   if (!session) return [];
 
-  // Logic: free AND completed AND violations > 0
-  // Sorted by violations_count DESC (Most critical first)
+  // Logic: Priority Lead Scoring
+  // MISSING_CORE_FRAMEWORK leads have 100+ priority points
   const res = await pool.query(`
     SELECT * FROM public.scan_queue 
     WHERE crm_status = 'free' 
       AND status IN ('completed', 'failed') 
       AND (violations_count > 0)
-    ORDER BY violations_count DESC, created_at DESC
+    ORDER BY priority DESC, violations_count DESC, created_at DESC
   `);
   return res.rows;
 }

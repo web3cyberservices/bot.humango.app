@@ -27,7 +27,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { 
   Loader2, Briefcase, Globe, Clock, CheckCircle2, LogOut, 
-  ExternalLink, Phone, Mail, ChevronRight, AlertCircle, UserCheck, ShieldAlert, User, History, TrendingUp, Copy
+  ExternalLink, Phone, Mail, ChevronRight, AlertCircle, UserCheck, ShieldAlert, User, History, TrendingUp, Copy, Zap
 } from "lucide-react";
 import Image from 'next/image';
 import Link from 'next/link';
@@ -242,7 +242,7 @@ export default function ManagerDashboard() {
             <Card className="bg-white/[0.03] border-white/10 shadow-2xl overflow-hidden">
               <CardHeader className="border-b border-white/5 pb-4 bg-emerald-500/5">
                 <CardTitle className="text-sm font-bold flex items-center gap-2">
-                  <Globe className="w-4 h-4 text-emerald-500" /> Свободные задачи с нарушениями ({availableTasks.length})
+                  <Globe className="w-4 h-4 text-emerald-500" /> Свободные задачи (Сортировка по весу)
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
@@ -250,6 +250,7 @@ export default function ManagerDashboard() {
                   <TableHeader className="bg-white/[0.02]">
                     <TableRow className="border-white/5">
                       <TableHead className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Домен</TableHead>
+                      <TableHead className="text-[10px] uppercase font-bold tracking-widest text-slate-500 text-center">Приоритет</TableHead>
                       <TableHead className="text-[10px] uppercase font-bold tracking-widest text-slate-500 text-center">Нарушений</TableHead>
                       <TableHead className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Обнаружено</TableHead>
                       <TableHead className="text-right text-[10px] uppercase font-bold tracking-widest text-slate-500">Действие</TableHead>
@@ -257,10 +258,20 @@ export default function ManagerDashboard() {
                   </TableHeader>
                   <TableBody>
                     {availableTasks.length === 0 ? (
-                      <TableRow><TableCell colSpan={4} className="text-center py-12 text-slate-500 text-xs">Нет доступных задач с нарушениями</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={5} className="text-center py-12 text-slate-500 text-xs">Нет доступных задач с нарушениями</TableCell></TableRow>
                     ) : availableTasks.map((task) => (
                       <TableRow key={task.id} className="border-white/5 hover:bg-white/[0.01] transition-colors">
-                        <TableCell className="text-xs font-medium text-white">{task.url?.replace(/^https?:\/\//, '')}</TableCell>
+                        <TableCell className="text-xs font-medium text-white">
+                          <div className="flex items-center gap-2">
+                            {task.url?.replace(/^https?:\/\//, '')}
+                            {task.priority >= 100 && <Badge className="bg-orange-500/20 text-orange-500 border-orange-500/20 text-[8px] animate-pulse"><Zap className="w-2 h-2 mr-1" /> HOT</Badge>}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                           <span className={`text-xs font-bold ${task.priority >= 100 ? 'text-orange-500' : task.priority >= 50 ? 'text-amber-500' : 'text-slate-500'}`}>
+                             {task.priority}
+                           </span>
+                        </TableCell>
                         <TableCell className="text-center">
                           <Badge className="bg-rose-500/20 text-rose-500 border-rose-500/20">{task.violations_count}</Badge>
                         </TableCell>
@@ -351,7 +362,10 @@ export default function ManagerDashboard() {
                 <div className="flex flex-wrap gap-2 mt-3">
                   <Badge className="bg-rose-500/20 text-rose-500 text-[10px] font-bold border-rose-500/20">{selectedTask?.violations_count || findings.length} Нарушений</Badge>
                   {selectedTask?.auto_message_sent && (
-                    <Badge className="bg-emerald-500/20 text-emerald-500 text-[10px] font-bold border-emerald-500/20">Email Отправлен</Badge>
+                    <Badge className="bg-emerald-500/20 text-emerald-500 text-[10px] font-bold border-emerald-500/20">Auto-Email Sent</Badge>
+                  )}
+                  {selectedTask?.priority >= 100 && (
+                    <Badge className="bg-orange-500/20 text-orange-500 text-[10px] font-bold border-orange-500/20">High Priority</Badge>
                   )}
                 </div>
               </DialogHeader>
