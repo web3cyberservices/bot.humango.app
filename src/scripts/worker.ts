@@ -128,10 +128,12 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
 
     // 2. LEGAL DOCUMENT VALIDATION
     const pageText = await page.evaluate(() => document.body.innerText.toLowerCase());
-    const markerMatches = LEGAL_MARKERS.filter(m => pageText.includes(m.toLowerCase()));
-    let legalText = (pageText.length > 200 && markerMatches.length >= 2) ? pageText : '';
+    
+    // Strict Legal Document Validation (Berkshire Case Prevention)
+    const markerCount = LEGAL_MARKERS.filter(m => pageText.includes(m.toLowerCase())).length;
+    let isLegalDocument = (pageText.length > 400 && markerCount >= 2);
 
-    if (!legalText) {
+    if (!isLegalDocument) {
       finalFindings.push({
         type: 'MISSING_CORE_FRAMEWORK',
         basis: 'Art. 13 GDPR',
@@ -146,7 +148,7 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
       
       // 3.1 Data Retention
       const retentionMarkers = ['retention period', 'store for', 'stored for', 'months', 'years', 'period of', 'retain'];
-      if (!retentionMarkers.some(m => legalText.includes(m))) {
+      if (!retentionMarkers.some(m => pageText.includes(m))) {
         finalFindings.push({
           type: 'DATA_RETENTION_GAP',
           basis: 'Art. 13(2)(a) GDPR',
@@ -159,7 +161,7 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
       }
 
       // 3.2 User Rights (DSAR)
-      if (!RIGHTS_KEYWORDS.some(kw => legalText.includes(kw))) {
+      if (!RIGHTS_KEYWORDS.some(kw => pageText.includes(kw))) {
         finalFindings.push({
           type: 'MISSING_GDPR_RIGHTS',
           basis: 'Art. 15-21 GDPR',
@@ -172,7 +174,7 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
       }
 
       // 3.3 Financial Protection
-      if (FINANCE_KEYWORDS.some(kw => legalText.includes(kw)) && !SECURE_KEYWORDS.some(kw => legalText.includes(kw))) {
+      if (FINANCE_KEYWORDS.some(kw => pageText.includes(kw)) && !SECURE_KEYWORDS.some(kw => pageText.includes(kw))) {
         finalFindings.push({
           type: 'UNSECURED_FINANCIAL_DECLARATION',
           basis: 'Art. 32 GDPR',
@@ -184,10 +186,10 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
         });
       }
 
-      // 3.4 German Compliance
-      if (countryCode === 'DE' || domainName.includes('.de') || legalText.includes('impressum')) {
+      // 3.4 German Compliance (§ 5 DDG)
+      if (countryCode === 'DE' || domainName.includes('.de') || pageText.includes('impressum')) {
         const impressumKeywords = ['handelsregister', 'registernummer', 'ihk', 'amtsgericht', 'ust-idnr'];
-        if (!impressumKeywords.some(kw => legalText.includes(kw))) {
+        if (!impressumKeywords.some(kw => pageText.includes(kw))) {
           finalFindings.push({
             type: 'GERMAN_IMPRESSUM_INCOMPLETE',
             basis: '§ 5 DDG (Germany)',
@@ -202,7 +204,10 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
     }
 
     // --- SAVE TO DATABASE ---
+    // Clean old results for this domain
     await pool.query("DELETE FROM public.site_violations WHERE domain = $1", [domainName]);
+    
+    // Save each violation
     for (const f of finalFindings) {
       await pool.query(
         `INSERT INTO public.site_violations (domain, issue_type, severity, description, law_name, recommendation, potential_fine, business_impact, country) 
@@ -211,19 +216,18 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
       );
     }
 
-    await pool.query("UPDATE public.scan_queue SET status = 'completed', violations_count = $1 WHERE id = $2", [finalFindings.length, taskId]);
+    // UPDATE SCAN QUEUE WITH SUMMARY FOR CRM
+    await pool.query(
+      `UPDATE public.scan_queue 
+       SET status = 'completed', 
+           violations_count = $1, 
+           audit_findings = $2,
+           crm_status = CASE WHEN $1 > 0 THEN 'new' ELSE 'completed' END
+       WHERE id = $3`,
+      [finalFindings.length, JSON.stringify(finalFindings), taskId]
+    );
 
-    // --- EMAIL DELIVERY ---
-    const pdfBuffer = await generatePdfReport(domainName, finalFindings);
-    if (userEmail && pdfBuffer) {
-      await transporter.sendMail({
-        from: `"Humango Compliance" <${process.env.SMTP_USER}>`,
-        to: userEmail,
-        subject: `Statutory Audit Complete: ${domainName}`,
-        text: `The statutory audit for ${domainName} is complete. Identified ${finalFindings.length} non-compliance issues.`,
-        attachments: [{ filename: `Humango_Audit_${domainName}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
-      });
-    }
+    console.log(`[Audit Engine] COMPLETED: ${domainName}. Found ${finalFindings.length} violations.`);
 
   } catch (err: any) {
     console.error(`[Worker Error] ${domainUrl}:`, err.message);

@@ -3,11 +3,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { takeTaskInWork, getAvailableTasks, getMyTasks, updateTaskStatusAction } from '@/app/actions/crm-actions';
+import { sendAuditEmailAction } from '@/app/actions/crm-email-actions';
 import { logoutAction, getSession } from '@/app/actions/auth-actions';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   Select,
   SelectContent,
@@ -24,7 +26,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { 
   Loader2, Briefcase, Globe, Clock, CheckCircle2, LogOut, 
-  ExternalLink, Phone, Mail, ChevronRight, AlertCircle, UserCheck
+  ExternalLink, Phone, Mail, ChevronRight, AlertCircle, UserCheck, ShieldAlert
 } from "lucide-react";
 import Image from 'next/image';
 import Link from 'next/link';
@@ -37,6 +39,9 @@ export default function ManagerDashboard() {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [emailBody, setEmailBody] = useState("");
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -98,6 +103,31 @@ export default function ManagerDashboard() {
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Ошибка", description: e.message });
+    }
+  };
+
+  const openEmailModal = (task: any) => {
+    const domain = new URL(task.url).hostname;
+    setEmailBody(`Dear owner of ${domain},\n\nOur automated compliance engine has detected potential GDPR violations on your website. Please find the attached audit report detailing the critical risks and potential statutory liabilities.\n\nBest regards,\nHumango Compliance Team`);
+    setIsEmailModalOpen(true);
+  };
+
+  const handleSendEmail = async () => {
+    if (!selectedTask || !selectedTask.user_email) return;
+    setIsSendingEmail(true);
+    try {
+      const res = await sendAuditEmailAction(selectedTask.id, session.email, selectedTask.user_email, emailBody);
+      if (res.success) {
+        toast({ title: "Email отправлен", description: "Отчет успешно доставлен клиенту." });
+        setIsEmailModalOpen(false);
+        fetchData();
+      } else {
+        toast({ variant: "destructive", title: "Ошибка отправки", description: res.error });
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Ошибка", description: e.message });
+    } finally {
+      setIsSendingEmail(false);
     }
   };
 
@@ -220,16 +250,18 @@ export default function ManagerDashboard() {
         </Card>
       </main>
 
+      {/* LEAD CARD DIALOG */}
       <Dialog open={!!selectedTask} onOpenChange={() => setSelectedTask(null)}>
-        <DialogContent className="bg-[#0b1120] border-white/10 text-slate-50 max-w-4xl p-0 overflow-hidden">
-          <div className="flex h-[600px]">
-            <div className="w-1/3 border-r border-white/5 p-6 space-y-8 bg-white/[0.01]">
+        <DialogContent className="bg-[#0b1120] border-white/10 text-slate-50 max-w-5xl p-0 overflow-hidden">
+          <div className="flex flex-col md:flex-row h-[750px]">
+            {/* LEFT SIDE: General info and Status */}
+            <div className="w-full md:w-1/3 border-r border-white/5 p-8 space-y-8 bg-white/[0.01] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle className="text-xl font-bold truncate">{selectedTask?.url?.replace(/^https?:\/\//, '')}</DialogTitle>
-                <div className="flex gap-2 mt-2">
-                  <Badge className="bg-rose-500/20 text-rose-500 text-[9px]">{selectedTask?.violations_count} Нарушений</Badge>
+                <DialogTitle className="text-2xl font-bold truncate">{selectedTask?.url?.replace(/^https?:\/\//, '')}/</DialogTitle>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <Badge className="bg-rose-500/20 text-rose-500 text-[10px] font-bold border-rose-500/20">{selectedTask?.violations_count} Нарушений</Badge>
                   {selectedTask?.auto_message_sent && (
-                    <Badge className="bg-amber-500/20 text-amber-500 text-[9px]">Авто-письмо: Да</Badge>
+                    <Badge className="bg-emerald-500/20 text-emerald-500 text-[10px] font-bold border-emerald-500/20">Email Отправлен</Badge>
                   )}
                 </div>
               </DialogHeader>
@@ -240,52 +272,58 @@ export default function ManagerDashboard() {
                   defaultValue={selectedTask?.status} 
                   onValueChange={(val) => handleStatusChange(selectedTask.id, val)}
                 >
-                  <SelectTrigger className="w-full bg-white/5 border-white/10 text-xs">
+                  <SelectTrigger className="w-full bg-white/5 border-white/10 h-11 text-xs">
                     <SelectValue placeholder="Сменить статус" />
                   </SelectTrigger>
                   <SelectContent className="bg-[#0b1120] border-white/10 text-white">
-                    <SelectItem value="in_work">В работе</SelectItem>
+                    <SelectItem value="in_work">Взят в работу</SelectItem>
                     <SelectItem value="negotiation">В переговорах</SelectItem>
                     <SelectItem value="in_progress">В процессе</SelectItem>
-                    <SelectItem value="done">Выполнено</SelectItem>
-                    <SelectItem value="rejected">Отклонено</SelectItem>
+                    <SelectItem value="done">Успешно (Выполнено)</SelectItem>
+                    <SelectItem value="rejected">Отказ / Слив</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {selectedTask?.auto_message_sent && (
-                <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-2">
-                  <div className="flex items-center gap-2 text-amber-500 font-bold text-xs">
-                    <AlertCircle className="w-4 h-4" /> Внимание
-                  </div>
-                  <p className="text-[10px] text-slate-400 leading-relaxed">Этой компании уже было отправлено автоматическое уведомление {new Date(selectedTask.auto_message_sent_at).toLocaleDateString()}.</p>
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-white/5 pb-2">Детали нарушений</h3>
+                <div className="space-y-4">
+                  {selectedTask?.audit_findings?.length > 0 ? selectedTask.audit_findings.map((f: any, i: number) => (
+                    <div key={i} className="p-4 bg-white/5 rounded-xl border border-white/5 space-y-2 group hover:border-rose-500/30 transition-all">
+                      <div className="flex items-center gap-2">
+                         <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
+                         <span className="text-[10px] font-bold text-rose-400 uppercase">{f.type}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">{f.summary}</p>
+                      <p className="text-[9px] text-slate-500 italic">Штраф: {f.liability}</p>
+                    </div>
+                  )) : (
+                    <p className="text-xs text-slate-500 italic">Нарушения не детализированы</p>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
 
-            <div className="flex-1 p-8 space-y-8 overflow-y-auto">
+            {/* RIGHT SIDE: Actions and Contacts */}
+            <div className="flex-1 p-8 space-y-8 overflow-y-auto bg-[#020617]">
               <div className="grid grid-cols-2 gap-4">
-                <Button variant="outline" className="h-16 flex-col gap-1 border-white/10 hover:bg-white/5" onClick={() => toast({ title: "VoIP Интеграция", description: "Функция вызова временно недоступна." })}>
-                  <Phone className="w-5 h-5 text-emerald-500" />
-                  <span className="text-[10px] uppercase font-bold tracking-widest">Позвонить (VoIP)</span>
+                <Button variant="outline" className="h-20 flex-col gap-2 border-white/10 hover:bg-white/5 transition-all" onClick={() => toast({ title: "VoIP Интеграция", description: "Функция вызова временно недоступна." })}>
+                  <Phone className="w-6 h-6 text-emerald-500" />
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">ПОЗВОНИТЬ (VOIP)</span>
                 </Button>
-                <Button variant="outline" className="h-16 flex-col gap-1 border-white/10 hover:bg-white/5" onClick={() => toast({ title: "Email Модуль", description: "Открытие редактора шаблонов..." })}>
-                  <Mail className="w-5 h-5 text-primary" />
-                  <span className="text-[10px] uppercase font-bold tracking-widest">Отправить письмо</span>
+                <Button className="h-20 flex-col gap-2 bg-primary hover:bg-primary/90 shadow-xl shadow-primary/20" onClick={() => openEmailModal(selectedTask)}>
+                  <Mail className="w-6 h-6 text-white" />
+                  <span className="text-[10px] uppercase font-bold tracking-widest">ОТПРАВИТЬ ПИСЬМО</span>
                 </Button>
               </div>
 
-              <div className="space-y-6">
+              <div className="space-y-8">
                 <div>
                   <h3 className="text-sm font-bold flex items-center gap-2 mb-4 text-slate-400"><UserCheck className="w-4 h-4" /> Контактные данные (Extract)</h3>
-                  <div className="space-y-3">
-                    {selectedTask?.contacts?.emails?.length > 0 ? selectedTask.contacts.emails.map((email: string, i: number) => (
-                      <div key={i} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
-                        <span className="text-xs text-white">{email}</span>
-                        <Button variant="ghost" size="sm" className="h-6 text-[9px] hover:text-primary">Copy</Button>
-                      </div>
-                    )) : (
-                      <p className="text-xs text-slate-500 italic">Emails не обнаружены</p>
+                  <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex items-center justify-between group hover:border-primary/30 transition-all">
+                    <span className="text-sm font-mono text-white">{selectedTask?.user_email || 'Email не найден'}</span>
+                    {selectedTask?.user_email && (
+                      <Button variant="ghost" size="sm" className="h-7 text-[10px] uppercase font-bold text-slate-500 hover:text-primary">Copy</Button>
                     )}
                   </div>
                 </div>
@@ -294,17 +332,67 @@ export default function ManagerDashboard() {
                   <h3 className="text-sm font-bold flex items-center gap-2 mb-4 text-slate-400"><Phone className="w-4 h-4" /> Телефоны</h3>
                   <div className="space-y-3">
                     {selectedTask?.contacts?.phones?.length > 0 ? selectedTask.contacts.phones.map((phone: string, i: number) => (
-                      <div key={i} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
-                        <span className="text-xs text-white">{phone}</span>
-                        <Button variant="ghost" size="sm" className="h-6 text-[9px] hover:text-primary">Call</Button>
+                      <div key={i} className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5">
+                        <span className="text-sm text-white font-mono">{phone}</span>
+                        <Button variant="ghost" size="sm" className="h-7 text-[10px] hover:text-primary">Call</Button>
                       </div>
                     )) : (
-                      <p className="text-xs text-slate-500 italic">Номера не обнаружены</p>
+                      <p className="text-xs text-slate-500 italic px-2">Номера не обнаружены</p>
                     )}
                   </div>
                 </div>
               </div>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* EMAIL COMPOSER MODAL */}
+      <Dialog open={isEmailModalOpen} onOpenChange={setIsEmailModalOpen}>
+        <DialogContent className="bg-[#0b1120] border-white/10 text-slate-50 max-w-2xl p-8 space-y-6">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3 text-xl font-bold">
+              <Mail className="w-6 h-6 text-primary" /> Отправка отчета (Reply-To: {session?.email})
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Получатель:</label>
+              <div className="p-3 bg-white/5 rounded-lg border border-white/5 text-sm text-slate-300 font-mono">
+                {selectedTask?.user_email}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Текст письма:</label>
+              <Textarea 
+                value={emailBody}
+                onChange={(e) => setEmailBody(e.target.value)}
+                className="min-h-[250px] bg-white/5 border-white/10 text-sm leading-relaxed"
+              />
+            </div>
+
+            <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl flex items-center gap-4">
+              <div className="bg-primary/20 p-2 rounded-lg">
+                <ShieldAlert className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-white">Вложение: PDF Отчет</p>
+                <p className="text-[10px] text-slate-500">Humango_Audit_{selectedTask?.url?.replace(/^https?:\/\//, '')}.pdf</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <Button variant="ghost" onClick={() => setIsEmailModalOpen(false)}>Отмена</Button>
+            <Button 
+              disabled={isSendingEmail || !selectedTask?.user_email}
+              onClick={handleSendEmail}
+              className="bg-primary hover:bg-primary/90 px-8 font-bold"
+            >
+              {isSendingEmail ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Отправка...</> : "Отправить письмо"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

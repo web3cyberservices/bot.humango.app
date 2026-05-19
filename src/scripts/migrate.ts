@@ -51,6 +51,8 @@ async function migrate() {
         crm_status varchar(20) DEFAULT 'free',
         violations_count int DEFAULT 0,
         contacts jsonb DEFAULT '{"emails": [], "phones": [], "other": []}',
+        audit_findings jsonb DEFAULT '[]'::jsonb,
+        pdf_report_path varchar(500),
         auto_message_sent boolean DEFAULT false,
         auto_message_sent_at timestamp
       );
@@ -75,6 +77,23 @@ async function migrate() {
         created_at timestamp DEFAULT NOW()
       );
     `);
+
+    // Ensure all columns exist
+    const scanQueueColumns = [
+      { name: 'audit_findings', type: 'jsonb DEFAULT \'[]\'::jsonb' },
+      { name: 'pdf_report_path', type: 'varchar(500)' }
+    ];
+
+    for (const col of scanQueueColumns) {
+      await client.query(`
+        DO $$ 
+        BEGIN 
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scan_queue' AND column_name='${col.name}') THEN
+            ALTER TABLE public.scan_queue ADD COLUMN ${col.name} ${col.type};
+          END IF;
+        END $$;
+      `);
+    }
 
     const violationsColumns = [
       { name: 'potential_fine', type: 'text' },
