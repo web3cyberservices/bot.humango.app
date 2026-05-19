@@ -26,6 +26,7 @@ export interface Violation {
   report_type: ReportType;
   affected_urls?: string[];
   verification_method?: VerificationMethod;
+  country?: string; // NEW: EU Country Code
 }
 
 export interface ComplianceReport {

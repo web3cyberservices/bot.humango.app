@@ -4,8 +4,7 @@ import fs from 'fs';
 import path from 'path';
 
 /**
- * Professional PDF Report Generator - Unified Design
- * Pan-European Compliance Standard v2026
+ * Professional PDF Report Generator - Pan-European Standard v2026
  */
 
 const CHROME_PATHS = [
@@ -34,6 +33,7 @@ interface Finding {
   recommendation?: string;
   business_impact?: string;
   potential_fine?: string;
+  country?: string;
 }
 
 export async function generatePdfReport(domain: string, findings: Finding[] = []): Promise<Buffer | null> {
@@ -41,7 +41,7 @@ export async function generatePdfReport(domain: string, findings: Finding[] = []
   try {
     const safeDomain = domain.toLowerCase().replace(/^https?:\/\//, '').split('/')[0];
     
-    // Filter duplicates
+    // Filter duplicates by issue_type
     const uniqueMap = new Map();
     findings.forEach(f => {
       const key = f.issue_type || 'GENERAL_ISSUE';
@@ -49,13 +49,6 @@ export async function generatePdfReport(domain: string, findings: Finding[] = []
     });
     const cleanFindings = Array.from(uniqueMap.values());
     const isCompliant = cleanFindings.length === 0;
-
-    // Path to the logo for absolute referencing
-    const logoPath = path.join(process.cwd(), 'public', 'logo.png');
-    let logoBase64 = '';
-    if (fs.existsSync(logoPath)) {
-      logoBase64 = fs.readFileSync(logoPath, { encoding: 'base64' });
-    }
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -66,18 +59,8 @@ export async function generatePdfReport(domain: string, findings: Finding[] = []
           @page { size: A4; margin: 0; }
           body { font-family: 'Inter', 'Helvetica', Arial, sans-serif; color: #1e293b; margin: 0; padding: 40px; background: #fff; line-height: 1.5; }
           .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #3b82f6; padding-bottom: 24px; margin-bottom: 40px; }
-          .logo-box { display: flex; align-items: center; gap: 10px; }
-          .logo-icon { 
-            width: 32px; 
-            height: 32px; 
-            background: #f8fafc; 
-            border: 1px solid #e2e8f0; 
-            border-radius: 8px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center;
-          }
-          .logo-icon img { width: 22px; height: 22px; object-fit: contain; }
+          .logo-box { display: flex; align-items: center; gap: 8px; }
+          .logo-circle { width: 32px; height: 32px; background: #3b82f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 900; font-size: 18px; }
           .logo-text { font-size: 24px; font-weight: 800; color: #0f172a; letter-spacing: -0.04em; }
           .logo-text span { color: #3b82f6; }
           
@@ -111,37 +94,35 @@ export async function generatePdfReport(domain: string, findings: Finding[] = []
       <body>
         <div class="header">
           <div class="logo-box">
-            <div class="logo-icon">
-              ${logoBase64 ? `<img src="data:image/png;base64,${logoBase64}" alt="Logo">` : '<div style="width:20px; height:20px; background:#3b82f6; border-radius:4px;"></div>'}
-            </div>
+            <div class="logo-circle">H</div>
             <div class="logo-text">Humango<span>Compliance</span></div>
           </div>
           <div class="company-details">
             <strong>Operator: Humango Limited</strong> | Co. No: 16750477<br>
             Address: 182-184 High Street North, London, E6 2JA<br>
-            Verification: abuse@humango.app | RFC 9309 Audit Node
+            Verification: abuse@humango.app | EU Statutory Audit Node
           </div>
         </div>
 
         <div class="report-meta">
-          <h1 class="report-title">Compliance Audit Report</h1>
+          <h1 class="report-title">Statutory Audit Report</h1>
           <div class="target-info">AUDIT TARGET: <strong>${safeDomain.toUpperCase()}</strong> | DATE: ${new Date().toLocaleDateString('en-GB')}</div>
         </div>
 
         ${isCompliant ? `
           <div class="compliant-hero">
             <div class="compliant-status">STATUTORY COMPLIANCE VERIFIED</div>
-            <p style="color:#065f46; margin-top:20px; font-size: 16px; font-weight: 500;">No high-priority statutory violations or unauthorized data transfers were identified during the automated audit of the infrastructure.</p>
+            <p style="color:#065f46; margin-top:20px; font-size: 16px; font-weight: 500;">Infrastructure audit complete. No critical statutory violations or unauthorized data transfers were identified.</p>
           </div>
         ` : cleanFindings.map(v => `
           <div class="finding-card">
             <div class="card-head">
               <span class="type-label">${(v.issue_type || 'Compliance Violation').replace(/_/g, ' ')}</span>
-              <span class="severity-badge sev-${(v.severity || 'high').toLowerCase()}">High Risk</span>
+              <span class="severity-badge sev-${(v.severity || 'high').toLowerCase()}">${v.severity || 'High Risk'}</span>
             </div>
             
             <div class="content-block">
-              <div class="section-title">Detection Summary</div>
+              <div class="section-title">Detection Summary [${v.country || 'EU'}]</div>
               <div class="desc-text">${v.description}</div>
             </div>
 
@@ -150,14 +131,9 @@ export async function generatePdfReport(domain: string, findings: Finding[] = []
               <div class="desc-text" style="font-weight: 800; color: #0f172a;">${v.law_name || 'EU GDPR Framework'}</div>
             </div>
 
-            <div class="content-block">
-              <div class="section-title">Risk Analysis</div>
-              <div class="desc-text">${v.business_impact || 'Regulatory investigation risk and potential loss of platform trust.'}</div>
-            </div>
-
             ${v.potential_fine ? `
             <div class="liability-box">
-              <div class="section-title" style="color: #be123c;">Statutory Liability</div>
+              <div class="section-title" style="color: #be123c;">Potential Statutory Liability</div>
               <div class="liability-text">${v.potential_fine}</div>
             </div>
             ` : ''}
