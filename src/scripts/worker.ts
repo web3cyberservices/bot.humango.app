@@ -1,3 +1,4 @@
+
 import { Pool } from 'pg';
 import * as nodemailer from 'nodemailer';
 import puppeteer from 'puppeteer';
@@ -155,7 +156,7 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
         recommendation: 'ACTION: Create a dedicated /privacy page and link it in the footer.'
       });
     } else {
-      // 1. MISSING LEGAL BASES
+      // Logic for Legal Bases, IP data misclassification, Vague Retention, DPO, US Transfers
       const basisKeywords = ['legal basis', 'article 6', 'legitimate interest', 'performance of a contract', 'consent', 'rechtsgrundlage', 'berechtigtes interesse', 'vertragserfüllung'];
       if (!basisKeywords.some(kw => legalText.includes(kw))) {
         leadScore += 25;
@@ -169,7 +170,6 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
         });
       }
 
-      // 2. MISCLASSIFIED PERSONAL DATA
       const ipRegex = /ip address(es)? (are|is) not personal/i;
       if (ipRegex.test(legalText)) {
         leadScore += 40;
@@ -183,7 +183,6 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
         });
       }
 
-      // 3. VAGUE RETENTION
       const vaguePhrases = ['as long as', 'indefinitely', 'until you request', 'solange sie', 'unbestimmte zeit'];
       if (vaguePhrases.some(v => legalText.includes(v))) {
         leadScore += 15;
@@ -197,7 +196,6 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
         });
       }
 
-      // 4. MISSING DPO
       const dpoKeywords = ['dpo', 'data protection officer', 'datenschutzbeauftragter'];
       if (!dpoKeywords.some(kw => legalText.includes(kw))) {
         leadScore += 10;
@@ -211,7 +209,6 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
         });
       }
 
-      // 5. MISSING INTERNATIONAL TRANSFERS
       const usTrackers = networkUrls.some(u => u.includes('google') || u.includes('facebook') || u.includes('meta'));
       const transferMechanisms = ['standard contractual clauses', 'scc', 'adequacy decision', 'chapter v', 'standardvertragsklauseln', 'us data privacy framework'];
       if (usTrackers && !transferMechanisms.some(kw => legalText.includes(kw))) {
@@ -230,6 +227,14 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
     const emailsJson = Array.from(allExtractedEmails.entries()).map(([v, c]) => ({ value: v, context: c }));
     const phonesJson = Array.from(allExtractedPhones.entries()).map(([v, c]) => ({ value: v, context: c }));
 
+    // NEW CRM FLOW: If no emails found but violations exist, send to ANALYTICS
+    let targetCrmStatus = 'free';
+    if (finalFindings.length > 0 && emailsJson.length === 0) {
+      targetCrmStatus = 'need_review';
+    } else if (finalFindings.length === 0) {
+      targetCrmStatus = 'completed';
+    }
+
     await pool.query(
       `UPDATE public.scan_queue 
        SET status = 'completed', 
@@ -238,12 +243,12 @@ async function executeDeterministicAudit(taskId: number, domainUrl: string, user
            extracted_emails = $3,
            extracted_phones = $4,
            priority = $5,
-           crm_status = CASE WHEN $1 > 0 THEN 'free' ELSE 'completed' END
-       WHERE id = $6`,
-      [finalFindings.length, JSON.stringify(finalFindings), JSON.stringify(emailsJson), JSON.stringify(phonesJson), Math.max(1, leadScore), taskId]
+           crm_status = $6
+       WHERE id = $7`,
+      [finalFindings.length, JSON.stringify(finalFindings), JSON.stringify(emailsJson), JSON.stringify(phonesJson), Math.max(1, leadScore), targetCrmStatus, taskId]
     );
 
-    console.log(`[Worker] Audit finished for ${domainName}. Score: ${leadScore}`);
+    console.log(`[Worker] Audit finished for ${domainName}. Status: ${targetCrmStatus}, Score: ${leadScore}`);
 
   } catch (err: any) {
     console.error(`[Worker Error] Task ${taskId} failed:`, err.message);

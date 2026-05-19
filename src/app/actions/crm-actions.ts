@@ -62,7 +62,6 @@ export async function updateTaskStatusAction(taskId: number, status: string, clo
   if (!session) throw new Error("Unauthorized");
 
   try {
-    // Verify ownership before updating
     const check = await pool.query(
       'SELECT assigned_to FROM public.scan_queue WHERE id = $1',
       [taskId]
@@ -77,7 +76,7 @@ export async function updateTaskStatusAction(taskId: number, status: string, clo
             return { success: false, error: "Для завершения заказа необходимо указать сумму сделки." };
         }
         await pool.query(
-            'UPDATE public.scan_queue SET status = $1, closing_price = $2 WHERE id = $3',
+            'UPDATE public.scan_queue SET status = $1, crm_status = \'completed\', closing_price = $2 WHERE id = $3',
             [status, closingPrice, taskId]
         );
     } else {
@@ -105,6 +104,7 @@ export async function getAvailableTasks() {
   const session = await getSession();
   if (!session) return [];
 
+  // Managers ONLY see 'free' tasks. 'need_review' tasks stay in Analytics.
   const res = await pool.query(`
     SELECT * FROM public.scan_queue 
     WHERE crm_status = 'free' 

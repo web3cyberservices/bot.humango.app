@@ -25,12 +25,16 @@ export function middleware(request: NextRequest) {
 
   const isReportPdf = url.pathname.startsWith('/api/admin/report-pdf');
   const isAdminPath = url.pathname.startsWith('/api/admin');
+  const isAnalyticsPath = url.pathname.startsWith('/analytics');
   
-  // Проверка авторизации для админ-панели
-  if (isAdminPath && !isReportPdf) {
+  // Проверка авторизации для админ-панели и аналитики
+  if ((isAdminPath && !isReportPdf) || isAnalyticsPath) {
     const isAdmin = request.cookies.get('admin_authenticated')?.value === 'true';
     
     if (!isAdmin) {
+      if (isAnalyticsPath) {
+        return NextResponse.redirect(new URL('/login', request.url));
+      }
       return NextResponse.json(
         { success: false, message: 'Unauthorized terminal access' },
         { status: 401 }
