@@ -35,6 +35,7 @@ export async function generatePdfReport(domain: string, findings: Finding[] = []
     const safeDomain = domain.toLowerCase().replace(/^https?:\/\//, '').split('/')[0];
     const logoPath = path.join(process.cwd(), 'public', 'logo.png');
     let logoBase64 = '';
+    
     if (fs.existsSync(logoPath)) {
       const logoBuffer = fs.readFileSync(logoPath);
       logoBase64 = `data:image/png;base64,${logoBuffer.toString('base64')}`;
@@ -91,7 +92,7 @@ export async function generatePdfReport(domain: string, findings: Finding[] = []
         ` : findings.map(f => `
           <div class="finding-card">
             <span class="severity-badge">CRITICAL RISK</span>
-            <span class="type-label">${f.type?.replace(/_/g, ' ') || 'Statutory Violation'}</span>
+            <span class="type-label">${(f.type || 'Violation').replace(/_/g, ' ')}</span>
             <div class="desc-text">${f.description || f.summary}</div>
             <div class="liability-box">
               <div style="font-size:10px; text-transform:uppercase; color:#be123c; font-weight:800;">Statutory Liability</div>
@@ -108,10 +109,20 @@ export async function generatePdfReport(domain: string, findings: Finding[] = []
     `;
 
     const executablePath = await getExecutablePath();
-    browser = await puppeteer.launch({ executablePath, headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] });
+    browser = await puppeteer.launch({ 
+      executablePath, 
+      headless: true, 
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] 
+    });
+    
     const page = await browser.newPage();
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-    return await page.pdf({ format: 'A4', printBackground: true });
-  } catch (error) { console.error('[PDF Error]', error); return null; }
-  finally { if (browser) await browser.close(); }
+    const pdf = await page.pdf({ format: 'A4', printBackground: true });
+    return Buffer.from(pdf);
+  } catch (error) { 
+    console.error('[PDF Error]', error); 
+    return null; 
+  } finally { 
+    if (browser) await browser.close(); 
+  }
 }

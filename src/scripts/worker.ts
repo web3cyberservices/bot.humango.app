@@ -64,6 +64,7 @@ async function scrapeContactsFromPage(page: puppeteer.Page) {
     const getContext = (match: string, fullText: string) => {
       const idx = fullText.indexOf(match);
       if (idx === -1) return '';
+      // Get approx 2 sentences around (approx 150 chars)
       const start = Math.max(0, idx - 150);
       const end = Math.min(fullText.length, idx + match.length + 150);
       return fullText.substring(start, end).replace(/\s+/g, ' ').trim();
