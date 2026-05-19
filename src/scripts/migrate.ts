@@ -51,10 +51,13 @@ async function migrate() {
         crm_status varchar(20) DEFAULT 'free',
         violations_count int DEFAULT 0,
         contacts jsonb DEFAULT '{"emails": [], "phones": [], "other": []}',
+        extracted_emails jsonb DEFAULT '[]'::jsonb,
+        extracted_phones jsonb DEFAULT '[]'::jsonb,
         audit_findings jsonb DEFAULT '[]'::jsonb,
         pdf_report_path varchar(500),
         auto_message_sent boolean DEFAULT false,
-        auto_message_sent_at timestamp
+        auto_message_sent_at timestamp,
+        job_type varchar(50) DEFAULT 'audit'
       );
     `);
 
@@ -82,7 +85,10 @@ async function migrate() {
     const scanQueueColumns = [
       { name: 'audit_findings', type: 'jsonb DEFAULT \'[]\'::jsonb' },
       { name: 'pdf_report_path', type: 'varchar(500)' },
-      { name: 'violations_count', type: 'int DEFAULT 0' }
+      { name: 'violations_count', type: 'int DEFAULT 0' },
+      { name: 'job_type', type: 'varchar(50) DEFAULT \'audit\'' },
+      { name: 'extracted_emails', type: 'jsonb DEFAULT \'[]\'::jsonb' },
+      { name: 'extracted_phones', type: 'jsonb DEFAULT \'[]\'::jsonb' }
     ];
 
     for (const col of scanQueueColumns) {
@@ -91,26 +97,6 @@ async function migrate() {
         BEGIN 
           IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scan_queue' AND column_name='${col.name}') THEN
             ALTER TABLE public.scan_queue ADD COLUMN ${col.name} ${col.type};
-          END IF;
-        END $$;
-      `);
-    }
-
-    // Ensure all columns exist in site_violations
-    const violationsColumns = [
-      { name: 'potential_fine', type: 'text' },
-      { name: 'law_name', type: 'text' },
-      { name: 'recommendation', type: 'text' },
-      { name: 'business_impact', type: 'text' },
-      { name: 'country', type: 'varchar(10)' }
-    ];
-
-    for (const col of violationsColumns) {
-      await client.query(`
-        DO $$ 
-        BEGIN 
-          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='site_violations' AND column_name='${col.name}') THEN
-            ALTER TABLE public.site_violations ADD COLUMN ${col.name} ${col.type};
           END IF;
         END $$;
       `);

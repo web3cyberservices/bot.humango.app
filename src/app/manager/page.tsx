@@ -114,8 +114,11 @@ export default function ManagerDashboard() {
   };
 
   const handleSendEmail = async () => {
-    const targetEmail = selectedTask?.user_email || (selectedTask?.contacts?.emails && selectedTask.contacts.emails[0]);
-    if (!selectedTask || !targetEmail) return;
+    const targetEmail = selectedTask?.extracted_emails?.[0] || selectedTask?.user_email;
+    if (!selectedTask || !targetEmail) {
+      toast({ variant: "destructive", title: "Email not found" });
+      return;
+    }
     setIsSendingEmail(true);
     try {
       const res = await sendAuditEmailAction(selectedTask.id, session.email, targetEmail, emailBody);
@@ -153,14 +156,10 @@ export default function ManagerDashboard() {
     if (!selectedTask?.audit_findings) return [];
     if (Array.isArray(selectedTask.audit_findings)) return selectedTask.audit_findings;
     try {
-      const parsed = typeof selectedTask.audit_findings === 'string' 
+      return typeof selectedTask.audit_findings === 'string' 
         ? JSON.parse(selectedTask.audit_findings) 
         : selectedTask.audit_findings;
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      console.error("Error parsing audit_findings:", e);
-      return [];
-    }
+    } catch (e) { return []; }
   }, [selectedTask]);
 
   if (loading) {
@@ -444,8 +443,18 @@ export default function ManagerDashboard() {
                     </div>
 
                     {/* Extracted Emails */}
-                    {selectedTask?.contacts?.emails && selectedTask.contacts.emails.length > 0 && selectedTask.contacts.emails.map((email: string, i: number) => (
+                    {selectedTask?.extracted_emails && selectedTask.extracted_emails.length > 0 ? selectedTask.extracted_emails.map((email: string, i: number) => (
                       <div key={i} className="bg-white/5 p-4 rounded-xl border border-white/5 flex items-center justify-between group hover:border-emerald-500/30 transition-all">
+                        <div className="flex flex-col">
+                          <span className="text-[9px] text-emerald-500 uppercase font-bold mb-1">Found on site</span>
+                          <span className="text-sm font-mono text-white">{email}</span>
+                        </div>
+                        <Button variant="ghost" size="sm" className="h-7 text-[10px] uppercase font-bold text-slate-500 hover:text-primary" onClick={() => { navigator.clipboard.writeText(email); toast({ title: "Скопировано" }); }}>
+                          <Copy className="w-3 h-3 mr-1" /> Copy
+                        </Button>
+                      </div>
+                    )) : selectedTask?.contacts?.emails?.map((email: string, i: number) => (
+                       <div key={i} className="bg-white/5 p-4 rounded-xl border border-white/5 flex items-center justify-between group hover:border-emerald-500/30 transition-all">
                         <div className="flex flex-col">
                           <span className="text-[9px] text-emerald-500 uppercase font-bold mb-1">Found on site</span>
                           <span className="text-sm font-mono text-white">{email}</span>
@@ -461,19 +470,25 @@ export default function ManagerDashboard() {
                 <div>
                   <h3 className="text-sm font-bold flex items-center gap-2 mb-4 text-slate-400"><Phone className="w-4 h-4" /> Телефоны (Found on site)</h3>
                   <div className="space-y-3">
-                    {selectedTask?.contacts?.phones && selectedTask.contacts.phones.length > 0 ? selectedTask.contacts.phones.map((phone: string, i: number) => (
+                    {selectedTask?.extracted_phones && selectedTask.extracted_phones.length > 0 ? selectedTask.extracted_phones.map((phone: string, i: number) => (
                       <div key={i} className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5 group hover:border-primary/30 transition-all">
                         <span className="text-sm text-white font-mono">{phone}</span>
                         <div className="flex gap-2">
                           <Button variant="ghost" size="sm" className="h-7 text-[10px] hover:text-primary" onClick={() => { navigator.clipboard.writeText(phone); toast({ title: "Скопировано" }); }}>
                              <Copy className="w-3 h-3 mr-1" /> Copy
                           </Button>
-                          <Button variant="ghost" size="sm" className="h-7 text-[10px] hover:text-emerald-500 uppercase font-bold">Call</Button>
                         </div>
                       </div>
-                    )) : (
-                      <p className="text-xs text-slate-500 italic px-2">Номера не обнаружены</p>
-                    )}
+                    )) : selectedTask?.contacts?.phones?.map((phone: string, i: number) => (
+                      <div key={i} className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5 group hover:border-primary/30 transition-all">
+                        <span className="text-sm text-white font-mono">{phone}</span>
+                        <div className="flex gap-2">
+                          <Button variant="ghost" size="sm" className="h-7 text-[10px] hover:text-primary" onClick={() => { navigator.clipboard.writeText(phone); toast({ title: "Скопировано" }); }}>
+                             <Copy className="w-3 h-3 mr-1" /> Copy
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -496,7 +511,7 @@ export default function ManagerDashboard() {
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Получатель:</label>
                 <div className="p-3 bg-white/5 rounded-lg border border-white/10 text-sm text-slate-300 font-mono">
-                  {selectedTask?.user_email || (selectedTask?.contacts?.emails && selectedTask.contacts.emails[0]) || 'Email не найден'}
+                  {selectedTask?.extracted_emails?.[0] || selectedTask?.user_email || 'Email не найден'}
                 </div>
               </div>
 
@@ -523,7 +538,7 @@ export default function ManagerDashboard() {
             <div className="flex justify-end gap-3 pt-4 sticky bottom-0 bg-[#0b1120] pb-2">
               <Button variant="ghost" onClick={() => setIsEmailModalOpen(false)}>Отмена</Button>
               <Button 
-                disabled={isSendingEmail || (!selectedTask?.user_email && (!selectedTask?.contacts?.emails || selectedTask.contacts.emails.length === 0))}
+                disabled={isSendingEmail || (!selectedTask?.user_email && (!selectedTask?.extracted_emails || selectedTask.extracted_emails.length === 0))}
                 onClick={handleSendEmail}
                 className="bg-primary hover:bg-primary/90 px-8 font-bold"
               >
