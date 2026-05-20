@@ -12,7 +12,7 @@ const pool = new Pool({
 async function migrate() {
   const client = await pool.connect();
   try {
-    console.log('[Migration] Updating lead triage columns...');
+    console.log('[Migration] Updating database schema to v6.0 (Localized Audit & Triage)...');
     
     await client.query(`
       CREATE TABLE IF NOT EXISTS public.scan_queue (
@@ -36,14 +36,14 @@ async function migrate() {
       );
     `);
 
-    // Ensure status columns exist for older installations
+    // Ensure all critical columns exist
     const columns = [
       { name: 'crm_status', type: 'varchar(50) DEFAULT \'pending\'' },
       { name: 'analyst_notes', type: 'text' },
-      { name: 'updated_at', type: 'timestamp DEFAULT NOW()' },
       { name: 'extracted_emails', type: 'jsonb DEFAULT \'[]\'::jsonb' },
       { name: 'extracted_phones', type: 'jsonb DEFAULT \'[]\'::jsonb' },
-      { name: 'audit_findings', type: 'jsonb DEFAULT \'[]\'::jsonb' }
+      { name: 'audit_findings', type: 'jsonb DEFAULT \'[]\'::jsonb' },
+      { name: 'priority', type: 'int DEFAULT 0' }
     ];
 
     for (const col of columns) {

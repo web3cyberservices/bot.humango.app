@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -13,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { 
-  Loader2, Globe, CheckCircle2, LogOut, ChevronRight, UserCheck, ShieldAlert, User, TrendingUp, Copy, Eye, Download, DollarSign, Mail, StickyNote 
+  Loader2, Globe, CheckCircle2, LogOut, ChevronRight, UserCheck, ShieldAlert, User, TrendingUp, Copy, Eye, Download, DollarSign, Mail, StickyNote, BarChart3 
 } from "lucide-react";
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -36,18 +37,28 @@ export default function ManagerDashboard() {
       const s = await getSession();
       if (!s) { router.push('/login'); return; }
       setSession(s);
+      
       const [available, mine] = await Promise.all([getAvailableTasks(), getMyTasks()]);
-      setAvailableTasks(available);
+      // Manager only sees 'ready_for_sales'
+      setAvailableTasks(available.filter(t => t.crm_status === 'ready_for_sales'));
       setMyTasks(mine);
     } catch (e) { console.error(e); } finally { setLoading(false); }
   }, [router]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const stats = useMemo(() => {
+    return {
+      total: myTasks.length,
+      won: myTasks.filter(t => t.crm_status === 'won').length,
+      lost: myTasks.filter(t => t.crm_status === 'lost').length,
+      revenue: myTasks.reduce((acc, t) => acc + (parseFloat(t.closing_price) || 0), 0)
+    };
+  }, [myTasks]);
+
   const handleTakeTask = async (taskId: number) => {
     const res = await takeTaskInWork(taskId);
-    if (res.success) { toast({ title: "Task Assigned" }); fetchData(); } 
-    else { toast({ variant: "destructive", title: "Error", description: res.error }); }
+    if (res.success) { toast({ title: "Lead Assigned" }); fetchData(); } 
   };
 
   const handleStatusChange = async (taskId: number, newStatus: string) => {
@@ -61,9 +72,7 @@ export default function ManagerDashboard() {
   };
 
   const confirmDeal = async () => {
-    const price = parseFloat(closingPrice);
-    if (!price || price <= 0) return toast({ variant: "destructive", title: "Enter valid price" });
-    const res = await updateTaskStatusAction(pendingStatus.id, pendingStatus.status, price);
+    const res = await updateTaskStatusAction(pendingStatus.id, pendingStatus.status, parseFloat(closingPrice));
     if (res.success) {
         toast({ title: "Deal Closed!" });
         setShowPriceDialog(false);
@@ -73,60 +82,75 @@ export default function ManagerDashboard() {
     }
   };
 
-  const findings = useMemo(() => {
-    const raw = selectedTask?.audit_findings;
-    if (!raw) return [];
-    return typeof raw === 'string' ? JSON.parse(raw) : raw;
-  }, [selectedTask]);
-
   if (loading) return <div className="min-h-screen bg-[#020617] flex items-center justify-center"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div>;
 
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-50 flex flex-col font-body">
+    <div className="min-h-screen bg-[#020617] text-slate-50 flex flex-col">
       <header className="h-16 border-b border-white/5 bg-[#0b1120]/50 backdrop-blur-xl sticky top-0 z-50 px-8 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Image src="/logo.png" alt="Logo" width={24} height={24} />
-          <span className="font-bold text-lg text-white">Sales CRM</span>
+          <span className="font-bold text-lg">Sales CRM</span>
         </div>
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full border border-white/10">
+          <Link href="/analyst" className="text-xs font-bold text-amber-500 hover:underline">Analyst Hub</Link>
+          <div className="bg-white/5 px-3 py-1 rounded-full border border-white/10 flex items-center gap-2">
             <User className="w-3 h-3 text-primary" />
             <span className="text-[10px] font-bold text-slate-300 uppercase">{session?.email}</span>
           </div>
-          <Button variant="ghost" size="sm" onClick={async () => { await logoutAction(); router.push('/login'); }} className="text-rose-400 hover:text-rose-300"><LogOut className="w-4 h-4 mr-2" /> Logout</Button>
+          <Button variant="ghost" size="sm" onClick={async () => { await logoutAction(); router.push('/login'); }} className="text-rose-400"><LogOut className="w-4 h-4 mr-2" /> Logout</Button>
         </div>
       </header>
 
-      <main className="flex-1 p-8 space-y-12 max-w-7xl mx-auto w-full">
+      <main className="flex-1 p-8 space-y-8 max-w-7xl mx-auto w-full">
+        {/* Statistics Bar */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
            <Card className="bg-white/[0.03] border-white/10">
              <CardContent className="pt-6 flex items-center gap-4">
-               <div className="bg-primary/20 p-2 rounded-lg"><TrendingUp className="w-5 h-5 text-primary" /></div>
-               <div><p className="text-[10px] uppercase font-bold text-slate-500">Pipeline</p><p className="text-2xl font-bold">{myTasks.length}</p></div>
+               <div className="bg-primary/20 p-2 rounded-lg"><BarChart3 className="w-5 h-5 text-primary" /></div>
+               <div><p className="text-[10px] uppercase font-bold text-slate-500">Pipeline</p><p className="text-2xl font-bold">{stats.total}</p></div>
              </CardContent>
            </Card>
            <Card className="bg-white/[0.03] border-white/10">
              <CardContent className="pt-6 flex items-center gap-4">
                <div className="bg-emerald-500/20 p-2 rounded-lg"><CheckCircle2 className="w-5 h-5 text-emerald-500" /></div>
-               <div><p className="text-[10px] uppercase font-bold text-slate-500">Won Deals</p><p className="text-2xl font-bold text-emerald-500">{myTasks.filter(t => t.crm_status === 'won').length}</p></div>
+               <div><p className="text-[10px] uppercase font-bold text-slate-500">Won</p><p className="text-2xl font-bold text-emerald-500">{stats.won}</p></div>
+             </CardContent>
+           </Card>
+           <Card className="bg-white/[0.03] border-white/10">
+             <CardContent className="pt-6 flex items-center gap-4">
+               <div className="bg-rose-500/20 p-2 rounded-lg"><ShieldAlert className="w-5 h-5 text-rose-500" /></div>
+               <div><p className="text-[10px] uppercase font-bold text-slate-500">Lost</p><p className="text-2xl font-bold text-rose-500">{stats.lost}</p></div>
+             </CardContent>
+           </Card>
+           <Card className="bg-white/[0.03] border-white/10">
+             <CardContent className="pt-6 flex items-center gap-4">
+               <div className="bg-amber-500/20 p-2 rounded-lg"><DollarSign className="w-5 h-5 text-amber-500" /></div>
+               <div><p className="text-[10px] uppercase font-bold text-slate-500">Revenue</p><p className="text-2xl font-bold text-amber-500">€{stats.revenue.toLocaleString()}</p></div>
              </CardContent>
            </Card>
         </div>
 
         <Tabs defaultValue="qualified" className="w-full space-y-6">
           <TabsList className="bg-white/5 border border-white/10 p-1 rounded-xl">
-            <TabsTrigger value="qualified" className="text-xs font-bold gap-2">Ready to Claim</TabsTrigger>
-            <TabsTrigger value="active" className="text-xs font-bold gap-2">My Active Pipeline</TabsTrigger>
+            <TabsTrigger value="qualified" className="text-xs font-bold gap-2">Ready to Claim ({availableTasks.length})</TabsTrigger>
+            <TabsTrigger value="active" className="text-xs font-bold gap-2">My Active Pipeline ({myTasks.length})</TabsTrigger>
           </TabsList>
 
           <TabsContent value="qualified">
-            <Card className="bg-white/[0.03] border-white/10 overflow-hidden shadow-2xl">
+            <Card className="bg-white/[0.03] border-white/10 overflow-hidden">
               <Table>
-                <TableHeader className="bg-white/[0.02]"><TableRow className="border-white/5"><TableHead className="text-[10px] uppercase font-bold">Domain</TableHead><TableHead className="text-[10px] uppercase font-bold text-center">Score</TableHead><TableHead className="text-[10px] uppercase font-bold text-center">Issues</TableHead><TableHead className="text-right text-[10px] uppercase font-bold">Action</TableHead></TableRow></TableHeader>
+                <TableHeader className="bg-white/[0.02]">
+                  <TableRow className="border-white/5">
+                    <TableHead className="text-[10px] uppercase font-bold">Domain</TableHead>
+                    <TableHead className="text-[10px] uppercase font-bold text-center">Score</TableHead>
+                    <TableHead className="text-[10px] uppercase font-bold text-center">Issues</TableHead>
+                    <TableHead className="text-right text-[10px] uppercase font-bold">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
                   {availableTasks.map((task) => (
                     <TableRow key={task.id} className="border-white/5 hover:bg-white/[0.01]">
-                      <TableCell className="text-xs font-medium">{task.url?.replace(/^https?:\/\//, '')}{task.priority >= 100 && <Badge className="ml-2 bg-rose-500/20 text-rose-500 border-rose-500/20 animate-pulse">HOT</Badge>}</TableCell>
+                      <TableCell className="text-xs font-medium">{task.url?.replace(/^https?:\/\//, '')}</TableCell>
                       <TableCell className="text-center font-bold text-amber-500">{task.priority}</TableCell>
                       <TableCell className="text-center"><Badge variant="outline" className="text-rose-500 border-rose-500/20">{task.violations_count}</Badge></TableCell>
                       <TableCell className="text-right flex items-center justify-end gap-2">
@@ -141,15 +165,28 @@ export default function ManagerDashboard() {
           </TabsContent>
 
           <TabsContent value="active">
-            <Card className="bg-white/[0.03] border-white/10 overflow-hidden shadow-2xl">
+            <Card className="bg-white/[0.03] border-white/10 overflow-hidden">
               <Table>
-                <TableHeader className="bg-white/[0.02]"><TableRow className="border-white/5"><TableHead className="text-[10px] uppercase font-bold">Site</TableHead><TableHead className="text-[10px] uppercase font-bold text-center">Status</TableHead><TableHead className="text-[10px] uppercase font-bold text-center">Deal Size</TableHead><TableHead className="text-right text-[10px] uppercase font-bold">Action</TableHead></TableRow></TableHeader>
+                <TableHeader className="bg-white/[0.02]">
+                  <TableRow className="border-white/5">
+                    <TableHead className="text-[10px] uppercase font-bold">Site</TableHead>
+                    <TableHead className="text-[10px] uppercase font-bold text-center">Status</TableHead>
+                    <TableHead className="text-[10px] uppercase font-bold text-center">Deal Size</TableHead>
+                    <TableHead className="text-right text-[10px] uppercase font-bold">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
                   {myTasks.map((task) => (
                     <TableRow key={task.id} className="border-white/5 cursor-pointer hover:bg-white/[0.01]" onClick={() => setSelectedTask(task)}>
                       <TableCell className="text-xs">{task.url?.replace(/^https?:\/\//, '')}</TableCell>
-                      <TableCell className="text-center"><Badge className={`text-[9px] uppercase ${task.crm_status === 'won' ? 'bg-emerald-500' : 'bg-primary'}`}>{task.crm_status}</Badge></TableCell>
-                      <TableCell className="text-center text-[10px] font-bold text-emerald-500">{task.closing_price ? `${task.closing_price} €` : '-'}</TableCell>
+                      <TableCell className="text-center">
+                        <Badge className={`text-[9px] uppercase ${task.crm_status === 'won' ? 'bg-emerald-500' : 'bg-primary'}`}>
+                          {task.crm_status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center text-[10px] font-bold text-emerald-500">
+                        {task.closing_price ? `${task.closing_price} €` : '-'}
+                      </TableCell>
                       <TableCell className="text-right"><ChevronRight className="w-4 h-4 ml-auto" /></TableCell>
                     </TableRow>
                   ))}
@@ -193,11 +230,10 @@ export default function ManagerDashboard() {
               <div className="space-y-4">
                 <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-white/5 pb-2">Violations Found</h3>
                 <div className="space-y-3">
-                  {findings.map((f: any, i: number) => (
+                  {(selectedTask?.audit_findings || []).map((f: any, i: number) => (
                     <div key={i} className="p-4 bg-white/5 rounded-xl border border-white/5 space-y-2">
-                      <div className="flex items-center gap-2"><ShieldAlert className="w-3 h-3 text-rose-500" /><span className="text-[10px] font-bold text-rose-400 uppercase">{f.type}</span></div>
+                      <div className="flex items-center gap-2"><ShieldAlert className="w-3 h-3 text-rose-500" /><span className="text-[10px] font-bold text-rose-400 uppercase">{f.type || 'Violation'}</span></div>
                       <p className="text-[11px] text-slate-300">{f.summary}</p>
-                      <p className="text-[9px] text-rose-400 font-bold">Liability: {f.liability}</p>
                     </div>
                   ))}
                 </div>
@@ -206,8 +242,14 @@ export default function ManagerDashboard() {
 
             <div className="flex-1 p-8 space-y-8 bg-[#020617] overflow-y-auto">
               <div className="grid grid-cols-2 gap-4">
-                <Button variant="outline" className="h-20 flex-col gap-2 border-white/10" asChild><a href={`/api/admin/report-pdf?domain=${selectedTask?.url}`} target="_blank"><Download className="w-6 h-6 text-emerald-500" /><span className="text-[10px] font-bold uppercase">View PDF Report</span></a></Button>
-                <Button className="h-20 flex-col gap-2 bg-primary" disabled={selectedTask?.assigned_to !== parseInt(session?.id)}><Mail className="w-6 h-6 text-white" /><span className="text-[10px] font-bold uppercase">Send to Client</span></Button>
+                <Button variant="outline" className="h-20 flex-col gap-2 border-white/10" asChild>
+                  <a href={`/api/admin/report-pdf?domain=${selectedTask?.url}`} target="_blank">
+                    <Download className="w-6 h-6 text-emerald-500" /><span className="text-[10px] font-bold uppercase">View PDF Report</span>
+                  </a>
+                </Button>
+                <Button className="h-20 flex-col gap-2 bg-primary" disabled={selectedTask?.assigned_to !== parseInt(session?.id)}>
+                  <Mail className="w-6 h-6 text-white" /><span className="text-[10px] font-bold uppercase">Send to Client</span>
+                </Button>
               </div>
 
               <div className="space-y-6">
@@ -226,11 +268,12 @@ export default function ManagerDashboard() {
         </DialogContent>
       </Dialog>
 
+      {/* Won Deal Price Dialog */}
       <Dialog open={showPriceDialog} onOpenChange={setShowPriceDialog}>
-        <DialogContent className="bg-[#0b1120] border-white/10 text-slate-50 max-w-md p-8">
+        <DialogContent className="bg-[#0b1120] border-white/10 text-white max-w-md p-8">
             <DialogHeader><DialogTitle className="flex items-center gap-2 text-emerald-500"><DollarSign className="w-5 h-5" /> Lock Won Deal</DialogTitle></DialogHeader>
             <div className="space-y-6 pt-4">
-                <p className="text-sm text-slate-400">Enter final contract value to close this lead.</p>
+                <p className="text-sm text-slate-400">Enter final contract value to close this lead and record your commission.</p>
                 <Input type="number" placeholder="500" value={closingPrice} onChange={(e) => setClosingPrice(e.target.value)} className="bg-white/5 border-white/10 h-12 text-lg font-bold" />
                 <Button className="w-full bg-emerald-600 hover:bg-emerald-500 font-bold h-12" onClick={confirmDeal}>Complete Sale</Button>
             </div>
