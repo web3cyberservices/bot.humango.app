@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { startCrawlAction, checkAuditStatus } from '@/app/actions/crawler-actions';
 import { 
-  Mail, Globe, Terminal, ShieldCheck, Zap, Loader2, CheckCircle2, Download, ArrowRight, ShieldAlert, Cpu, Activity, FileSearch, Code
+  Mail, Globe, Terminal, ShieldCheck, Zap, Loader2, CheckCircle2, Download, ArrowRight, ShieldAlert, Cpu, Activity, FileSearch, Code, Clock, Search
 } from "lucide-react";
 
 export default function Home() {
@@ -47,14 +47,19 @@ export default function Home() {
     if (isScanning && pollingUrl && ['queued', 'pending', 'processing'].includes(scanStatus)) {
       interval = setInterval(async () => {
         const res = await checkAuditStatus(pollingUrl);
-        if (res.success && res.status === 'completed') {
-          setScanStatus('completed');
-          setIsScanning(false);
-          clearInterval(interval);
-        } else if (res.success && res.status === 'failed') {
-          setScanStatus('failed');
-          setIsScanning(false);
-          clearInterval(interval);
+        if (res.success) {
+          const s = res.status as any;
+          if (s === 'completed') {
+            setScanStatus('completed');
+            setIsScanning(false);
+            clearInterval(interval);
+          } else if (s === 'failed') {
+            setScanStatus('failed');
+            setIsScanning(false);
+            clearInterval(interval);
+          } else if (s === 'processing' || s === 'pending') {
+            setScanStatus(s === 'pending' ? 'queued' : 'processing');
+          }
         }
       }, 3000);
     }
@@ -123,7 +128,7 @@ export default function Home() {
                 </div>
                 <Button type="submit" disabled={isScanning} className="bg-primary hover:bg-primary/90 text-white font-bold h-12 px-8 rounded-xl transition-all shadow-lg shadow-primary/20">
                   {isScanning ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5 mr-2" />}
-                  {isScanning ? 'Processing...' : 'Run Audit'}
+                  {isScanning ? (scanStatus === 'processing' ? 'Analyzing...' : 'Queued...') : 'Run Audit'}
                 </Button>
               </form>
               <div className="flex flex-col items-center gap-2 mt-4">
@@ -154,6 +159,24 @@ export default function Home() {
                     </a>
                   </Button>
                 </Card>
+              </div>
+            )}
+
+            {isScanning && (
+              <div className="mt-12 animate-in fade-in duration-700">
+                <div className="max-w-md mx-auto bg-white/5 border border-white/10 rounded-2xl p-6 flex items-center gap-4">
+                   <div className="bg-primary/20 p-3 rounded-xl animate-pulse">
+                     {scanStatus === 'processing' ? <Search className="w-6 h-6 text-primary" /> : <Clock className="w-6 h-6 text-primary" />}
+                   </div>
+                   <div className="text-left">
+                     <p className="font-bold text-sm text-white uppercase tracking-widest">
+                       {scanStatus === 'processing' ? 'Audit in Progress' : 'In Engine Queue'}
+                     </p>
+                     <p className="text-xs text-slate-500">
+                       {scanStatus === 'processing' ? 'Identifying legal gaps and trackers...' : 'Waiting for the next available worker node...'}
+                     </p>
+                   </div>
+                </div>
               </div>
             )}
           </div>

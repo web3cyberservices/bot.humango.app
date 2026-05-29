@@ -24,13 +24,20 @@ export async function GET(request: NextRequest) {
     .split('/')[0];
 
   try {
-    const violationsRes = await pool.query(
-      `SELECT issue_type, severity, description, law_name, recommendation, business_impact, potential_fine, country 
-       FROM public.site_violations WHERE domain = $1`,
-      [domain]
+    // We now fetch the audit findings directly from the scan_queue table
+    // as it's the primary source of truth for the latest scans.
+    const taskRes = await pool.query(
+      `SELECT audit_findings FROM public.scan_queue 
+       WHERE url LIKE $1 OR url LIKE $2
+       ORDER BY updated_at DESC LIMIT 1`,
+      [`%${domain}%`, `%${domain.replace('www.', '')}%`]
     );
 
-    const findings = violationsRes.rows;
+    let findings = [];
+    if (taskRes.rows.length > 0 && taskRes.rows[0].audit_findings) {
+      findings = taskRes.rows[0].audit_findings;
+    }
+
     const pdfBuffer = await generatePdfReport(domain, findings);
     
     if (!pdfBuffer) {
